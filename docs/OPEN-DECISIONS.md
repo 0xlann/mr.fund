@@ -1,0 +1,212 @@
+# Mr.Fund: open decisions and blockers
+
+## TL;DR
+
+- **Decided by the founder on 2026-11-04:** D1 to D15 and D17 (verbatim table below), plus D20 to D23: 0xlann submits and owns `github.com/0xlann/mr.fund`; project skills are committed; `main` plus a `dev` branch; `docs/DESIGN.md` waits for frontend work.
+- **Open, founder-owned, needed by the Phase 0 gate (2026-11-06):** D16 tech stack (lead recommends Option A), D18 Guardian custody model (lead recommends G1 Guardian-held loan), D19 demo network (founder leans testnet; lead recommends the testnet-first ladder).
+- **The finding that changed the plan:** Rhea lending has **no repay-on-behalf** in its published source, so a Guardian cannot automatically repay a loan that lives in the user's wallet (D18, B1). Rhea's testnet lending contract exists, but its stablecoin price feeds returned `null` (D19, B2).
+- **Work that can proceed before those decisions:** the deterministic finance engine and Rhea read adapter are TypeScript under every viable stack option (BUILD-PLAN P1.1 to P1.5), and Phase 0 probes are read-only or testnet-only.
+
+Founder-owned rows are never silently decided by agents. Lead-owned rows record reasoning so the founder can overrule. Status values: Decided, Lead proposal, Open, Blocked. Each row has its explanation below.
+
+## Decided (founder, 2026-11-04)
+
+Copied verbatim from the founder's decision table. "Decided" means the founder said it; "Lead proposal" means the orchestrator recommended it and the founder did not object, so the lead may refine it with a reason.
+
+| # | Topic | Decision | Status |
+| --- | --- | --- | --- |
+| D1 | Name | **Mr.Fund** (formerly DAYLIGHT). Name and domain availability unchecked [U] | Decided |
+| D2 | Product type | A **real DeFi app with a game-like character**, not a simulation game. Like Talking Tom, but a hedge-fund-manager character who manages your DeFi | Decided |
+| D3 | Character | Witty, frank, on the user's side. Not rude by default. Never jokes in a way that hides risk or shames the user. One well-made personality for the hackathon | Decided |
+| D4 | Game extras | **No evolving room and no missions in the core.** They may return later as optional extras | Decided |
+| D5 | Input | **Typing is first-class**; many users are not fluent in English, so text chat must work well in the user's own language. Voice (Talking Tom style speech) is an additional layer, never required | Decided |
+| D6 | Core jobs | (a) **Debt manager**: explain the position, compare repay versus yield, repay. (b) **Guardian**: protect a lending position. (c) **Investment assistant**: recommend where spare funds could go and route them to Rhea or other supported DeFi. (d) **Execute** the chosen action | Decided |
+| D7 | Guardian activation | **Opt-in "Activate Guardian"**, with an **extra fee**. Setup is an **interactive form** (position, allowed action, max amount, reserve to keep, trigger threshold, fee shown before activation), and the user can **ask the Guardian questions in chat** about its rules, status and past actions | Decided |
+| D8 | Keys | The agent can repay, but the user **never hands over a private key**. Manual actions are signed by the user's wallet. Automatic Guardian actions go through a contract or scoped permission that enforces the limits; the agent can only request actions the policy allows | Decided |
+| D9 | What-if | No separate what-if feature. Users **ask Mr.Fund directly** ("what if ETH drops 20%?") and get the answer in chat, computed by deterministic code | Decided |
+| D10 | Recommendation card | Every recommendation renders as an **interface card** (action, reason, numbers and assumptions, fees, risks) with **Adjust** and **Execute now** buttons. After execution it becomes the receipt (status, transaction link, result) | Decided |
+| D11 | Yield vault | The user says how much to transfer into a yield option; Mr.Fund **monitors and guards** that placement afterwards. Automatic exit from a vault is a separate, riskier permission and needs its own proof | Decided (exit automation: lead proposal, P1) |
+| D12 | Fees | Fees on all paid services (Guardian, executed actions, managed placements), always disclosed before approval with recipient and amount. Exact pricing open | Decided (pricing open) |
+| D13 | Cross-chain | **Future development.** NEAR Intents may be used, including a custom testnet endpoint if one is proven to work. Not in MVP, never claimed in the demo unless executed | Decided |
+| D14 | Education | No academy, courses or quizzes. Education is embedded: short in-context explanations, "Why this?" on every card, assumptions visible | Lead proposal |
+| D15 | Tracks | Unstoppable DeFi primary. Agent Economy only if the agent really spends or earns in an economic loop (for example paying for a service it needs). AI Security only if the contract-enforced limits are demonstrated. Never claim Games for a character skin | Lead proposal |
+| D16 | Tech stack | **Open decision.** Research options and recommend; do not block docs on it (section 6) | Open |
+| D17 | Team and repo | Team repository; no `.omp`/model routing in tracked files; no commit-size rule | Decided |
+
+## Further decisions
+
+| Id | Decision | Owner | Status | Needed by | Resolution |
+| --- | --- | --- | --- | --- | --- |
+| D18 | Guardian custody model | founder | Open (founder, 2026-11-04: "make it open decisions") | Phase 0 gate 2026-11-06 | Lead recommends G1 Guardian-held loan |
+| D19 | Demo network | founder | Open (founder leans testnet, 2026-11-04) | Phase 0 gate 2026-11-06 | Lead recommends the testnet-first ladder |
+| D20 | Submitter and GitHub owner | founder | Decided 2026-11-04 | P6.5 | 0xlann submits; repository `github.com/0xlann/mr.fund` |
+| D21 | Project skills tracked in git | founder | Decided 2026-11-04 | done | `.claude/skills/` committed with `skills-lock.json` |
+| D22 | Branches | founder | Decided 2026-11-04 | done | `main` and `dev` pushed to `origin` |
+| D23 | Visual design doc | founder | Decided 2026-11-04 | first frontend task (P4.4) | `docs/DESIGN.md` is skipped until frontend work starts |
+| D24 | Fee pricing | founder | Open | P5.1 | Structure in PRD "Fees model"; numbers open (from D12) |
+| D25 | LLM model | lead | Open | P3.4 | Choose from the live NEAR AI catalog by multilingual tool-calling eval |
+| D26 | Character rendering | founder (with D16) | Open | P4.4 | Options listed under D16 |
+| D27 | Guardian trigger verification | lead | Open, depends on Gate 3 | P2.5 | On-chain verification preferred; fallback drops the per-action fee |
+| D28 | Default comfort line and trigger | lead | Lead proposal | P1.5 | Comfort line health 150%, trigger default 120%, user-editable |
+| D29 | Watcher hosting | founder (account, cost) | Open, follows D16 | P5.3 | Options in D16 hosting table |
+
+### D16. Tech stack (Open)
+
+Context: Mr.Fund needs a web app with wallet signing, a server boundary that keeps the LLM key secret and runs deterministic tools, a Rust NEAR contract for the Guardian, and a watcher that requests Guardian actions. All versions below were observed live on 2026-11-04 (`npm view`, crates.io API, Rust stable channel manifest, Node release index); sources in [ARCHITECTURE](technical/ARCHITECTURE.md#proposed-stack-open-d16). None was installed or built.
+
+Shared core in every viable option: TypeScript 7.0.2 and React 19.3.1; wallet connection `@hot-labs/near-connect` 0.12.0 (what docs.near.org currently teaches) with `near-api-js` 7.4.0 for RPC; Rust `near-sdk` 5.30.0 (MSRV Rust 1.95; current stable 1.99.1), `cargo-near` 0.22.0 (stable; 0.23.0-rc.2 excluded), `near-workspaces` 0.24.0 for sandbox tests; NEAR AI Cloud through the `openai` 7.50.0 client; finance math on native `BigInt`; Vitest 5.1.0; Playwright 1.64.1; Node 24.22.2.
+
+| Option | Shape | Strength | Weakness |
+| --- | --- | --- | --- |
+| **A (lead recommendation)** | Next.js 16.4.5 (App Router; chat and tool endpoints as Route Handlers) + Rust Guardian + a separate always-on Node watcher | One TypeScript codebase for UI, API and engine; conventional runtime for signing; contract enforces the policy | Needs a paid always-on host for the watcher (Railway Hobby USD 5/month or Fly.io about USD 2.19 per 30 days, both verified pricing pages) |
+| B (rejected for Guardian) | Same frontend; Guardian = a function-call access key on the user's account plus server-side policy checks | Fastest to code | Function-call keys cannot attach even 1 yoctoNEAR, and both `ft_transfer_call` and Rhea `execute` require exactly 1 yoctoNEAR, so the key cannot repay at all. Keys restrict receiver and method names, never amounts. No honest "the contract rejected it" claim, no AI Security track |
+| C | Vite 8.3.5 static app + Cloudflare Worker (`fetch` for chat, Cron `scheduled` for the watcher) + the same Rust Guardian | Serverless, cheap, no always-on process | Free plan allows 10 ms CPU per invocation; paid sub-hourly cron gets 30 s CPU; minute-level cadence only; `near-api-js` signing inside Workers unproven; cron edits can take 15 minutes to propagate |
+
+Recommendation [I]: **A.** It has the same security core as C with fewer unproven runtime assumptions, and B cannot perform the Guardian's job. Choose C only if minute-scale checks are acceptable and a Worker signing spike passes.
+
+Character rendering (part of this decision, D26), listed without choosing: sprite state sheets with CSS (no runtime, high art cost); `lottie-react` 3.1.2; `@lottiefiles/dotlottie-react` 0.21.1 (WASM player, state machines); `@rive-app/react-canvas` 4.38.0 (interactive state machines, highest rig cost); SVG with `motion` 14.9.1; SVG with `gsap` 3.15.1. Whatever is chosen, text and numbers carry the financial state; animation never does alone.
+
+Founder response: pending. Affected docs: ARCHITECTURE, INTEGRATIONS, BUILD-PLAN P0.1 and every owned path, CLAUDE.md "Stack-specific standards".
+
+### D18. Guardian custody model (Open)
+
+**How Rhea lending decides whose debt is repaid** [V, `ref-finance/burrowland` commit `2110c7047f2d72a9189abcbaad5eafb4e4a87f9e`, read 2026-11-04]:
+
+- `execute(actions)` requires 1 yoctoNEAR and applies every action to `env::predecessor_account_id()`, the account that called it.
+- `Repay(AssetAmount)` and `PositionRepay { position, asset_amount }` carry no borrower field; they repay the caller's own debt from the caller's own supplied balance.
+- A token transfer with message `"OnlyRepay"` repays the debt of the token's `sender_id`.
+- The full list of transfer messages is `Execute`, `ExecuteWithPyth`, `DepositToReserve`, `DepositToMargin`, `MarginExecute`, `MarginExecuteWithPyth`, `SwapReference`, `OnlyIncreaseCollateral`, `OnlyRepay`. None names a beneficiary.
+- `Liquidate` does repay another account's debt, but only when that account is already unhealthy, and the liquidator takes discounted collateral. That is not protection.
+
+So a Guardian contract that holds a reserve can only repay **its own** Rhea debt. It cannot repay a loan that lives in the user's wallet account. A wallet function-call key cannot fill the gap either: it cannot attach the 1 yoctoNEAR these calls require [V, docs.near.org access keys and one-yocto pages, read 2026-11-04].
+
+What source does allow [V]: a contract account can run the full cycle as itself. Register with `storage_deposit` (live minimum 0.1 NEAR on mainnet and testnet), supply tokens with `ft_transfer_call`, `IncreaseCollateral`, `Borrow` (which credits the borrowed amount as supplied balance), `Withdraw` (which sends tokens to the calling contract), and `Repay` or `OnlyRepay`. No externally-owned-account check or integration whitelist exists in these paths.
+
+Caveat [U]: the deployed contracts do not match the published source. Mainnet `contract.main.burrow.near` reports `get_version` `0.16.2`, the testnet contract `contract.1689937928.burrow.testnet` reports `0.11.0`, and the public source is `0.15.7`. Phase 0 proves the behavior on the deployed contract (BUILD-PLAN P0.3).
+
+| Option | How it works | What the user gets | What it costs | Claims we can make |
+| --- | --- | --- | --- | --- |
+| **G1 Guardian-held loan (lead recommendation)** | "Activate Guardian" creates a Guardian account the user owns (a per-user contract account with no access keys). The protected loan lives in it: the user deposits collateral into the Guardian, borrows through it (borrowed tokens go to the user's wallet), and funds a reserve. The watcher can only call `request_repay`; the contract checks the policy and repays its own debt | Real automatic protection within contract-enforced limits; the user stays owner and can pause, deactivate and withdraw at any time | Existing wallet loans must be opened in, or moved into, the Guardian (repay in the wallet, withdraw, redeposit, re-borrow); per-user account storage plus 0.1 NEAR Rhea registration; more contract surface (owner position methods) | Unstoppable DeFi; AI Security if the over-limit rejection is shown on-chain (D15) |
+| G2 Prepared repay only | No contract custody. The watcher detects risk and prepares a repay card; the user signs it in the wallet | Works on any existing wallet loan, no move step | No automation while the user is away; the "contract says no" demo beat disappears | Unstoppable DeFi only; no automatic protection claim |
+| G3 G1 plus G2 for wallet loans | G1 for automation; wallet loans also get G2 alerts and cards | Both | G1 cost plus alert plumbing | As G1 |
+
+Recommendation [I]: **G1**, with wallet loans served by chat, cards and manual repay (F1 to F5). The cards already give the G2 experience, so G3 needs little extra beyond alerts. The demo then shows a Guardian-held loan for steps 5 to 7 of the never-cut demo.
+
+Blocker: B1. Founder response 2026-11-04: "make it open decisions and give the context on how the things works and whats the blocker". Affected docs: PRD F6, SMART-CONTRACT (written for G1 and marked draft), BUILD-PLAN Phase 2 and P5.
+
+### D19. Demo network (Open; founder leans testnet)
+
+Observed facts [V, read-only RPC views, 2026-11-04]:
+
+- Testnet lending `contract.1689937928.burrow.testnet` (`0.11.0`) answers `get_config`, `get_assets_paged`, `get_account` and `storage_balance_bounds`. Its config enables the Pyth-compatible oracle path (`pyth_oracle_account_id: "pyth-oracle.testnet"`, `pyth_price_valid_duration_sec: 60`).
+- The USDC and DAI price feeds it maps returned `null` from `pyth-oracle.testnet` `get_price_no_older_than(age: 60)`. In source, a null price aborts any action that needs prices (borrow, collateral release with debt); repay and deposit need no prices.
+- `wrap.testnet` and `ref.fakes.testnet` use a fixed `default_price`, which bypasses freshness. With those assets, health never moves with the market.
+- No public Rhea lending testnet UI was found (`testnet.rhea.finance/lending` returned only an app shell).
+- Mainnet `contract.main.burrow.near` (`0.16.2`) uses `aggregate-oracle.near` with a 60 s price validity. Rhea showed USDC at 14.01% supply versus 21.00% borrow on 2026-11-02 (relay snapshot).
+- The event accepts testnet-only entries [V, EVENT.md].
+
+| | Testnet | Mainnet with tiny amounts |
+| --- | --- | --- |
+| Money at risk | None | Real funds in unaudited Guardian code; capped by the founder |
+| Eligibility | Accepted | Accepted |
+| Lending contract | `0.11.0`, older than the public source | `0.16.2`, newer than the public source |
+| Prices | Stablecoin feeds null today; fixed-price assets do not move | Live aggregate oracle |
+| Rates | Testnet utilization, not meaningful | Real market rates; the repay-versus-yield story uses real numbers |
+| Liquidity and tokens | Fake tokens; how to obtain listed `usdc.fakes.testnet` is [U] | Real USDC and NEAR needed |
+| Approvals | Lead may deploy and transact on testnet (accounts per B7) | Every deploy and transaction needs founder approval and funding |
+| Judge credibility | Lower if prices are fixed; must label Simulated beats | Highest: a real position and real receipts |
+| Speed of iteration | Fast and free | Slow: each mistake costs money |
+
+Best solution (lead recommendation [I]): **a testnet-first ladder, decided with evidence at the Phase 0 gate**:
+
+1. **Testnet with fresh prices.** Pyth on NEAR is pull-based [I, to be proven]: P0.2 tries to post a fresh USDC price update to `pyth-oracle.testnet` and then borrow. If borrowing works, every demo transaction is real on testnet, and only scripted price shocks are labelled Simulated.
+2. **Testnet with fixed-price assets** if step 1 fails. Supply `wrap.testnet` and borrow a fixed-price asset; every transaction is still real, but any price-driven beat (Guardian trigger) is labelled Simulated, and the trigger is exercised by the over-limit rejection plus a labelled replay.
+3. **Mainnet with tiny amounts** only if the founder approves a hard cap after seeing steps 1 and 2. Development always runs in a local sandbox with the deployed mainnet Rhea code imported (P0.3), so mainnet is a deployment target, not a development environment.
+
+Read-only mainnet views may be used at any time to validate the engine against real positions (P1.4); they move no money.
+
+Blocker: B2. Founder response 2026-11-04: "mainly on testnet but make it open decisions again and make like the table … whats the best solution for that". Affected docs: PRD never-cut demo, INTEGRATIONS, BUILD-PLAN P0.2 and P5.5.
+
+### D20. Submitter and GitHub owner (Decided 2026-11-04)
+
+Founder answer: "0xlann submits, GitHub 0xlann". The repository is `https://github.com/0xlann/mr.fund`; every commit is authored by the repo-local identity `0xlann`. The founder, who already holds the CONSTITUTION and THE RULE entries, is not on this entry. Team members beyond 0xlann are [U]; the submission team-size bucket is filled at P6.5. If 0xlann joins another entry, both READMEs must name each other (event rule); open question in B9.
+
+### D21. Project skills are committed (Decided 2026-11-04)
+
+The founder overruled the handoff's ignore rule: `.claude/skills/` is tracked so every teammate's agent gets the same skills on clone. `skills-lock.json` stays as provenance and integrity record (pinned revisions plus content hashes). Third-party license texts live in `.claude/skills/LICENSES/`. Licensing gap for five skills: B10.
+
+### D22. Branches (Decided 2026-11-04)
+
+`origin` = `https://github.com/0xlann/mr.fund.git`. `main` holds reviewed work; `dev` is created from `main` for ongoing build work [I: build commits land on `dev`, and `main` moves by reviewed merges].
+
+### D23. Visual design doc deferred (Decided 2026-11-04)
+
+Founder: skip `docs/DESIGN.md` until frontend-related work exists. PRD "Functional screen contracts" fixes behavior; BUILD-PLAN P4.4 starts with writing DESIGN.md from the founder's references.
+
+### D24. Fee pricing (Open)
+
+The structure is fixed in PRD "Fees model": activation fee, per-action fee, execution fee, and a managed-placement fee in P1. The numbers are open. On testnet the demo charges test tokens and says so. The lead proposes setting the numbers after P5.5, from observed gas and storage costs plus a margin. Founder decides.
+
+### D25. LLM model (Open, lead)
+
+Live NEAR AI Cloud catalog (`https://cloud-api.near.ai/v1/models`, read 2026-11-04) lists `Qwen/Qwen3.8-27B` (`supported_features: tools, structured_outputs, reasoning`; USD 0.04 per million input tokens, USD 1.35 per million output) and `z-ai/glm-5.3-flash` (tools, structured_outputs, reasoning, json_mode; USD 0.08 per million input, USD 0.50 per million output). Tutorial ids such as `zai-org/GLM-5.1-FP8` were absent from the live catalog. No provider-wide language guarantee exists. Choose by the P3.4 multilingual tool-calling eval; record the winner here.
+
+### D26. Character rendering (Open)
+
+Options under D16. Decided together with the founder's visual references when DESIGN.md is written (D23).
+
+### D27. Guardian trigger verification (Open, lead, depends on Gate 3)
+
+Preferred: the Guardian contract verifies the trigger itself. Inside `request_repay` it reads its own Rhea account, the asset configs and fresh prices from the oracle Rhea uses (`get_price_no_older_than` with the configured age), computes health with Rhea's formula, and rejects if health is at or above the trigger or any price is stale. Fallback, if P0.4 shows this is impractical (gas or interface): the trigger stays a watcher rule, and the contract still enforces caps, floor, cooldown, action and target. In that case **the per-action fee is dropped**, so the watcher operator earns nothing from unnecessary repays, and the disclosure changes to "a faulty watcher can repay early, within your limits; that only reduces your debt".
+
+### D28. Default comfort line and trigger (Lead proposal)
+
+The character's "calm" line is health ≥ 150%; the Guardian trigger default is 120%; the contract minimum trigger is 105%. These are lead proposals [I] to keep a buffer above Rhea's liquidation boundary at 100%. Both are user-editable; none is presented as a safety guarantee.
+
+### D29. Watcher hosting (Open)
+
+Follows D16: Option A needs an always-on Node host (Railway or Fly.io; Render's free tier sleeps after 15 minutes without inbound traffic, so it is unsuitable); Option C uses Cloudflare Cron. Founder owns the account and cost.
+
+## BLOCKERS
+
+| Id | Missing prerequisite | Owner | Status | Blocks plan ids | Next action / proof |
+| --- | --- | --- | --- | --- | --- |
+| B1 | Guardian custody choice (D18) | founder | Open | P2.4, P2.6, P5.1, P5.5 | Founder picks G1, G2 or G3 at the Phase 0 gate with the P0.3 evidence |
+| B2 | Demo network choice and Gate 1 proof (D19) | lead runs probes, founder decides | Open | P0.2, P5.5, P6.4 | P0.2 result: fresh USDC price on testnet and a borrow transaction, or fallback |
+| B3 | Gate 2 proof on deployed Rhea code | lead | Open | P0.3, Phase 2 | Contract-owned position completes supply, collateral, borrow, withdraw, repay and release on testnet and in a sandbox with mainnet code imported |
+| B4 | Gate 3: in-contract trigger price source | lead | Open | P0.4, P2.5 | Contract reads a fresh price and computes the same health as the engine, or D27 fallback |
+| B5 | Tech stack (D16) | founder | Open | P0.7 and every app path | Founder picks A, B or C |
+| B6 | NEAR AI Cloud API key and credits | founder | Open | P0.6, Phase 3 | Create an account and key at cloud.near.ai or request hackathon credits (link on docs.near.org hackathons page); place the key in local `.env` only |
+| B7 | Testnet accounts, NEAR and listed test tokens | founder creates or authorizes the lead | Open | P0.2, P0.3, P2.8, P5 | Accounts listed in INTEGRATIONS "NEAR testnet accounts"; faucet NEAR; a way to obtain `usdc.fakes.testnet` [U] |
+| B8 | Watcher host account (D29) | founder | Open | P5.3 | After D16 |
+| B9 | Team members and other entries of 0xlann | 0xlann | Open | P6.3, P6.5 | Confirm the team list and whether 0xlann is on another entry (READMEs must name each other) |
+| B10 | License of five committed skills | founder | Open | none (risk) | `near-api-js`, `near-dapp`, `near-ai-cloud` and `near-contract-audit` have no upstream license; `motion` declares MIT only in a package manifest. Accept, or untrack these five and restore them from the lock |
+| B11 | Name and domain availability (D1 [U]) | founder | Open | P6.3 | Check before the public post |
+
+### B1. Guardian custody
+
+Attempts: source inspection of every Rhea repay path (D18). Missing input: the founder's choice. Work that can proceed now: the contract's policy core (P2.1 to P2.3) is identical under G1 and G3. Under G2 it is not deployed, so Phase 2 starts with the policy core and pauses before the owner position methods (P2.4) until B1 resolves.
+
+### B2. Network and Gate 1
+
+Attempts: read-only views listed in D19. Missing: proof that a stablecoin can be borrowed on testnet with a fresh price. Unblock evidence: transaction hashes for supply, borrow, withdraw and repay on testnet, recorded in INTEGRATIONS.
+
+### B3. Deployed-code parity
+
+The public source is `0.15.7`; deployed versions are `0.11.0` (testnet) and `0.16.2` (mainnet). Unblock evidence: the P0.3 probe contract's cycle on testnet, plus the same cycle in `near-workspaces` with the mainnet wasm imported (if import works; otherwise recorded as a limit).
+
+### B4. Trigger price source
+
+Unblock evidence: sandbox test showing the Guardian computes health from a live-shaped price response and rejects a stale or null price; gas used per check recorded.
+
+### B6. LLM access
+
+No key exists yet, and none may be committed. Unblock evidence: one tool-calling request against each candidate model (P0.6) with its response saved under `scratch/` (never committed if it contains secrets).
+
+### B7. Accounts and tokens
+
+This planning session created no accounts. Unblock evidence: account ids (never keys) written to INTEGRATIONS and `.env`.
+
+### B10. Skills licensing
+
+Upstream facts in INTEGRATIONS "Skills". The repository will be public by the deadline, so committed copies are redistribution. The conservative fix is one commit: add the five paths to `.gitignore`, remove them from the index, and restore them locally from `skills-lock.json`.
