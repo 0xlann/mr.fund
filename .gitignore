@@ -2,8 +2,9 @@
 scratch/
 .omp/
 
-# Project skills are restored from skills-lock.json, never committed.
-.claude/skills/
+# Project skills in .claude/skills/ are committed (founder, 2026-11-04).
+# experimental_install restores into .agents/skills/; that copy stays local.
+.agents/skills/
 
 # Secrets. Only the example file is tracked.
 .env
