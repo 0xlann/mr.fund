@@ -1,0 +1,35 @@
+# Private working notes and local agent configuration stay on each machine.
+scratch/
+.omp/
+
+# Project skills are restored from skills-lock.json, never committed.
+.claude/skills/
+
+# Secrets. Only the example file is tracked.
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output.
+node_modules/
+target/
+dist/
+build/
+out/
+.next/
+coverage/
+*.tsbuildinfo
+*.wasm.map
+
+# Logs.
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS and editor junk.
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+.idea/
+.vscode/
