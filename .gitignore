@@ -34,3 +34,6 @@ desktop.ini
 *.swp
 .idea/
 .vscode/
+
+# Test runner artifacts.
+.vitest/

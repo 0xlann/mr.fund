@@ -70,11 +70,11 @@ Purpose: kill or reshape early. Each gate has a pass condition, a fail condition
 
 ## Phase 1: finance engine and position reader (2026-11-06 to 2026-11-08, App track)
 
-- [ ] **P1.1 Units and shared types** (F2, F3).
+- [x] **P1.1 Units and shared types** (F2, F3).
   - Owned: `packages/shared/src/{units,snapshot,card,policy,errors}.ts`, tests beside them.
   - Interfaces: ARCHITECTURE "Core types". Conversions: `toInternal(atomic, extraDecimals)`, `toAtomic(internal, extraDecimals)` (floor), `formatUnits(atomic, decimals, locale)` (display only).
   - Tests: round trip for `extra_decimals` 0 and 12; `toAtomic` floors; parsing rejects negative, fractional and non-numeric strings; values beyond 2^64 survive (BigInt).
-  - Evidence: `npx vitest run packages/shared` summary.
+  - Evidence (run 2026-11-05): `vitest run packages/shared` → 2 files, 23 tests passed after watching them fail first ("is not a function"); `pnpm test` → 8 files, 29 tests passed; `pnpm typecheck` and `biome check` clean. `parseAtomic` accepts only `/^(0|[1-9][0-9]*)$/`; `toInternal`/`toAtomic`/`formatUnits` throw `RangeError` on negative amounts or invalid decimals (programmer error, not user input). `formatUnits` verified for `id-ID`, `en-US` and `es-ES`. Extra types beyond ARCHITECTURE: `NearTransaction`/`NearFunctionCall` (card payload) and `Balance`.
 
 - [ ] **P1.2 Health factor and liquidation price** (F3).
   - Owned: `packages/engine/src/health.ts`, `packages/engine/test/health.test.ts`, `fixtures/rhea/*.json`.
