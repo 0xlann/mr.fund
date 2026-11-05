@@ -1,6 +1,7 @@
 import type { CardDraft, FeeSchedule } from "@mrfund/shared";
+import fc from "fast-check";
 import { describe, expect, it } from "vitest";
-import { canExecute, repayCard } from "../src/card";
+import { assembleCard, canExecute, repayCard } from "../src/card";
 import { MAX_DATA_AGE_MS } from "../src/health";
 import { baseSnapshot, NOW, USDC, WNEAR } from "./helpers";
 
@@ -112,7 +113,7 @@ describe("repayCard bounds (Adjust)", () => {
   });
 
   it("caps at the wallet balance and says so", () => {
-    const d = draft(150n * USDC_1, 30n * USDC_1);
+    const d = draft(150n * USDC_1, 30n * USDC_1, NO_FEES);
     expect(d.amount).toBe(30n * USDC_1);
     expect(d.cappedBy).toBe("wallet");
     expect(d.risks.join(" ")).toMatch(/wallet balance/);
@@ -125,7 +126,7 @@ describe("repayCard bounds (Adjust)", () => {
 
   it("is not capped at exactly the limit", () => {
     expect(draft(200n * USDC_1).cappedBy).toBeNull();
-    expect(draft(30n * USDC_1, 30n * USDC_1).cappedBy).toBeNull();
+    expect(draft(30n * USDC_1, 30n * USDC_1, NO_FEES).cappedBy).toBeNull();
   });
 
   it("recomputes every number when the amount is adjusted", () => {
@@ -206,6 +207,109 @@ describe("repayCard edge cases", () => {
       NOW + 45_000,
     );
     expect(r.ok && r.value.dataAgeMs).toBe(45_000);
+  });
+});
+
+describe("repayCard when the fee is paid in the token being repaid", () => {
+  it("keeps the fee out of the repay so the second transfer cannot fail", () => {
+    // Wallet 30 USDC, fee 0.1 USDC: at most 29.9 can be repaid.
+    const d = draft(30n * USDC_1, 30n * USDC_1);
+    expect(d.amount).toBe(29_900_000n);
+    expect(d.cappedBy).toBe("wallet");
+  });
+
+  it("does not reserve a fee that is paid in another token", () => {
+    const other: FeeSchedule = { ...FEES, tokenId: "dai.fakes.testnet" };
+    expect(draft(30n * USDC_1, 30n * USDC_1, other).amount).toBe(30n * USDC_1);
+  });
+
+  it("does not reserve anything when there is no fee", () => {
+    expect(draft(30n * USDC_1, 30n * USDC_1, NO_FEES).amount).toBe(30n * USDC_1);
+  });
+
+  it("refuses when the wallet cannot even cover the fee", () => {
+    for (const wallet of [100_000n, 50_000n]) {
+      const r = repayCard(
+        baseSnapshot(),
+        { tokenId: USDC, amount: USDC_1, walletBalance: wallet },
+        FEES,
+        NOW,
+      );
+      expect(r.ok === false && r.error.kind).toBe("invalid_amount");
+    }
+    expect(
+      repayCard(
+        baseSnapshot(),
+        { tokenId: USDC, amount: USDC_1, walletBalance: 100_001n },
+        FEES,
+        NOW,
+      ).ok,
+    ).toBe(true);
+  });
+});
+
+describe("assembleCard", () => {
+  const payload = [
+    {
+      receiverId: USDC,
+      actions: [
+        {
+          methodName: "ft_transfer_call",
+          args: {
+            receiver_id: "contract.1689937928.burrow.testnet",
+            amount: "50000000",
+            msg: '"OnlyRepay"',
+          },
+          gas: 100_000_000_000_000n,
+          deposit: 1n,
+        },
+      ],
+    },
+  ];
+  const json = (v: unknown) =>
+    JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x));
+
+  it("combines the draft, the builder payload and the reason", () => {
+    const d = draft(50n * USDC_1);
+    const c = assembleCard(d, { id: "card-1", reason: "Your health is low.", payload });
+    expect(c.id).toBe("card-1");
+    expect(c.reason).toBe("Your health is low.");
+    expect(c.headline).toBe(d.headline);
+    expect(c.numbers).toEqual(d.numbers);
+    expect(c.payload).toBe(payload);
+    expect(c.receipt).toBeUndefined();
+    expect("amount" in c).toBe(false);
+  });
+
+  it("property: no reason text can change the payload bytes or any number", () => {
+    const d = draft(50n * USDC_1);
+    const baseline = assembleCard(d, { id: "c", reason: "", payload });
+    fc.assert(
+      fc.property(fc.string({ unit: "grapheme" }), (reason) => {
+        const c = assembleCard(d, { id: "c", reason, payload });
+        expect(json(c.payload)).toBe(json(baseline.payload));
+        expect(json(c.numbers)).toBe(json(baseline.numbers));
+        expect(json(c.fees)).toBe(json(baseline.fees));
+        expect(c.headline).toBe(baseline.headline);
+      }),
+      { numRuns: 300 },
+    );
+  });
+
+  it("property: hostile reasons that look like JSON or payloads stay prose", () => {
+    const d = draft(50n * USDC_1);
+    const baseline = json(payload);
+    fc.assert(
+      fc.property(
+        fc.json(),
+        fc.constantFrom("amount", "receiver_id", "msg", "ft_transfer"),
+        (j, key) => {
+          const c = assembleCard(d, { id: "c", reason: `${key}: ${j}`, payload });
+          expect(json(c.payload)).toBe(baseline);
+        },
+      ),
+      { numRuns: 200 },
+    );
   });
 });
 

@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "note": "Shared test vectors. TypeScript asserts them in packages/shared, packages/rhea and packages/guardian-client (P4.2); the Rust sandbox tests assert the same bytes (P2.7). Amounts are token atomic units as decimal strings. args_json is the exact serialized argument string, including key order. Gas is not part of the vectors: it is an unmeasured estimate until P2.7 and P4.5.",
+  "cases": [
+    {
+      "name": "wallet_repay",
+      "build": { "tokenId": "usdc.fakes.testnet", "receiverId": "contract.1689937928.burrow.testnet", "amount": "50000000", "msg": "\"OnlyRepay\"" },
+      "receiver_id": "usdc.fakes.testnet",
+      "method": "ft_transfer_call",
+      "args_json": "{\"receiver_id\":\"contract.1689937928.burrow.testnet\",\"amount\":\"50000000\",\"msg\":\"\\\"OnlyRepay\\\"\"}",
+      "deposit": "1"
+    },
+    {
+      "name": "guardian_repay",
+      "build": { "tokenId": "usdc.fakes.testnet", "receiverId": "guardian.alice.testnet", "amount": "50000000", "msg": "{\"repay\":{}}" },
+      "receiver_id": "usdc.fakes.testnet",
+      "method": "ft_transfer_call",
+      "args_json": "{\"receiver_id\":\"guardian.alice.testnet\",\"amount\":\"50000000\",\"msg\":\"{\\\"repay\\\":{}}\"}",
+      "deposit": "1"
+    },
+    {
+      "name": "fee_transfer",
+      "build": { "tokenId": "usdc.fakes.testnet", "receiverId": "fees.testnet", "amount": "100000" },
+      "receiver_id": "usdc.fakes.testnet",
+      "method": "ft_transfer",
+      "args_json": "{\"receiver_id\":\"fees.testnet\",\"amount\":\"100000\"}",
+      "deposit": "1"
+    },
+    {
+      "name": "storage_deposit",
+      "build": { "tokenId": "usdc.fakes.testnet", "accountId": "fees.testnet", "deposit": "1250000000000000000000" },
+      "receiver_id": "usdc.fakes.testnet",
+      "method": "storage_deposit",
+      "args_json": "{\"account_id\":\"fees.testnet\",\"registration_only\":true}",
+      "deposit": "1250000000000000000000"
+    }
+  ]
+}

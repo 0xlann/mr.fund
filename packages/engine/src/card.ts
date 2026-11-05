@@ -12,12 +12,14 @@
  */
 import {
   type Atomic,
+  type Card,
   type CardDraft,
   type CardNumber,
   decimalString,
   type EngineError,
   err,
   type FeeSchedule,
+  type NearTransaction,
   ok,
   type PositionSnapshot,
   type Result,
@@ -55,13 +57,18 @@ export function repayCard(
   const debt = outstandingDebtAtomic(s, req.tokenId);
   if (debt === 0n) return invalid("no outstanding debt in this token");
 
+  // A fee paid in the same token comes out of the same wallet balance, so it is not repayable.
+  const feeInDebtToken = schedule.tokenId === req.tokenId ? schedule.executionFee : 0n;
+  const spendable = req.walletBalance - feeInDebtToken;
+  if (spendable <= 0n) return invalid("the wallet cannot cover the fee");
+
   // bigint has no Math.min; take the smaller bound, then the smaller of it and the request.
-  let limit = req.walletBalance;
+  let limit = spendable;
   if (debt < limit) limit = debt;
   let amount = req.amount;
   if (limit < amount) amount = limit;
   const cappedBy: CardDraft["cappedBy"] =
-    req.amount <= limit ? null : debt <= req.walletBalance ? "debt" : "wallet";
+    req.amount <= limit ? null : debt <= spendable ? "debt" : "wallet";
 
   const before = healthBps(s, nowMs, opts);
   if (!before.ok) return before;
@@ -160,4 +167,28 @@ export function canExecute(
     return { enabled: false, reason: "stale_data" };
   }
   return { enabled: true };
+}
+
+/**
+ * The full card: the engine's draft, the payload a builder made from it, and the model's reason.
+ * The reason is copied into one field and nothing else reads it, so no text can reach a number or
+ * a payload byte. The id comes from the caller.
+ */
+export function assembleCard(
+  draft: CardDraft,
+  parts: { id: string; reason: string; payload: NearTransaction[] },
+): Card {
+  return {
+    id: parts.id,
+    action: draft.action,
+    headline: draft.headline,
+    reason: parts.reason,
+    numbers: draft.numbers,
+    assumptions: draft.assumptions,
+    fees: draft.fees,
+    risks: draft.risks,
+    dataAgeMs: draft.dataAgeMs,
+    maxDataAgeMs: draft.maxDataAgeMs,
+    payload: parts.payload,
+  };
 }
