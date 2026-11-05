@@ -1,0 +1,396 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import { dispatch, sourcesOf, toToolMessage } from "../src/dispatch";
+import { checkNumbers } from "../src/numbers";
+import { findBannedPhrases } from "../src/persona";
+import { GLOSSARY_TERMS, TOOL_NAMES, type ToolResult, toolDefinitions } from "../src/tools";
+import { baseSnapshot, NOW, WNEAR } from "./fixture";
+
+const ctx = { snapshot: baseSnapshot(), nowMs: NOW };
+
+function ok(r: ToolResult) {
+  if (!r.ok) throw new Error(`expected ok, got refusal ${r.refusal.code}: ${r.refusal.message}`);
+  return r;
+}
+const fact = (r: ToolResult, label: string) => ok(r).facts.find((f) => f.label === label);
+
+describe("get_position", () => {
+  const r = dispatch({ name: "get_position", arguments: {} }, ctx);
+
+  it("returns health as a ratio and a percentage", () => {
+    expect(fact(r, "health factor")).toEqual({
+      label: "health factor",
+      value: "1.425",
+      unit: null,
+    });
+    expect(fact(r, "health factor (percent)")).toEqual({
+      label: "health factor (percent)",
+      value: "142.5",
+      unit: "%",
+    });
+  });
+
+  it("returns collateral, debt, price and rates in whole units", () => {
+    expect(fact(r, "wNEAR collateral")?.value).toBe("100");
+    expect(fact(r, "wNEAR collateral")?.unit).toBe("wNEAR");
+    expect(fact(r, "USDC debt")).toEqual({ label: "USDC debt", value: "200", unit: "USDC" });
+    expect(fact(r, "wNEAR price")).toEqual({ label: "wNEAR price", value: "5", unit: "USD" });
+    expect(fact(r, "USDC borrow rate")).toEqual({
+      label: "USDC borrow rate",
+      value: "21",
+      unit: "%",
+    });
+  });
+
+  it("returns the liquidation price of the collateral, rounded up", () => {
+    const f = fact(r, "wNEAR liquidation price");
+    expect(f?.unit).toBe("USD");
+    expect(f?.value.startsWith("3.508")).toBe(true);
+  });
+
+  it("states the data age", () => {
+    expect(ok(r).dataAgeMs).toBe(0);
+    expect(fact(r, "data age")).toEqual({ label: "data age", value: "0", unit: "s" });
+    const later = dispatch(
+      { name: "get_position", arguments: {} },
+      { ...ctx, nowMs: NOW + 45_000 },
+    );
+    expect(fact(later, "data age")?.value).toBe("45");
+  });
+
+  it("omits the liquidation price when other collateral covers the debt", () => {
+    const base = baseSnapshot();
+    const wn = base.assets[WNEAR];
+    const wp = base.prices[WNEAR];
+    if (!wn || !wp) throw new Error("fixture");
+    const OTHER = "other.testnet";
+    const s = baseSnapshot({
+      collateral: [...base.collateral, { tokenId: OTHER, internal: 1_000_000n * 10n ** 24n }],
+      assets: {
+        ...base.assets,
+        [OTHER]: { ...wn, token: { ...wn.token, id: OTHER, symbol: "OTHR" } },
+      },
+      prices: { ...base.prices, [OTHER]: wp },
+    });
+    const out = dispatch({ name: "get_position", arguments: {} }, { snapshot: s, nowMs: NOW });
+    expect(fact(out, "wNEAR liquidation price")).toBeUndefined();
+    expect(fact(out, "OTHR liquidation price")).toBeUndefined();
+    expect(ok(out).notes.join(" ")).toMatch(/no liquidation price/);
+  });
+
+  it("is not a scenario", () => {
+    expect(ok(r).scenario).toBe(false);
+  });
+
+  it("refuses with the reason when data is stale", () => {
+    const stale = dispatch(
+      { name: "get_position", arguments: {} },
+      { ...ctx, nowMs: NOW + 600_000 },
+    );
+    expect(stale.ok).toBe(false);
+    if (!stale.ok) expect(stale.refusal.code).toBe("stale_price");
+  });
+
+  it("says there is no debt instead of inventing a health factor", () => {
+    const s = baseSnapshot({ borrowed: [] });
+    const out = dispatch({ name: "get_position", arguments: {} }, { snapshot: s, nowMs: NOW });
+    expect(fact(out, "health factor")).toBeUndefined();
+    expect(ok(out).text.health).toBe("no debt");
+  });
+
+  it("rejects unexpected arguments", () => {
+    const out = dispatch({ name: "get_position", arguments: { accountId: "bob.near" } }, ctx);
+    expect(out.ok).toBe(false);
+    if (!out.ok) expect(out.refusal.code).toBe("invalid_arguments");
+  });
+});
+
+describe("compare_repay_vs_yield", () => {
+  it("defaults to the whole debt over 365 days", () => {
+    const r = dispatch({ name: "compare_repay_vs_yield", arguments: {} }, ctx);
+    expect(fact(r, "amount compared")).toEqual({
+      label: "amount compared",
+      value: "200",
+      unit: "USDC",
+    });
+    expect(fact(r, "repaying saves")?.value).toBe("42");
+    expect(fact(r, "yield earns")?.value).toBe("28.02");
+    expect(fact(r, "horizon")).toEqual({ label: "horizon", value: "365", unit: "days" });
+    expect(ok(r).text.winner).toBe("repay");
+  });
+
+  it("takes a whole-unit amount and caps it at the debt", () => {
+    const r = dispatch(
+      { name: "compare_repay_vs_yield", arguments: { amount: "50", horizonDays: 30 } },
+      ctx,
+    );
+    expect(fact(r, "amount compared")?.value).toBe("50");
+    const big = dispatch({ name: "compare_repay_vs_yield", arguments: { amount: "999" } }, ctx);
+    expect(fact(big, "amount compared")?.value).toBe("200");
+    expect(ok(big).notes.join(" ")).toMatch(/capped/);
+  });
+
+  it("accepts a numeric amount", () => {
+    const r = dispatch({ name: "compare_repay_vs_yield", arguments: { amount: 50 } }, ctx);
+    expect(fact(r, "amount compared")?.value).toBe("50");
+  });
+
+  it.each([["abc"], ["-1"], ["0"], ["1.1234567"], [""], ["1e3"], [null]])(
+    "refuses amount %j",
+    (amount) => {
+      const r = dispatch({ name: "compare_repay_vs_yield", arguments: { amount } }, ctx);
+      expect(r.ok).toBe(false);
+    },
+  );
+
+  it.each([[0], [1.5], [4000], ["30"], [-3]])("refuses horizon %j", (horizonDays) => {
+    const r = dispatch({ name: "compare_repay_vs_yield", arguments: { horizonDays } }, ctx);
+    expect(r.ok).toBe(false);
+  });
+
+  it("checks the horizon bounds itself", () => {
+    const at = (horizonDays: number) =>
+      dispatch({ name: "compare_repay_vs_yield", arguments: { horizonDays } }, ctx);
+    expect(at(3650).ok).toBe(true);
+    const over = at(3651);
+    expect(over.ok).toBe(false);
+    if (!over.ok) expect(over.refusal.code).toBe("invalid_arguments");
+  });
+
+  it("refuses when there is no debt", () => {
+    const s = baseSnapshot({ borrowed: [] });
+    const r = dispatch(
+      { name: "compare_repay_vs_yield", arguments: {} },
+      { snapshot: s, nowMs: NOW },
+    );
+    expect(r.ok).toBe(false);
+  });
+
+  it("refuses a token that is not borrowed or unknown", () => {
+    const r = dispatch({ name: "compare_repay_vs_yield", arguments: { token: "DOGE" } }, ctx);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.refusal.code).toBe("unsupported_asset");
+  });
+});
+
+describe("what_if_price", () => {
+  const call = (shocks: unknown) => dispatch({ name: "what_if_price", arguments: { shocks } }, ctx);
+
+  it("computes health under a drop and labels it a scenario", () => {
+    const r = call([{ token: "wNEAR", changePercent: -20 }]);
+    expect(fact(r, "scenario health factor")?.value).toBe("1.14");
+    expect(fact(r, "scenario health factor (percent)")?.value).toBe("114");
+    expect(fact(r, "wNEAR price change")).toEqual({
+      label: "wNEAR price change",
+      value: "-20",
+      unit: "%",
+    });
+    expect(ok(r).scenario).toBe(true);
+    expect(ok(r).text.liquidatable).toBe("no");
+  });
+
+  it("flags liquidation below 100%", () => {
+    const r = call([{ token: "wNEAR", changePercent: -40 }]);
+    expect(fact(r, "scenario health factor")?.value).toBe("0.855");
+    expect(ok(r).text.liquidatable).toBe("yes");
+  });
+
+  it("accepts a token id and a fractional percent", () => {
+    const r = call([{ token: WNEAR, changePercent: -20.5 }]);
+    expect(fact(r, "wNEAR price change")?.value).toBe("-20.5");
+  });
+
+  it("rejects -99% (the engine bound)", () => {
+    const r = call([{ token: "wNEAR", changePercent: -99 }]);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.refusal.code).toBe("invalid_amount");
+  });
+
+  it("rejects above +500%", () => {
+    expect(call([{ token: "wNEAR", changePercent: 501 }]).ok).toBe(false);
+    expect(call([{ token: "wNEAR", changePercent: 500 }]).ok).toBe(true);
+  });
+
+  it.each([
+    [[]],
+    ["nope"],
+    [[{ token: "wNEAR" }]],
+    [[{ changePercent: -10 }]],
+    [[{ token: "wNEAR", changePercent: "ten" }]],
+    [[{ token: "wNEAR", changePercent: Number.NaN }]],
+    [[{ token: "wNEAR", changePercent: -20.123 }]],
+    [[{ token: "wNEAR", changePercent: -10, extra: 1 }]],
+    [Array.from({ length: 9 }, () => ({ token: "wNEAR", changePercent: -1 }))],
+  ])("refuses malformed shocks %j", (shocks) => {
+    const r = call(shocks);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.refusal.code).toBe("invalid_arguments");
+  });
+
+  it("bounds the number of shocks itself", () => {
+    const r = call(Array.from({ length: 9 }, () => ({ token: "wNEAR", changePercent: -1 })));
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.refusal.code).toBe("invalid_arguments");
+  });
+
+  it("refuses an unknown token and a duplicate shock", () => {
+    expect(call([{ token: "DOGE", changePercent: -10 }]).ok).toBe(false);
+    expect(
+      call([
+        { token: "wNEAR", changePercent: -10 },
+        { token: "wNEAR", changePercent: -20 },
+      ]).ok,
+    ).toBe(false);
+  });
+});
+
+describe("explain_term", () => {
+  it.each(GLOSSARY_TERMS)("explains %s in plain words with no numbers or banned claims", (term) => {
+    const r = dispatch({ name: "explain_term", arguments: { term } }, ctx);
+    const text = ok(r).text.explanation ?? "";
+    expect(text.length).toBeGreaterThan(20);
+    expect(text).not.toMatch(/\d/);
+    expect(findBannedPhrases(text)).toEqual([]);
+    expect(ok(r).facts).toEqual([]);
+  });
+
+  it("refuses a term outside the glossary", () => {
+    const r = dispatch({ name: "explain_term", arguments: { term: "moon" } }, ctx);
+    expect(r.ok).toBe(false);
+  });
+});
+
+describe("dispatch", () => {
+  it("refuses an unknown tool", () => {
+    const r = dispatch({ name: "send_transaction", arguments: {} }, ctx);
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.refusal.code).toBe("unknown_tool");
+  });
+
+  it("refuses non-object arguments", () => {
+    for (const args of ["x", 3, [], true]) {
+      const r = dispatch({ name: "what_if_price", arguments: args }, ctx);
+      expect(r.ok).toBe(false);
+    }
+  });
+
+  it("treats missing arguments as empty for no-argument tools", () => {
+    expect(dispatch({ name: "get_position", arguments: undefined }, ctx).ok).toBe(true);
+    expect(dispatch({ name: "get_position", arguments: null }, ctx).ok).toBe(true);
+  });
+
+  it("does not resolve inherited object properties as tools", () => {
+    for (const name of ["toString", "constructor", "__proto__", "hasOwnProperty"]) {
+      const r = dispatch({ name, arguments: {} }, ctx);
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.refusal.code).toBe("unknown_tool");
+    }
+  });
+
+  it("never throws on hostile input", () => {
+    const hostile: unknown[] = [undefined, null, 1, "x", [], {}, { __proto__: { a: 1 } }];
+    for (const name of [...TOOL_NAMES, "nope"]) {
+      for (const args of hostile) {
+        expect(() => dispatch({ name, arguments: args }, ctx)).not.toThrow();
+      }
+    }
+  });
+});
+
+describe("tool message", () => {
+  it("is valid JSON with only strings for numbers", () => {
+    const r = dispatch({ name: "get_position", arguments: {} }, ctx);
+    const parsed = JSON.parse(toToolMessage(r));
+    expect(parsed.ok).toBe(true);
+    for (const f of parsed.facts) expect(typeof f.value).toBe("string");
+  });
+
+  it("marks a scenario and carries a refusal reason", () => {
+    const sc = JSON.parse(
+      toToolMessage(
+        dispatch(
+          {
+            name: "what_if_price",
+            arguments: { shocks: [{ token: "wNEAR", changePercent: -10 }] },
+          },
+          ctx,
+        ),
+      ),
+    );
+    expect(sc.scenario).toBe(true);
+    const bad = JSON.parse(toToolMessage(dispatch({ name: "nope", arguments: {} }, ctx)));
+    expect(bad).toEqual({
+      ok: false,
+      tool: "nope",
+      refusal: { code: "unknown_tool", message: expect.any(String) },
+    });
+  });
+});
+
+describe("tool results feed the number checker", () => {
+  const r = dispatch({ name: "get_position", arguments: {} }, ctx);
+
+  it("a correct reply passes", () => {
+    const reply =
+      "Health is 1.42 (142.5%), you owe 200 USDC and NEAR is $5. Data is 0 seconds old.";
+    expect(checkNumbers(reply, sourcesOf(r)).ok).toBe(true);
+  });
+
+  it("an invented number fails", () => {
+    expect(checkNumbers("You owe 250 USDC.", sourcesOf(r)).ok).toBe(false);
+    expect(checkNumbers("Your borrow rate is 9%.", sourcesOf(r)).ok).toBe(false);
+  });
+
+  it("a refusal contributes no numbers", () => {
+    expect(sourcesOf(dispatch({ name: "nope", arguments: {} }, ctx))).toEqual([]);
+  });
+
+  it("combines several results of one turn", () => {
+    const a = dispatch({ name: "compare_repay_vs_yield", arguments: {} }, ctx);
+    const all = [...sourcesOf(r), ...sourcesOf(a)];
+    expect(checkNumbers("Repaying saves 42 USDC against 28.02 USDC of yield.", all).ok).toBe(true);
+  });
+});
+
+describe("registry", () => {
+  it("exposes exactly the tools implemented so far", () => {
+    expect([...TOOL_NAMES].sort()).toEqual([
+      "compare_repay_vs_yield",
+      "explain_term",
+      "get_position",
+      "what_if_price",
+    ]);
+    expect(
+      toolDefinitions()
+        .map((d) => d.name)
+        .sort(),
+    ).toEqual([...TOOL_NAMES].sort());
+  });
+
+  it("describes each tool with a closed object schema", () => {
+    for (const d of toolDefinitions()) {
+      expect(d.description.length).toBeGreaterThan(10);
+      expect(d.parameters.type).toBe("object");
+      expect(d.parameters.additionalProperties).toBe(false);
+    }
+  });
+
+  it("has no tool that can sign, send or change a policy", () => {
+    const banned = /sign|send|transfer|submit|broadcast|policy|withdraw|execute/i;
+    for (const name of TOOL_NAMES) expect(name).not.toMatch(banned);
+  });
+
+  it("imports no signer or NEAR client anywhere in the agent package", () => {
+    const dir = join(import.meta.dirname, "../src");
+    const imp = /from\s+["'](near-api-js|@near-js\/|near-kit|@hot-labs|@near-wallet-selector)/;
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".ts"))) {
+      expect(readFileSync(join(dir, f), "utf8"), f).not.toMatch(imp);
+    }
+    const pkg = JSON.parse(readFileSync(join(import.meta.dirname, "../package.json"), "utf8"));
+    const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies });
+    expect(
+      deps.filter((d) => /near-api-js|@near-js|near-kit|hot-labs|wallet-selector/.test(d)),
+    ).toEqual([]);
+  });
+});

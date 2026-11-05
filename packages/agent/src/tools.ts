@@ -1,0 +1,478 @@
+/**
+ * Tool registry (BUILD-PLAN P3.1, ARCHITECTURE "Tool registry").
+ *
+ * Every tool is a read: it wraps one engine function and returns exact facts
+ * (decimal strings with units), assumptions and the data age. No tool signs,
+ * sends, changes a policy or calls the watcher; the LLM's text never becomes
+ * payload bytes. Facts are also the source list for the number checker, so a
+ * number can appear in a reply only if it is a fact here.
+ *
+ * Implemented now: get_position, compare_repay_vs_yield, what_if_price,
+ * explain_term. propose_card waits for the card and transaction builders
+ * (P4.1, P4.2); guardian_status and guardian_history wait for guardian-client
+ * and the custody decision (D18).
+ *
+ * Does not guarantee: that a snapshot is fresh. The caller supplies it; the
+ * engine refuses stale prices and the tool passes the refusal on.
+ */
+
+import {
+  healthBps,
+  liquidationPrice,
+  outstandingDebtAtomic,
+  repayVsYield,
+  whatIfPrice,
+} from "@mrfund/engine";
+import {
+  type AssetState,
+  type Atomic,
+  type EngineError,
+  type PositionSnapshot,
+  type Price,
+  toAtomic,
+} from "@mrfund/shared";
+import { fromAtomic, type SourceNumber } from "./numbers";
+
+export interface Fact extends SourceNumber {
+  readonly label: string;
+}
+
+export type ToolResult =
+  | {
+      ok: true;
+      tool: string;
+      facts: Fact[];
+      notes: string[];
+      /** Non-numeric conclusions, such as the winner of a comparison. */
+      text: Record<string, string>;
+      dataAgeMs: number | null;
+      /** True for what-if results: a scenario, never a forecast. */
+      scenario: boolean;
+    }
+  | { ok: false; tool: string; refusal: { code: string; message: string } };
+
+export interface ToolContext {
+  snapshot: PositionSnapshot;
+  nowMs: number;
+}
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+    additionalProperties: false;
+  };
+}
+
+type Runner = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult;
+
+// ---------------------------------------------------------------- helpers
+
+const refuse = (tool: string, code: string, message: string): ToolResult => ({
+  ok: false,
+  tool,
+  refusal: { code, message },
+});
+
+function engineRefusal(tool: string, e: EngineError): ToolResult {
+  switch (e.kind) {
+    case "stale_price":
+      return refuse(
+        tool,
+        "stale_price",
+        `Price data for ${e.tokenId} is older than the freshness limit, so no advice can be given.`,
+      );
+    case "missing_price":
+      return refuse(tool, "missing_price", `No price is available for ${e.tokenId}.`);
+    case "unsupported_asset":
+      return refuse(tool, "unsupported_asset", `${e.tokenId} is not supported here.`);
+    case "invalid_amount":
+      return refuse(tool, "invalid_amount", e.reason);
+  }
+}
+
+const invalid = (tool: string, message: string): ToolResult =>
+  refuse(tool, "invalid_arguments", message);
+
+/** Arguments must be an object with only the allowed keys; missing means empty. */
+function argsOf(raw: unknown, allowed: readonly string[]): Record<string, unknown> | string {
+  if (raw === undefined || raw === null) return {};
+  if (typeof raw !== "object" || Array.isArray(raw)) return "arguments must be an object";
+  const extra = Object.keys(raw).filter((k) => !allowed.includes(k));
+  if (extra.length > 0) return `unexpected argument: ${extra.join(", ")}`;
+  return raw as Record<string, unknown>;
+}
+
+const fact = (label: string, s: SourceNumber): Fact => ({ label, value: s.value, unit: s.unit });
+
+function signedPercentFromBps(bps: number): SourceNumber {
+  const p = fromAtomic(BigInt(Math.abs(bps)), 2, "%");
+  return bps < 0 ? { value: `-${p.value}`, unit: "%" } : p;
+}
+
+const percentOfBps = (bps: number) => fromAtomic(BigInt(bps), 2, "%");
+
+/** USD per whole token, exact: the price is `multiplier / 10^decimals` USD per atomic unit. */
+function usdPerToken(price: Price, tokenDecimals: number): SourceNumber {
+  if (price.decimals >= tokenDecimals) {
+    return fromAtomic(price.multiplier, price.decimals - tokenDecimals, "USD");
+  }
+  return {
+    value: (price.multiplier * 10n ** BigInt(tokenDecimals - price.decimals)).toString(),
+    unit: "USD",
+  };
+}
+
+function healthFacts(prefix: string, bps: number): Fact[] {
+  const b = BigInt(bps);
+  return [
+    fact(`${prefix}health factor`, fromAtomic(b, 4, null)),
+    fact(`${prefix}health factor (percent)`, fromAtomic(b, 2, "%")),
+  ];
+}
+
+const dataAgeFact = (ms: number): Fact =>
+  fact("data age", fromAtomic(BigInt(Math.max(0, Math.floor(ms))), 3, "s"));
+
+function resolveAsset(s: PositionSnapshot, ref: string): AssetState | undefined {
+  const byId = s.assets[ref];
+  if (byId) return byId;
+  const lower = ref.toLowerCase();
+  return Object.values(s.assets).find((a) => a.token.symbol.toLowerCase() === lower);
+}
+
+/** A whole-unit decimal amount ("50", "0.5") to token atomic units, or an error message. */
+function parseAmount(v: unknown, decimals: number): Atomic | string {
+  const s = typeof v === "number" && Number.isFinite(v) ? String(v) : v;
+  if (typeof s !== "string" || !/^\d+(\.\d+)?$/.test(s))
+    return "amount must be a positive decimal number";
+  const [whole = "", frac = ""] = s.split(".");
+  if (frac.length > decimals) return `amount has more than ${decimals} decimal places`;
+  return BigInt(whole + frac.padEnd(decimals, "0"));
+}
+
+// ------------------------------------------------------------------ tools
+
+const getPosition: Runner = (args, { snapshot: s, nowMs }) => {
+  const tool = "get_position";
+  const bad = argsOf(args, []);
+  if (typeof bad === "string") return invalid(tool, bad);
+
+  const h = healthBps(s, nowMs);
+  if (!h.ok) return engineRefusal(tool, h.error);
+
+  const facts: Fact[] = [];
+  const notes = [...h.value.assumptions];
+  const text: Record<string, string> = {};
+  const seen = new Set<string>();
+
+  if (h.value.value === "no_debt") {
+    text.health = "no debt";
+    notes.push("There is no debt, so there is no health factor.");
+  } else {
+    facts.push(...healthFacts("", h.value.value));
+  }
+
+  const describe = (tokenId: string) => {
+    const a = s.assets[tokenId];
+    if (!a || seen.has(tokenId)) return;
+    seen.add(tokenId);
+    const price = s.prices[tokenId];
+    if (price) facts.push(fact(`${a.token.symbol} price`, usdPerToken(price, a.token.decimals)));
+    facts.push(fact(`${a.token.symbol} supply rate`, percentOfBps(a.supplyApyBps)));
+    facts.push(fact(`${a.token.symbol} borrow rate`, percentOfBps(a.borrowApyBps)));
+  };
+
+  for (const b of s.collateral) {
+    const a = s.assets[b.tokenId];
+    if (!a || b.internal <= 0n) continue;
+    facts.push(
+      fact(
+        `${a.token.symbol} collateral`,
+        fromAtomic(toAtomic(b.internal, a.token.extraDecimals), a.token.decimals, a.token.symbol),
+      ),
+    );
+    describe(b.tokenId);
+    const lp = liquidationPrice(s, b.tokenId, nowMs);
+    if (lp.ok) {
+      if (lp.value.value.multiplier > 0n) {
+        facts.push(
+          fact(
+            `${a.token.symbol} liquidation price`,
+            usdPerToken(lp.value.value, a.token.decimals),
+          ),
+        );
+      } else {
+        notes.push(
+          `Other collateral already covers the debt, so ${a.token.symbol} has no liquidation price.`,
+        );
+      }
+    }
+  }
+  for (const b of s.supplied) {
+    const a = s.assets[b.tokenId];
+    if (!a || b.internal <= 0n) continue;
+    facts.push(
+      fact(
+        `${a.token.symbol} supplied`,
+        fromAtomic(toAtomic(b.internal, a.token.extraDecimals), a.token.decimals, a.token.symbol),
+      ),
+    );
+    describe(b.tokenId);
+  }
+  for (const b of s.borrowed) {
+    const a = s.assets[b.tokenId];
+    if (!a || b.internal <= 0n) continue;
+    facts.push(
+      fact(
+        `${a.token.symbol} debt`,
+        fromAtomic(outstandingDebtAtomic(s, b.tokenId), a.token.decimals, a.token.symbol),
+      ),
+    );
+    describe(b.tokenId);
+  }
+
+  facts.push(dataAgeFact(h.value.dataAgeMs));
+  return { ok: true, tool, facts, notes, text, dataAgeMs: h.value.dataAgeMs, scenario: false };
+};
+
+const MAX_HORIZON_DAYS = 3650;
+
+const compareRepayVsYield: Runner = (args, { snapshot: s, nowMs }) => {
+  const tool = "compare_repay_vs_yield";
+  const a = argsOf(args, ["amount", "token", "horizonDays"]);
+  if (typeof a === "string") return invalid(tool, a);
+
+  let asset: AssetState | undefined;
+  if (a.token !== undefined) {
+    if (typeof a.token !== "string") return invalid(tool, "token must be a string");
+    asset = resolveAsset(s, a.token);
+    if (!asset) return refuse(tool, "unsupported_asset", `${a.token} is not supported here.`);
+  } else {
+    const first = s.borrowed.find((b) => b.internal > 0n);
+    asset = first && s.assets[first.tokenId];
+    if (!asset) return refuse(tool, "no_debt", "There is no debt to repay.");
+  }
+  const tokenId = asset.token.id;
+
+  let horizonDays = 365;
+  if (a.horizonDays !== undefined) {
+    const d = a.horizonDays;
+    if (typeof d !== "number" || !Number.isInteger(d) || d < 1 || d > MAX_HORIZON_DAYS) {
+      return invalid(tool, "horizonDays must be a whole number of days within the supported range");
+    }
+    horizonDays = d;
+  }
+
+  let amount: Atomic;
+  if (a.amount === undefined) {
+    amount = outstandingDebtAtomic(s, tokenId);
+  } else {
+    const parsed = parseAmount(a.amount, asset.token.decimals);
+    if (typeof parsed === "string") return invalid(tool, parsed);
+    amount = parsed;
+  }
+
+  const r = repayVsYield(
+    s,
+    { amount, tokenId, yieldApyBps: asset.supplyApyBps, horizonDays },
+    nowMs,
+  );
+  if (!r.ok) return engineRefusal(tool, r.error);
+
+  const { symbol, decimals } = asset.token;
+  const v = r.value.value;
+  return {
+    ok: true,
+    tool,
+    facts: [
+      fact("amount compared", fromAtomic(v.amountUsed, decimals, symbol)),
+      fact("repaying saves", fromAtomic(v.repaySaves, decimals, symbol)),
+      fact("yield earns", fromAtomic(v.yieldEarns, decimals, symbol)),
+      fact(`${symbol} borrow rate`, percentOfBps(asset.borrowApyBps)),
+      fact(`${symbol} supply rate`, percentOfBps(asset.supplyApyBps)),
+      fact("horizon", { value: String(horizonDays), unit: "days" }),
+      dataAgeFact(r.value.dataAgeMs),
+    ],
+    notes: r.value.assumptions,
+    text: { winner: v.winner },
+    dataAgeMs: r.value.dataAgeMs,
+    scenario: false,
+  };
+};
+
+const MAX_SHOCKS = 8;
+
+const whatIf: Runner = (args, { snapshot: s, nowMs }) => {
+  const tool = "what_if_price";
+  const a = argsOf(args, ["shocks"]);
+  if (typeof a === "string") return invalid(tool, a);
+  const raw = a.shocks;
+  if (!Array.isArray(raw) || raw.length < 1 || raw.length > MAX_SHOCKS) {
+    return invalid(tool, `shocks must be a list of 1 to ${MAX_SHOCKS} items`);
+  }
+
+  const shocks: { tokenId: string; changeBps: number }[] = [];
+  const facts: Fact[] = [];
+  for (const item of raw as unknown[]) {
+    const o = argsOf(item, ["token", "changePercent"]);
+    if (typeof o === "string" || item === null || item === undefined) {
+      return invalid(tool, "each shock must be an object with token and changePercent");
+    }
+    if (
+      typeof o.token !== "string" ||
+      typeof o.changePercent !== "number" ||
+      !Number.isFinite(o.changePercent)
+    ) {
+      return invalid(tool, "each shock needs a token and a numeric changePercent");
+    }
+    const bps = Math.round(o.changePercent * 100);
+    if (Math.abs(o.changePercent * 100 - bps) > 1e-6) {
+      return invalid(tool, "changePercent supports at most two decimal places");
+    }
+    const asset = resolveAsset(s, o.token);
+    if (!asset) return refuse(tool, "unsupported_asset", `${o.token} is not supported here.`);
+    shocks.push({ tokenId: asset.token.id, changeBps: bps });
+    facts.push(fact(`${asset.token.symbol} price change`, signedPercentFromBps(bps)));
+  }
+
+  const r = whatIfPrice(s, shocks, nowMs);
+  if (!r.ok) return engineRefusal(tool, r.error);
+
+  const w = r.value.value;
+  const text: Record<string, string> = { liquidatable: w.liquidatable ? "yes" : "no" };
+  if (w.healthBps === "no_debt") text.health = "no debt";
+  else facts.push(...healthFacts("scenario ", w.healthBps));
+  facts.push(dataAgeFact(r.value.dataAgeMs));
+
+  return {
+    ok: true,
+    tool,
+    facts,
+    notes: ["Simulated scenario, not a forecast.", ...r.value.assumptions],
+    text,
+    dataAgeMs: r.value.dataAgeMs,
+    scenario: true,
+  };
+};
+
+/** Fixed explanations. No digits, so nothing here can be mistaken for a computed number. */
+const GLOSSARY: Record<string, string> = {
+  health_factor:
+    "Health factor compares what your collateral is worth, after a protocol haircut, with what you owe. Higher is more comfortable; below one the position can be liquidated.",
+  liquidation:
+    "Liquidation is when the protocol lets someone else repay part of your loan and take some of your collateral at a discount, because your collateral no longer covers the debt enough.",
+  collateral:
+    "Collateral is the assets you lock in the lending protocol so you can borrow against them. If their value falls, your health factor falls with it.",
+  volatility_ratio:
+    "The volatility ratio is the share of an asset's value that counts toward your borrowing power. Riskier assets get a lower ratio.",
+  liquidation_price:
+    "The liquidation price is the price at which one collateral asset would bring your health factor down to the liquidation line, with everything else held still.",
+  guardian:
+    "The Guardian is a small contract you own. It can repay part of your loan on your behalf, but only within the limits you set, and it reduces liquidation risk within those limits rather than promising anything.",
+  comfort_line:
+    "The comfort line is a health factor you choose as the level you feel relaxed at. It is a personal preference, not a protection mechanism.",
+  apy: "APY is a yearly rate. Here it is spread evenly over the period to give a rough comparison, not a promised return.",
+  repay:
+    "Repaying sends tokens back to the lending protocol to reduce your debt, which lowers interest costs and raises your health factor.",
+};
+
+export const GLOSSARY_TERMS = Object.keys(GLOSSARY);
+
+const explainTerm: Runner = (args) => {
+  const tool = "explain_term";
+  const a = argsOf(args, ["term"]);
+  if (typeof a === "string") return invalid(tool, a);
+  const term = a.term;
+  if (typeof term !== "string" || !Object.hasOwn(GLOSSARY, term)) {
+    return invalid(tool, `term must be one of: ${GLOSSARY_TERMS.join(", ")}`);
+  }
+  return {
+    ok: true,
+    tool,
+    facts: [],
+    notes: [],
+    text: { explanation: GLOSSARY[term] ?? "" },
+    dataAgeMs: null,
+    scenario: false,
+  };
+};
+
+// --------------------------------------------------------------- registry
+
+export const RUNNERS: Readonly<Record<string, Runner>> = {
+  get_position: getPosition,
+  compare_repay_vs_yield: compareRepayVsYield,
+  what_if_price: whatIf,
+  explain_term: explainTerm,
+};
+
+export const TOOL_NAMES: readonly string[] = Object.keys(RUNNERS);
+
+/** What the LLM sees: name, purpose and a closed argument schema. */
+export function toolDefinitions(): ToolDefinition[] {
+  return [
+    {
+      name: "get_position",
+      description:
+        "Read the user's lending position: health factor, collateral, debt, prices, rates, liquidation price and the age of the data.",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "compare_repay_vs_yield",
+      description:
+        "Compare repaying debt with earning the supply rate on the same amount over a horizon. Defaults to the whole debt over 365 days.",
+      parameters: {
+        type: "object",
+        properties: {
+          amount: {
+            type: "string",
+            description: 'Amount in whole tokens, for example "50". Optional.',
+          },
+          token: { type: "string", description: "Debt token symbol. Optional." },
+          horizonDays: { type: "integer", minimum: 1, maximum: MAX_HORIZON_DAYS },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "what_if_price",
+      description:
+        "Health factor if token prices moved by the given percentages. A simulated scenario, not a forecast. Allowed range is -95 to +500 percent.",
+      parameters: {
+        type: "object",
+        properties: {
+          shocks: {
+            type: "array",
+            minItems: 1,
+            maxItems: MAX_SHOCKS,
+            items: {
+              type: "object",
+              properties: {
+                token: { type: "string" },
+                changePercent: { type: "number", minimum: -95, maximum: 500 },
+              },
+              required: ["token", "changePercent"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["shocks"],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "explain_term",
+      description: "Short fixed explanation of a lending term.",
+      parameters: {
+        type: "object",
+        properties: { term: { type: "string", enum: [...GLOSSARY_TERMS] } },
+        required: ["term"],
+        additionalProperties: false,
+      },
+    },
+  ];
+}
