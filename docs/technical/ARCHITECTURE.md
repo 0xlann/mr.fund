@@ -247,8 +247,8 @@ interface Computed<T> { value: T; inputs: Record<string, string>; assumptions: s
 ```ts
 healthBps(s: PositionSnapshot, nowMs: number): Result<Computed<Bps | "no_debt">, EngineError>
 liquidationPrice(s: PositionSnapshot, collateralTokenId: AccountId, nowMs: number): Result<Computed<Price>, EngineError>
-maxRepayUseful(s: PositionSnapshot, debtTokenId: AccountId): Computed<Atomic>          // capped at outstanding debt
-repayVsYield(s: PositionSnapshot, p: { amount: Atomic; tokenId: AccountId; yieldApyBps: Bps; horizonDays: number }, nowMs: number): Result<Computed<{ repaySaves: Atomic; yieldEarns: Atomic; winner: "repay" | "yield" | "equal" }>, EngineError>
+maxRepayUseful(s: PositionSnapshot, debtTokenId: AccountId, nowMs: number): Result<Computed<Atomic>, EngineError>   // outstanding debt, rounded up
+repayVsYield(s: PositionSnapshot, p: { amount: Atomic; tokenId: AccountId; yieldApyBps: Bps; horizonDays: number }, nowMs: number): Result<Computed<{ amountUsed: Atomic; repaySaves: Atomic; yieldEarns: Atomic; winner: "repay" | "yield" | "equal" }>, EngineError>
 whatIfPrice(s: PositionSnapshot, shocks: { tokenId: AccountId; changeBps: number }[], nowMs: number): Result<Computed<{ healthBps: Bps | "no_debt"; liquidatable: boolean }>, EngineError>
 repayToReachHealth(s: PositionSnapshot, debtTokenId: AccountId, targetBps: Bps, nowMs: number): Result<Computed<Atomic>, EngineError>
 evaluateTrigger(s: PositionSnapshot, policy: GuardianPolicy, guardian: GuardianState, nowMs: number): Result<{ act: false; reason: string } | { act: true; amount: Atomic }, EngineError>
