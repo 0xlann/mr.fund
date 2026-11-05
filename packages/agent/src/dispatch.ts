@@ -31,8 +31,12 @@ export function dispatch(call: ToolCall, ctx: ToolContext): ToolResult {
   }
 }
 
-/** The tool message the LLM receives. All numbers are exact decimal strings. */
+/** The tool message the LLM receives. All numbers are exact decimal strings; a card appears only as its id. */
 export function toToolMessage(r: ToolResult): string {
+  if (r.ok && r.card) {
+    const { card, ...rest } = r;
+    return JSON.stringify({ ...rest, cardId: card.id });
+  }
   return JSON.stringify(r);
 }
 

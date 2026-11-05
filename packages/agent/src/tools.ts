@@ -8,25 +8,29 @@
  * number can appear in a reply only if it is a fact here.
  *
  * Implemented now: get_position, compare_repay_vs_yield, what_if_price,
- * explain_term. propose_card waits for the card and transaction builders
- * (P4.1, P4.2); guardian_status and guardian_history wait for guardian-client
- * and the custody decision (D18).
+ * propose_card (repay, wallet loan) and explain_term. guardian_status and
+ * guardian_history wait for guardian-client and the custody decision (D18).
  *
  * Does not guarantee: that a snapshot is fresh. The caller supplies it; the
  * engine refuses stale prices and the tool passes the refusal on.
  */
 
 import {
+  assembleCard,
   healthBps,
   liquidationPrice,
   outstandingDebtAtomic,
+  repayCard,
   repayVsYield,
   whatIfPrice,
 } from "@mrfund/engine";
+import { repayPayload } from "@mrfund/rhea";
 import {
   type AssetState,
   type Atomic,
+  type Card,
   type EngineError,
+  type FeeSchedule,
   type PositionSnapshot,
   type Price,
   toAtomic,
@@ -49,12 +53,34 @@ export type ToolResult =
       dataAgeMs: number | null;
       /** True for what-if results: a scenario, never a forecast. */
       scenario: boolean;
+      /**
+       * A draft card for the UI (`propose_card`). Never serialized into the tool message: the
+       * model sees only its id and numbers, never payload bytes.
+       */
+      card?: Card;
     }
   | { ok: false; tool: string; refusal: { code: string; message: string } };
+
+/** What `propose_card` needs from the connected wallet and the fee configuration. */
+export interface ProposalContext {
+  /** Wallet balances in token atomic units, by token id. */
+  walletBalances: Record<string, Atomic>;
+  fees: FeeSchedule;
+  /** The Rhea lending contract that receives the repay. */
+  lendingId: string;
+  /** Whether the fee recipient is registered on the fee token. */
+  feeRecipientRegistered: boolean;
+  /** The fee token's `storage_balance_bounds().min`, needed only if the recipient is unregistered. */
+  storageDepositYocto?: bigint;
+}
 
 export interface ToolContext {
   snapshot: PositionSnapshot;
   nowMs: number;
+  /** Absent when no wallet is connected; `propose_card` then refuses. */
+  proposal?: ProposalContext;
+  /** Card id source; defaults to a random UUID. */
+  newId?: () => string;
 }
 
 export interface ToolDefinition {
@@ -369,6 +395,106 @@ const whatIf: Runner = (args, { snapshot: s, nowMs }) => {
   };
 };
 
+const proposeCard: Runner = (args, ctx) => {
+  const tool = "propose_card";
+  const { snapshot: s, nowMs } = ctx;
+  const a = argsOf(args, ["action", "amount", "token"]);
+  if (typeof a === "string") return invalid(tool, a);
+  if (a.action !== "repay") return invalid(tool, "action must be: repay");
+  if (!ctx.proposal) {
+    return refuse(tool, "not_available", "No wallet is connected, so a card cannot be prepared.");
+  }
+  const wallet = ctx.proposal;
+
+  let asset: AssetState | undefined;
+  if (a.token !== undefined) {
+    if (typeof a.token !== "string") return invalid(tool, "token must be a string");
+    asset = resolveAsset(s, a.token);
+    if (!asset) return refuse(tool, "unsupported_asset", `${a.token} is not supported here.`);
+  } else {
+    const first = s.borrowed.find((b) => b.internal > 0n);
+    asset = first && s.assets[first.tokenId];
+    if (!asset) return refuse(tool, "no_debt", "There is no debt to repay.");
+  }
+  const tokenId = asset.token.id;
+
+  let amount: Atomic;
+  if (a.amount === undefined) {
+    amount = outstandingDebtAtomic(s, tokenId);
+  } else {
+    const parsed = parseAmount(a.amount, asset.token.decimals);
+    if (typeof parsed === "string") return invalid(tool, parsed);
+    amount = parsed;
+  }
+
+  const feeAsset = s.assets[wallet.fees.tokenId];
+  if (wallet.fees.executionFee > 0n && !feeAsset) {
+    return refuse(tool, "invalid_input", "The fee token is not described by this position.");
+  }
+
+  const draft = repayCard(
+    s,
+    { tokenId, amount, walletBalance: wallet.walletBalances[tokenId] ?? 0n },
+    wallet.fees,
+    nowMs,
+  );
+  if (!draft.ok) return engineRefusal(tool, draft.error);
+  const d = draft.value;
+
+  const payload = repayPayload(d, {
+    lendingId: wallet.lendingId,
+    recipientRegistered: wallet.feeRecipientRegistered,
+    ...(wallet.storageDepositYocto === undefined
+      ? {}
+      : { storageDepositYocto: wallet.storageDepositYocto }),
+  });
+  if (!payload.ok) return engineRefusal(tool, payload.error);
+
+  const facts: Fact[] = [];
+  for (const n of d.numbers) {
+    if (n.before !== undefined)
+      facts.push({ label: `${n.label} before`, value: n.before, unit: n.unit });
+    if (n.after !== undefined)
+      facts.push({ label: `${n.label} after`, value: n.after, unit: n.unit });
+  }
+  facts.push(fact("repay amount", fromAtomic(d.amount, asset.token.decimals, asset.token.symbol)));
+  for (const f of d.fees) {
+    facts.push(
+      fact(
+        "execution fee",
+        fromAtomic(f.amount, feeAsset?.token.decimals ?? 0, feeAsset?.token.symbol ?? null),
+      ),
+    );
+  }
+  facts.push(dataAgeFact(d.dataAgeMs));
+
+  const text: Record<string, string> = {
+    card: "draft",
+    headline: d.headline,
+    risks: d.risks.join(" "),
+  };
+  if (d.cappedBy !== null) text.cappedBy = d.cappedBy;
+
+  const card = assembleCard(d, {
+    id: ctx.newId ? ctx.newId() : crypto.randomUUID(),
+    reason: "",
+    payload: payload.value,
+  });
+  return {
+    ok: true,
+    tool,
+    facts,
+    notes: [
+      "A draft card is shown to the user. Nothing is signed or sent until they approve it in their wallet.",
+      ...d.assumptions,
+    ],
+    text,
+    dataAgeMs: d.dataAgeMs,
+    scenario: false,
+    card,
+  };
+};
+
 /** Fixed explanations. No digits, so nothing here can be mistaken for a computed number. */
 const GLOSSARY: Record<string, string> = {
   health_factor:
@@ -417,6 +543,7 @@ export const RUNNERS: Readonly<Record<string, Runner>> = {
   get_position: getPosition,
   compare_repay_vs_yield: compareRepayVsYield,
   what_if_price: whatIf,
+  propose_card: proposeCard,
   explain_term: explainTerm,
 };
 
@@ -471,6 +598,24 @@ export function toolDefinitions(): ToolDefinition[] {
           },
         },
         required: ["shocks"],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "propose_card",
+      description:
+        "Prepare a draft repay card for the user to review. The card is built by deterministic code; nothing is signed or sent until the user approves it in their wallet. Amount is in whole tokens and defaults to the whole debt.",
+      parameters: {
+        type: "object",
+        properties: {
+          action: { type: "string", enum: ["repay"] },
+          amount: {
+            type: "string",
+            description: 'Amount in whole tokens, for example "50". Optional.',
+          },
+          token: { type: "string", description: "Debt token symbol. Optional." },
+        },
+        required: ["action"],
         additionalProperties: false,
       },
     },

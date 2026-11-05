@@ -367,6 +367,7 @@ describe("registry", () => {
       "compare_repay_vs_yield",
       "explain_term",
       "get_position",
+      "propose_card",
       "what_if_price",
     ]);
     expect(
