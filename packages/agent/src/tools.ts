@@ -30,6 +30,7 @@ import {
   type PositionSnapshot,
   type Price,
   toAtomic,
+  usdPerWholeToken,
 } from "@mrfund/shared";
 import { fromAtomic, type SourceNumber } from "./numbers";
 
@@ -129,16 +130,11 @@ function signedPercentFromBps(bps: number): SourceNumber {
 
 const percentOfBps = (bps: number) => fromAtomic(BigInt(bps), 2, "%");
 
-/** USD per whole token, exact: the price is `multiplier / 10^decimals` USD per atomic unit. */
-function usdPerToken(price: Price, tokenDecimals: number): SourceNumber {
-  if (price.decimals >= tokenDecimals) {
-    return fromAtomic(price.multiplier, price.decimals - tokenDecimals, "USD");
-  }
-  return {
-    value: (price.multiplier * 10n ** BigInt(tokenDecimals - price.decimals)).toString(),
-    unit: "USD",
-  };
-}
+/** USD per whole token, exact. */
+const usdPerToken = (price: Price, tokenDecimals: number): SourceNumber => ({
+  value: usdPerWholeToken(price, tokenDecimals),
+  unit: "USD",
+});
 
 function healthFacts(prefix: string, bps: number): Fact[] {
   const b = BigInt(bps);

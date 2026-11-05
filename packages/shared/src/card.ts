@@ -58,6 +58,27 @@ export interface Card {
   receipt?: CardReceipt;
 }
 
+/**
+ * Everything on a card except what only a builder or the model may add: the transaction payload
+ * (built by `rhea` or `guardian-client`), the reason prose (LLM, number-checked) and the id.
+ * Numbers are exact decimal strings; the UI localizes them.
+ */
+export interface CardDraft {
+  action: CardAction;
+  headline: string;
+  numbers: CardNumber[];
+  assumptions: string[];
+  fees: FeeLine[];
+  risks: string[];
+  dataAgeMs: number;
+  maxDataAgeMs: number;
+  /** Validated amount in token atomic units, after bounds. Builders take it from here. */
+  amount: Atomic;
+  tokenId: AccountId;
+  /** Which limit reduced the requested amount, if any. */
+  cappedBy: "debt" | "wallet" | null;
+}
+
 /** Fee amounts in atomic units of `tokenId`. Pricing is open (D24), so there are no defaults. */
 export interface FeeSchedule {
   tokenId: AccountId;

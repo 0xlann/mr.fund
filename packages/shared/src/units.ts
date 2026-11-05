@@ -1,4 +1,5 @@
 import { type Atomic, type EngineError, err, ok, type Result } from "./errors";
+import type { Price } from "./snapshot";
 
 function assertAmount(n: bigint): void {
   if (n < 0n) throw new RangeError("amount must not be negative");
@@ -52,4 +53,23 @@ export function formatUnits(atomic: Atomic, decimals: number, locale: string): s
     new Intl.NumberFormat(locale).formatToParts(1.1).find((p) => p.type === "decimal")?.value ??
     ".";
   return `${wholeText}${decimalSeparator}${fraction}`;
+}
+
+/** Exact decimal text for `atomic / 10^decimals`; trailing zeros dropped. Not localized. */
+export function decimalString(atomic: Atomic, decimals: number): string {
+  assertAmount(atomic);
+  assertDecimals(decimals);
+  if (decimals > 77) throw new RangeError("decimals must not exceed 77");
+  const s = atomic.toString().padStart(decimals + 1, "0");
+  const whole = s.slice(0, s.length - decimals);
+  const frac = s.slice(s.length - decimals).replace(/0+$/, "");
+  return frac.length > 0 ? `${whole}.${frac}` : whole;
+}
+
+/** USD per whole token, exact. A price is `multiplier / 10^decimals` USD per atomic unit. */
+export function usdPerWholeToken(price: Price, tokenDecimals: number): string {
+  if (price.decimals >= tokenDecimals) {
+    return decimalString(price.multiplier, price.decimals - tokenDecimals);
+  }
+  return (price.multiplier * 10n ** BigInt(tokenDecimals - price.decimals)).toString();
 }

@@ -12,6 +12,8 @@
  * since unit-less tokens match any source of equal value.
  */
 
+import { decimalString } from "@mrfund/shared";
+
 /** A value a tool returned, as an exact decimal string with an optional unit. */
 export interface SourceNumber {
   /** Optional minus sign, digits, optional fraction. Exact; never a float. */
@@ -207,14 +209,7 @@ export function checkNumbers(
 
 /** Exact decimal string for `atomic / 10^decimals`; trailing zeros dropped. */
 export function fromAtomic(atomic: bigint, decimals: number, unit: string | null): SourceNumber {
-  if (atomic < 0n) throw new RangeError("atomic amount must not be negative");
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 77) {
-    throw new RangeError("decimals must be an integer from 0 to 77");
-  }
-  const s = atomic.toString().padStart(decimals + 1, "0");
-  const whole = s.slice(0, s.length - decimals);
-  const frac = s.slice(s.length - decimals).replace(/0+$/, "");
-  return { value: frac.length > 0 ? `${whole}.${frac}` : whole, unit };
+  return { value: decimalString(atomic, decimals), unit };
 }
 
 /** Basis points shown as a percentage: 12050 bps is "120.5" %. */

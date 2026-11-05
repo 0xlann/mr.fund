@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatUnits, parseAtomic, toAtomic, toInternal } from "../src/index";
+import {
+  decimalString,
+  formatUnits,
+  parseAtomic,
+  toAtomic,
+  toInternal,
+  usdPerWholeToken,
+} from "../src/index";
 
 describe("toInternal / toAtomic", () => {
   it("round-trips for extraDecimals 0 and 12", () => {
@@ -71,5 +78,41 @@ describe("formatUnits (display only)", () => {
   it("handles decimals 0 and amounts beyond 2^64 without losing digits", () => {
     expect(formatUnits(42n, 0, "en-US")).toBe("42");
     expect(formatUnits(2n ** 64n, 0, "en-US")).toBe("18,446,744,073,709,551,616");
+  });
+});
+
+describe("decimalString", () => {
+  it("is exact and drops trailing zeros", () => {
+    expect(decimalString(1_234_567_890n, 6)).toBe("1234.56789");
+    expect(decimalString(5n, 6)).toBe("0.000005");
+    expect(decimalString(200_000_000n, 6)).toBe("200");
+    expect(decimalString(0n, 6)).toBe("0");
+    expect(decimalString(7n, 0)).toBe("7");
+    expect(decimalString(2n ** 127n, 18)).toBe("170141183460469231731.687303715884105728");
+  });
+
+  it("rejects negatives and bad decimals", () => {
+    expect(() => decimalString(-1n, 6)).toThrow(RangeError);
+    expect(() => decimalString(1n, -1)).toThrow(RangeError);
+    expect(() => decimalString(1n, 1.5)).toThrow(RangeError);
+    expect(() => decimalString(1n, 78)).toThrow(RangeError);
+  });
+});
+
+describe("usdPerWholeToken", () => {
+  const price = (multiplier: bigint, decimals: number) => ({
+    multiplier,
+    decimals,
+    publishTimeMs: 0,
+    source: "oracle" as const,
+  });
+
+  it("converts when the price has more decimals than the token", () => {
+    expect(usdPerWholeToken(price(50_000n, 28), 24)).toBe("5");
+    expect(usdPerWholeToken(price(10_000n, 10), 6)).toBe("1");
+  });
+
+  it("converts when the price has fewer decimals than the token", () => {
+    expect(usdPerWholeToken(price(3n, 2), 6)).toBe("30000");
   });
 });
