@@ -231,6 +231,8 @@ export interface EnforceInput {
   /** Built from tool results only; used after a second failure. */
   template: () => string;
   options?: CheckOptions;
+  /** Extra checks on the reply text (for example banned phrases); each string is a violation. */
+  extraViolations?: (text: string) => string[];
 }
 
 export interface EnforceOutput {
@@ -240,18 +242,24 @@ export interface EnforceOutput {
   hits: number;
 }
 
+/** Number violations first, then any extra ones; empty means the reply passes. */
+function violationsOf(text: string, input: EnforceInput): string[] {
+  const nums = checkNumbers(text, input.sources, input.options);
+  const out = nums.ok ? [] : nums.violations;
+  return [...out, ...(input.extraViolations?.(text) ?? [])];
+}
+
 /** Check once, regenerate once, then fall back to the template. */
 export async function enforceNumbers(input: EnforceInput): Promise<EnforceOutput> {
-  const first = checkNumbers(input.reply, input.sources, input.options);
-  if (first.ok) return { text: input.reply, via: "model", hits: 0 };
+  const first = violationsOf(input.reply, input);
+  if (first.length === 0) return { text: input.reply, via: "model", hits: 0 };
 
   let retry: string;
   try {
-    retry = await input.regenerate(first.violations);
+    retry = await input.regenerate(first);
   } catch {
     return { text: input.template(), via: "template", hits: 1 };
   }
-  const second = checkNumbers(retry, input.sources, input.options);
-  if (second.ok) return { text: retry, via: "model", hits: 1 };
+  if (violationsOf(retry, input).length === 0) return { text: retry, via: "model", hits: 1 };
   return { text: input.template(), via: "template", hits: 2 };
 }
