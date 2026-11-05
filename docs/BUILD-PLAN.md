@@ -164,11 +164,12 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Tests: each tool returns engine output for a fixture snapshot; invalid amount → typed refusal; `what_if_price` rejects −99%; a registry test asserts that no tool exports a signer or a transaction sender.
   - Evidence: test summary.
 
-- [ ] **P3.2 Number provenance checker** (F1).
+- [x] **P3.2 Number provenance checker** (F1).
   - Owned: `packages/agent/src/numbers.ts`.
   - Rule: every numeric token in the reply (locale-normalized: `1.234,5` and `1,234.5`) must match a value in the turn's tool results, after rounding to the displayed precision; percentages and amounts compared with units.
   - Tests: correct reply passes; invented rate fails; number in Indonesian formatting passes; a dated or ordinal number in prose ("2 options") is allowed only from a small allowlist; second failure → template reply.
-  - Evidence: test summary.
+  - Evidence: [V] 2026-11-05, `pnpm test` 15 files, 152 tests passed (30 new in `packages/agent/test/numbers.test.ts`); `pnpm typecheck` rc=0; Biome clean. Seven mutations of `numbers.ts` (floor-only, half-up-only, unit check off, sign check off, allowlist 3→9, template bypass, thousands-group path off) each made at least one test fail; the last survived until a test for `1.234.567` was added, then failed as expected. Tested locally only: no LLM or tool results exist yet, so P3.1 must build `SourceNumber`s from real tool output (helpers `fromAtomic`, `percentFromBps`, `ratioFromBps`).
+  - Design notes [I]: a token is read under every plausible locale (`1.234` is both 1.234 and 1234) and passes if any reading matches. A `%`, `$` or symbol-bearing token matches only a source with that unit; a bare number matches any source of equal value. Only bare integers 1 to 3 and ordinals up to 31st pass without a source; dates pass only via the caller's `allowedLiterals`.
 
 - [ ] **P3.3 Persona and character state** (F1, D3).
   - Owned: `packages/agent/src/persona.ts`, `packages/engine/src/mood.ts`.
