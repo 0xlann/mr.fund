@@ -1,1 +1,1 @@
-export const packageName = "@mrfund/engine" as const;
+export * from "./health";
