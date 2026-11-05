@@ -34,7 +34,7 @@
 | --- | --- | --- | --- |
 | `NEAR_NETWORK_ID` | all | `testnet` or `mainnet` | public |
 | `NEAR_RPC_URL` | server, watcher, scripts | For example `https://test.rpc.fastnear.com` | public |
-| `PUBLIC_NEAR_NETWORK_ID`, `PUBLIC_NEAR_RPC_URL` | web app | Browser copies of the above (prefix per D16) | public |
+| `NEXT_PUBLIC_NEAR_NETWORK_ID`, `NEXT_PUBLIC_NEAR_RPC_URL` | web app | Browser copies of the above (Next.js exposes only `NEXT_PUBLIC_*`, D16) | public |
 | `RHEA_LENDING_ID` | all | Lending contract for the network | public |
 | `GUARDIAN_FACTORY_ID` | all | Factory account | public |
 | `FEE_RECIPIENT_ID` | factory deploy, web app (display) | Fee recipient account | public |

@@ -59,10 +59,10 @@ Purpose: kill or reshape early. Each gate has a pass condition, a fail condition
 
 - [ ] **P0.6 LLM access and tool-calling probe** (B6, D25). One chat completion with a declared tool against `Qwen/Qwen3.8-27B` and `z-ai/glm-5.3-flash` via `https://cloud-api.near.ai/v1`; record whether each returns schema-valid `tool_calls`, latency, and one Indonesian and one Spanish sample. Evidence: summary in OPEN-DECISIONS D25 (no secrets).
 
-- [ ] **P0.7 Repository scaffold for the chosen stack** (after D16).
+- [x] **P0.7 Repository scaffold for the chosen stack** (after D16).
   - Owned: root workspace manifest, `apps/*/` and `packages/*/` package manifests, `contracts/Cargo.toml` workspace, `.env.example`, lint and format config, `README.md` skeleton.
   - Acceptance: `npx vitest run` passes with one trivial test per package; `cargo test` runs in `contracts/`; `.env.example` lists every name in INTEGRATIONS; CLAUDE.md "Stack-specific standards" filled in.
-  - Evidence: command outputs summarized here.
+  - Evidence (run 2026-11-05, macOS arm64, Node 26.10.0, pnpm 12.14.0, Rust 1.96.1): `pnpm test` → 7 test files, 7 tests passed (shared, engine, rhea, guardian-client, agent, web, watcher); `pnpm typecheck` clean in all 7 workspace projects; `pnpm contracts:test` → 3 trivial tests passed (probe, guardian, guardian-factory); `next build` (Next.js 16.4.5) compiled and prerendered `/`; `biome check .` clean. `.env.example` lists every INTEGRATIONS name, with `NEXT_PUBLIC_` replacing the `PUBLIC_` prefix. Deviations: local Node 26.10.0 and Rust 1.96.1 differ from the planned 24.22.2 and 1.99.1 (near-sdk MSRV 1.95 is met; `engines` requires Node ≥ 22.22.2 for `near-api-js`); the `wasm32-unknown-unknown` target is not installed yet; `near-sdk` and `near-workspaces` are not added until P0.3, P2.1 and P2.7 need them; `openai` and Playwright are not added until P3.5 and P4.4.
 
 - [ ] **P0.8 Phase 0 gate review (2026-11-06 23:59).** Lead presents P0.2 to P0.4 results and recommendations; founder resolves D16, D18, D19; docs updated (ARCHITECTURE final, SMART-CONTRACT final or G2 rewrite, PRD demo adjusted).
 

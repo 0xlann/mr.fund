@@ -3,7 +3,8 @@
 ## TL;DR
 
 - **Decided by the founder on 2026-11-04:** D1 to D15 and D17 (verbatim table below), plus D20 to D23: 0xlann submits and owns `github.com/0xlann/mr.fund`; project skills are committed; `main` plus a `dev` branch; `docs/DESIGN.md` waits for frontend work.
-- **Open, founder-owned, needed by the Phase 0 gate (2026-11-06):** D16 tech stack (lead recommends Option A), D18 Guardian custody model (lead recommends G1 Guardian-held loan), D19 demo network (founder leans testnet; lead recommends the testnet-first ladder).
+- **Decided 2026-11-05:** D16 tech stack, Option A (Next.js + Rust Guardian + Node watcher).
+- **Open, founder-owned, needed by the Phase 0 gate (2026-11-06):** D18 Guardian custody model (lead recommends G1 Guardian-held loan), D19 demo network (founder leans testnet; lead recommends the testnet-first ladder).
 - **The finding that changed the plan:** Rhea lending has **no repay-on-behalf** in its published source, so a Guardian cannot automatically repay a loan that lives in the user's wallet (D18, B1). Rhea's testnet lending contract exists, but its stablecoin price feeds returned `null` (D19, B2).
 - **Work that can proceed before those decisions:** the deterministic finance engine and Rhea read adapter are TypeScript under every viable stack option (BUILD-PLAN P1.1 to P1.5), and Phase 0 probes are read-only or testnet-only.
 
@@ -30,7 +31,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 | D13 | Cross-chain | **Future development.** NEAR Intents may be used, including a custom testnet endpoint if one is proven to work. Not in MVP, never claimed in the demo unless executed | Decided |
 | D14 | Education | No academy, courses or quizzes. Education is embedded: short in-context explanations, "Why this?" on every card, assumptions visible | Lead proposal |
 | D15 | Tracks | Unstoppable DeFi primary. Agent Economy only if the agent really spends or earns in an economic loop (for example paying for a service it needs). AI Security only if the contract-enforced limits are demonstrated. Never claim Games for a character skin | Lead proposal |
-| D16 | Tech stack | **Open decision.** Research options and recommend; do not block docs on it (section 6) | Open |
+| D16 | Tech stack | **Option A** (Next.js App Router with chat API as Route Handlers, Rust Guardian, separate Node watcher), chosen 2026-11-05; details under "D16" below | Decided 2026-11-05 |
 | D17 | Team and repo | Team repository; no `.omp`/model routing in tracked files; no commit-size rule | Decided |
 
 ## Further decisions
@@ -66,7 +67,7 @@ Recommendation [I]: **A.** It has the same security core as C with fewer unprove
 
 Character rendering (part of this decision, D26), listed without choosing: sprite state sheets with CSS (no runtime, high art cost); `lottie-react` 3.1.2; `@lottiefiles/dotlottie-react` 0.21.1 (WASM player, state machines); `@rive-app/react-canvas` 4.38.0 (interactive state machines, highest rig cost); SVG with `motion` 14.9.1; SVG with `gsap` 3.15.1. Whatever is chosen, text and numbers carry the financial state; animation never does alone.
 
-Founder response: pending. Affected docs: ARCHITECTURE, INTEGRATIONS, BUILD-PLAN P0.1 and every owned path, CLAUDE.md "Stack-specific standards".
+**Resolution (2026-11-05):** Option A, chosen in a coding session after the question "can the backend be NestJS?" was answered. A NestJS `apps/api` (variant A′) was offered and not chosen: the backend is one streaming chat endpoint plus a separate watcher, so Route Handlers are enough and add no extra deployable. If a NestJS API is wanted later, keep it a separate process from the watcher (the chat process holds only the LLM key, the watcher only its function-call key). Package manager: pnpm 12.14.0. Lint and format: Biome 2.6.5 (lead choice, code files only). D26 (character rendering) and D29 (watcher host) remain open. The scaffold is BUILD-PLAN P0.7.
 
 ### D18. Guardian custody model (Open)
 
@@ -175,7 +176,7 @@ Follows D16: Option A needs an always-on Node host (Railway or Fly.io; Render's 
 | B2 | Demo network choice and Gate 1 proof (D19) | lead runs probes, founder decides | Open | P0.2, P5.5, P6.4 | P0.2 result: fresh USDC price on testnet and a borrow transaction, or fallback |
 | B3 | Gate 2 proof on deployed Rhea code | lead | Open | P0.3, Phase 2 | Contract-owned position completes supply, collateral, borrow, withdraw, repay and release on testnet and in a sandbox with mainnet code imported |
 | B4 | Gate 3: in-contract trigger price source | lead | Open | P0.4, P2.5 | Contract reads a fresh price and computes the same health as the engine, or D27 fallback |
-| B5 | Tech stack (D16) | founder | Open | P0.7 and every app path | Founder picks A, B or C |
+| B5 | Tech stack (D16) | founder | Resolved 2026-11-05 | P0.7 and every app path | Option A chosen; see D16 |
 | B6 | NEAR AI Cloud API key and credits | founder | Open | P0.6, Phase 3 | Create an account and key at cloud.near.ai or request hackathon credits (link on docs.near.org hackathons page); place the key in local `.env` only |
 | B7 | Testnet accounts, NEAR and listed test tokens | founder creates or authorizes the lead | Open | P0.2, P0.3, P2.8, P5 | Accounts listed in INTEGRATIONS "NEAR testnet accounts"; faucet NEAR; a way to obtain `usdc.fakes.testnet` [U] |
 | B8 | Watcher host account (D29) | founder | Open | P5.3 | After D16 |

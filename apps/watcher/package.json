@@ -1,0 +1,15 @@
+{
+  "name": "@mrfund/watcher",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@mrfund/engine": "workspace:*",
+    "@mrfund/guardian-client": "workspace:*",
+    "@mrfund/rhea": "workspace:*",
+    "@mrfund/shared": "workspace:*"
+  }
+}
