@@ -83,13 +83,21 @@ describe("get_position", () => {
     expect(ok(r).scenario).toBe(false);
   });
 
-  it("refuses with the reason when data is stale", () => {
+  it("refuses with the reason when prices are stale", () => {
+    const later = NOW + 600_000;
+    const snapshot = baseSnapshot({ readAtMs: later });
+    const stale = dispatch({ name: "get_position", arguments: {} }, { snapshot, nowMs: later });
+    expect(stale.ok).toBe(false);
+    if (!stale.ok) expect(stale.refusal.code).toBe("stale_price");
+  });
+
+  it("refuses with the reason when the read itself is old", () => {
     const stale = dispatch(
       { name: "get_position", arguments: {} },
       { ...ctx, nowMs: NOW + 600_000 },
     );
     expect(stale.ok).toBe(false);
-    if (!stale.ok) expect(stale.refusal.code).toBe("stale_price");
+    if (!stale.ok) expect(stale.refusal.code).toBe("stale_snapshot");
   });
 
   it("says there is no debt instead of inventing a health factor", () => {

@@ -91,6 +91,20 @@ function engineRefusal(tool: string, e: EngineError): ToolResult {
       return refuse(tool, "unsupported_asset", `${e.tokenId} is not supported here.`);
     case "invalid_amount":
       return refuse(tool, "invalid_amount", e.reason);
+    case "invalid_input":
+      return refuse(tool, "invalid_input", e.reason);
+    case "stale_snapshot":
+      return refuse(
+        tool,
+        "stale_snapshot",
+        "The position was read longer ago than the freshness limit, so no advice can be given.",
+      );
+    case "target_unreachable":
+      return refuse(
+        tool,
+        "target_unreachable",
+        "Repaying this token cannot reach the target health.",
+      );
   }
 }
 

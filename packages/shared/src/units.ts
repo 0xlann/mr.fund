@@ -23,6 +23,9 @@ export function toAtomic(internal: Atomic, extraDecimals: number): Atomic {
   return internal / 10n ** BigInt(extraDecimals);
 }
 
+/** Token amounts are u128 on chain. */
+const U128_MAX = 2n ** 128n - 1n;
+
 const CANONICAL_INTEGER = /^(0|[1-9][0-9]*)$/;
 
 /** Parse untrusted text into atomic units. Only canonical non-negative integers pass. */
@@ -30,7 +33,10 @@ export function parseAtomic(s: string): Result<Atomic, EngineError> {
   if (!CANONICAL_INTEGER.test(s)) {
     return err({ kind: "invalid_amount", reason: "expected a non-negative whole number" });
   }
-  return ok(BigInt(s));
+  const v = BigInt(s);
+  if (v > U128_MAX)
+    return err({ kind: "invalid_amount", reason: "amount exceeds the largest u128" });
+  return ok(v);
 }
 
 /** Display only. Splits with bigint arithmetic so no digits are lost to floating point. */

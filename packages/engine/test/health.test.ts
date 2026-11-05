@@ -134,14 +134,19 @@ describe("healthBps", () => {
     });
   });
 
-  it("states that a default_price asset is fixed and skips the freshness check", () => {
+  it("states that a default_price asset is fixed and skips the price freshness check", () => {
     const fixed = (p: typeof wnearPrice) => ({
       ...p,
       source: "default_price" as const,
       publishTimeMs: null,
     });
-    const s = baseSnapshot({ prices: { [WNEAR]: fixed(wnearPrice), [USDC]: fixed(usdcPrice) } });
-    const r = health(s, NOW + 10 * 3_600_000);
+    // The balances must still be fresh: a fixed price has no age, the read does.
+    const later = NOW + 10 * 3_600_000;
+    const s = baseSnapshot({
+      prices: { [WNEAR]: fixed(wnearPrice), [USDC]: fixed(usdcPrice) },
+      readAtMs: later,
+    });
+    const r = health(s, later);
     expect(r.value).toBe(14_250);
     expect(r.assumptions).toContain("wNEAR uses a fixed price");
     expect(r.assumptions).toContain("USDC uses a fixed price");

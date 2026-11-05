@@ -76,7 +76,7 @@ describe("repayToReachHealth", () => {
     s.borrowed.push({ tokenId: "dai.testnet", internal: 400n * 10n ** 18n });
     const r = repayToReachHealth(s, USDC, 20_000, NOW);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.kind).toBe("invalid_amount");
+    if (!r.ok) expect(r.error.kind).toBe("target_unreachable");
   });
 
   it("rejects a non-positive or fractional target", () => {

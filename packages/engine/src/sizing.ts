@@ -41,7 +41,7 @@ export function maxRepayUseful(
 
 /**
  * A copy of the snapshot with `amount` (token atomic units) repaid on `tokenId`.
- * Clamps at zero debt. Throws for a token with no asset config (callers validate first).
+ * Clamps at zero debt. Throws for a token with no asset config or a negative amount (callers validate first).
  */
 export function withRepay(
   s: PositionSnapshot,
@@ -50,6 +50,7 @@ export function withRepay(
 ): PositionSnapshot {
   const asset = s.assets[tokenId];
   if (!asset) throw new RangeError(`unknown asset ${tokenId}`);
+  if (amount < 0n) throw new RangeError("repay amount must not be negative");
   const remaining = debtInternal(s, tokenId) - amount * 10n ** BigInt(asset.token.extraDecimals);
   const others = s.borrowed.filter((l) => l.tokenId !== tokenId);
   return {
@@ -101,10 +102,7 @@ export function repayToReachHealth(
   const full = meets(hi);
   if (!full.ok) return full;
   if (!full.value) {
-    return err({
-      kind: "invalid_amount",
-      reason: "repaying this token cannot reach the target health",
-    });
+    return err({ kind: "target_unreachable", tokenId: debtTokenId, targetBps });
   }
   let lo = 0n; // lo never meets the target, hi always does
   while (hi - lo > 1n) {

@@ -14,6 +14,9 @@ import {
 /** Default freshness limit for advice and cards (INTEGRATIONS `MAX_DATA_AGE_MS`). */
 export const MAX_DATA_AGE_MS = 120_000;
 
+/** [I] Tolerance for clock skew between the reader and this process. */
+export const MAX_FUTURE_SKEW_MS = 60_000;
+
 export interface HealthOptions {
   maxDataAgeMs?: number;
 }
@@ -45,8 +48,27 @@ function resolve(
   if (!asset) return err({ kind: "unsupported_asset", tokenId });
   const price = s.prices[tokenId];
   if (!price || price.multiplier <= 0n) return err({ kind: "missing_price", tokenId });
+  if (
+    !Number.isInteger(asset.volatilityRatioBps) ||
+    asset.volatilityRatioBps < 0 ||
+    asset.volatilityRatioBps > 10_000
+  ) {
+    return err({
+      kind: "invalid_input",
+      reason: `volatility ratio for ${tokenId} must be a whole number of bps from 0 to 10000`,
+    });
+  }
+  if (!Number.isInteger(price.decimals) || price.decimals < 0) {
+    return err({
+      kind: "invalid_input",
+      reason: `price decimals for ${tokenId} must be a non-negative whole number`,
+    });
+  }
   if (price.source === "default_price") return ok({ asset, price, ageMs: 0, fixed: true });
   if (price.publishTimeMs === null) return err({ kind: "missing_price", tokenId });
+  if (price.publishTimeMs - nowMs > MAX_FUTURE_SKEW_MS) {
+    return err({ kind: "invalid_input", reason: `price for ${tokenId} is dated in the future` });
+  }
   const ageMs = Math.max(0, nowMs - price.publishTimeMs);
   if (ageMs > maxAgeMs) return err({ kind: "stale_price", tokenId, ageMs, limitMs: maxAgeMs });
   return ok({ asset, price, ageMs, fixed: false });
@@ -72,9 +94,22 @@ function evaluate(
   nowMs: number,
   maxAgeMs: number,
 ): Result<Position, EngineError> {
+  if (!Number.isFinite(nowMs) || nowMs < 0) {
+    return err({ kind: "invalid_input", reason: "clock must be a non-negative number of ms" });
+  }
+  if (s.readAtMs - nowMs > MAX_FUTURE_SKEW_MS) {
+    return err({ kind: "invalid_input", reason: "snapshot is dated in the future" });
+  }
+  const readAgeMs = Math.max(0, nowMs - s.readAtMs);
+  if (readAgeMs > maxAgeMs)
+    return err({ kind: "stale_snapshot", ageMs: readAgeMs, limitMs: maxAgeMs });
+  if ([...s.collateral, ...s.borrowed].some((l) => l.internal < 0n)) {
+    return err({ kind: "invalid_input", reason: "balances must not be negative" });
+  }
+
   let c = ZERO;
   let b = ZERO;
-  let dataAgeMs = Math.max(0, nowMs - s.readAtMs);
+  let dataAgeMs = readAgeMs;
   const inputs: Record<string, string> = {
     network: s.network,
     accountId: s.accountId,

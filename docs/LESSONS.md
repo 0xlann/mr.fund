@@ -2,6 +2,12 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-05: an independent review found the engine trusted its inputs and read a bad policy as "spend the maximum"
+
+- What happened: a fresh-context review of the engine (P1.1 to P1.5, P3.3) found no arithmetic error but four Important gaps. A Guardian policy with `targetHfBps: 0` made `evaluateTrigger` treat the failed sizing as "target unreachable" and size the largest allowed repay. A fixed-price (`default_price`) position was never aged, so balances read hours ago were advised on as fresh. Negative balances, out-of-range ratios and fractional clocks reached `BigInt` and threw out of functions that promise a `Result`.
+- Root cause: one error kind (`invalid_amount`) meant both "bad input" and "no solution", and the engine checked price age but not the age of the snapshot it was computed from. Validation lived in the contract spec, not in the code that mirrors it.
+- Rule: validate policy, snapshot and clock at the engine boundary and return an error, never size from a malformed input. Give "no solution" its own error kind. Every freshness rule applies to the balances too, not only to prices. Ask for the independent review before UI and contracts depend on the engine.
+
 ### 2026-11-05: a formatter run over the whole repo rewrote the docs
 
 - What happened: `biome check --write .` reformatted `CLAUDE.md` and every file in `docs/` (Markdown tables re-padded, 407 lines changed) while the intent was to format new TypeScript. The changes were reverted with `git checkout` because the files were clean before.

@@ -7,6 +7,7 @@ import {
   ok,
   type PositionSnapshot,
   type Result,
+  validatePolicy,
 } from "@mrfund/shared";
 import { type HealthOptions, healthBps } from "./health";
 import { outstandingDebtAtomic, repayToReachHealth } from "./sizing";
@@ -49,9 +50,15 @@ export function evaluateTrigger(
   const no = (reason: TriggerReason): Result<TriggerDecision, EngineError> =>
     ok({ act: false, reason });
 
+  const valid = validatePolicy(policy);
+  if (!valid.ok) return valid;
+  if (!Number.isFinite(nowMs) || nowMs < 0) {
+    return err({ kind: "invalid_input", reason: "clock must be a non-negative number of ms" });
+  }
+
   if (guardian.status !== "active") return no("not_active");
   if (guardian.inFlight !== null) return no("in_flight");
-  const elapsedNs = BigInt(nowMs) * NS_PER_MS - guardian.lastActionStartedNs;
+  const elapsedNs = BigInt(Math.floor(nowMs)) * NS_PER_MS - guardian.lastActionStartedNs;
   if (elapsedNs < BigInt(policy.cooldownSec) * NS_PER_SEC) return no("cooldown");
 
   const health = healthBps(s, nowMs, opts);
@@ -76,7 +83,7 @@ export function evaluateTrigger(
   let desired: Atomic;
   if (needed.ok) {
     desired = needed.value.value;
-  } else if (needed.error.kind === "invalid_amount") {
+  } else if (needed.error.kind === "target_unreachable") {
     // Repaying this token cannot reach the target; repay as much as the limits allow.
     desired = outstandingDebtAtomic(s, guardian.debtTokenId);
   } else {
