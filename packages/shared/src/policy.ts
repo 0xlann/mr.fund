@@ -27,3 +27,7 @@ export interface GuardianState {
   /** Nanoseconds since epoch, as stored by the contract. */
   lastActionStartedNs: bigint;
 }
+
+/** Lead proposals (D28): user-editable, never presented as a safety guarantee. */
+export const DEFAULT_COMFORT_HF_BPS = 15_000;
+export const DEFAULT_TRIGGER_HF_BPS = 12_000;

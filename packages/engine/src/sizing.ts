@@ -9,7 +9,7 @@ import {
   type PositionSnapshot,
   type Result,
 } from "@mrfund/shared";
-import { healthBps } from "./health";
+import { type HealthOptions, healthBps } from "./health";
 
 /** Total internal debt of one token, summed over duplicate lines. */
 function debtInternal(s: PositionSnapshot, tokenId: AccountId): bigint {
@@ -67,6 +67,7 @@ export function repayToReachHealth(
   debtTokenId: AccountId,
   targetBps: Bps,
   nowMs: number,
+  opts: HealthOptions = {},
 ): Result<Computed<Atomic>, EngineError> {
   if (!Number.isInteger(targetBps) || targetBps <= 0) {
     return err({ kind: "invalid_amount", reason: "target must be a positive whole number of bps" });
@@ -74,12 +75,12 @@ export function repayToReachHealth(
   if (!s.assets[debtTokenId]) return err({ kind: "unsupported_asset", tokenId: debtTokenId });
 
   const meets = (amount: Atomic): Result<boolean, EngineError> => {
-    const h = healthBps(withRepay(s, debtTokenId, amount), nowMs);
+    const h = healthBps(withRepay(s, debtTokenId, amount), nowMs, opts);
     if (!h.ok) return h;
     return ok(h.value.value === "no_debt" || h.value.value >= targetBps);
   };
 
-  const current = healthBps(s, nowMs);
+  const current = healthBps(s, nowMs, opts);
   if (!current.ok) return current;
   const done = (value: Atomic): Result<Computed<Atomic>, EngineError> =>
     ok({

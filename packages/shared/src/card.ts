@@ -57,3 +57,15 @@ export interface Card {
   payload: NearTransaction[];
   receipt?: CardReceipt;
 }
+
+/** Fee amounts in atomic units of `tokenId`. Pricing is open (D24), so there are no defaults. */
+export interface FeeSchedule {
+  tokenId: AccountId;
+  recipientId: AccountId;
+  /** Once, at Guardian activation. */
+  activationFee: Atomic;
+  /** Per executed automatic repay. 0 under the D27 fallback. */
+  actionFee: Atomic;
+  /** Per manual action executed through Mr.Fund. */
+  executionFee: Atomic;
+}
