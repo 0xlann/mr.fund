@@ -155,6 +155,7 @@ NEP-297 log lines `EVENT_JSON:{"standard":"mrfund_guardian","version":"1.0.0","e
 ## Encodings and invariants
 
 - Rhea message strings are JSON **inside** the NEP-141 `msg` string: `"\"OnlyRepay\""` is the JSON string `"OnlyRepay"`; `Execute` is `{"Execute":{"actions":[…]}}`. `AssetAmount` is `{token_id, amount?, max_amount?}`; set exactly one of `amount` or `max_amount` (source checks `amount` first). Amounts inside Rhea actions are Rhea internal units (token atomic × `10^extra_decimals`); amounts in `ft_transfer_call` are token atomic units. A shared test vector file `fixtures/encodings.json` is asserted from both Rust and TypeScript (P2.7, P4.2).
+- **Repay message depends on the deployed Rhea version [V, P0.3 sandbox, 2026-11-06]:** mainnet `0.16.2` accepts `"OnlyRepay"`; deployed testnet `0.11.0` rejects it and repays through `Execute` with a `Repay` action whose amount is in Rhea internal units. The Guardian's repay method must be chosen per configured lending contract version and tested on the network D19 picks; the statements above that use `"OnlyRepay"` describe mainnet.
 - No signatures, nonces or off-chain payloads are accepted by the Guardian; authority is the NEAR predecessor plus the deposit rule. Replay is not applicable; double execution is prevented by the in-flight lock and cooldown.
 
 **Invariants (each has a negative test in the matrix):**

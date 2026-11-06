@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["probe", "guardian", "guardian-factory"]
+members = ["probe", "guardian", "guardian-factory", "tests", "tests/fixtures"]
 
 [workspace.package]
 edition = "2021"
@@ -8,6 +8,9 @@ rust-version = "1.95"
 publish = false
 version = "0.0.0"
 
-# near-sdk 5.30.0 (MSRV 1.95) is added by the first task that needs it:
-# P0.3 (probe), P2.1 (guardian), P2.6 (factory). The sandbox test crate
-# (near-workspaces 0.24.0) arrives with P2.7.
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+panic = "abort"
+overflow-checks = true

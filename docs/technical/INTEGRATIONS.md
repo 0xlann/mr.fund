@@ -90,7 +90,7 @@ Agent steps (planned, need B7 accounts):
 2. Register the acting account on each token contract (`storage_deposit` on the token).
 3. Supply and collateralize: token `ft_transfer_call` to lending with `msg` `{"Execute":{"actions":[{"IncreaseCollateral":{"token_id":"<token>"}}]}}` and 1 yocto.
 4. Borrow and withdraw: lending `execute_with_pyth` with `[{"Borrow":{"token_id":"<debt>","amount":"<internal>"}},{"Withdraw":{"token_id":"<debt>","amount":"<internal>"}}]` and 1 yocto.
-5. Repay: debt token `ft_transfer_call` to lending with `msg` `"\"OnlyRepay\""` and 1 yocto.
+5. Repay: on mainnet `0.16.2`, debt token `ft_transfer_call` to lending with `msg` `"\"OnlyRepay\""` and 1 yocto. **Deployed testnet `0.11.0` rejects `OnlyRepay`** [V, sandbox with the downloaded testnet bytecode, 2026-11-06, P0.3]; there use `msg` `{"Execute":{"actions":[{"Repay":{"token_id":"<debt>","amount":"<internal>"}}]}}`, where the outer `amount` is token atomic units and the inner `amount` is Rhea internal units (atomic × `10^extra_decimals`). The message depends on the deployed version; never retry one as a fallback for the other.
 6. Release: `execute_with_pyth` with `DecreaseCollateral` then `Withdraw`.
 
 Verification: each step's transaction outcome has no failed receipt; `get_account` reflects the change. Record hashes here. Stop condition: a priced step fails with a missing-price error; go to recipe 4.

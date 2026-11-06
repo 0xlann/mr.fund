@@ -13,7 +13,8 @@
     "typecheck": "pnpm -r --workspace-concurrency=1 typecheck",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "contracts:test": "cargo test --manifest-path contracts/Cargo.toml"
+    "contracts:test": "cargo test --manifest-path contracts/Cargo.toml",
+    "contracts:probe:prepare": "node scripts/probes/prepare-sandbox.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.5",

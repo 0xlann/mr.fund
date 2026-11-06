@@ -2,6 +2,12 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-06: the deployed testnet Rhea rejects the repay message the docs and builders use
+
+- What happened: the P0.3 sandbox deployed the actual testnet bytecode (`0.11.0`) and the probe's `"OnlyRepay"` transfer failed with `unknown variant`. The same message works on the mainnet bytecode (`0.16.2`). The docs, the Guardian spec and the TypeScript repay builders (P4.2, 389 tests) all assumed `OnlyRepay` everywhere.
+- Root cause: the message was verified from published source `0.15.7` and mainnet behavior, but the network we would demo on runs an older deployed version. Source and one network's behavior are not evidence for another network.
+- Rule: exercise every money-path encoding against the bytecode deployed on the network it will run on, and key encodings by Rhea version. Unit tests that assert bytes only prove the bytes are what we wrote.
+
 ### 2026-11-06: real RPC rate fields contradicted the APY-only engine interface
 
 - What happened: P1.4 recorded testnet and mainnet views returning `supply_apr` and `borrow_apr`, while shared types and engine inputs were named APY.
