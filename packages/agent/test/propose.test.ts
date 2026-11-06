@@ -17,6 +17,7 @@ const proposal = (over: Partial<ProposalContext> = {}): ProposalContext => ({
   walletBalances: { [USDC]: 1_000n * USDC_1 },
   fees: FEES,
   lendingId: "contract.1689937928.burrow.testnet",
+  lendingVersion: "0.11.0",
   feeRecipientRegistered: true,
   ...over,
 });
@@ -73,7 +74,7 @@ describe("propose_card (repay)", () => {
     expect(repay?.args).toEqual({
       receiver_id: "contract.1689937928.burrow.testnet",
       amount: "50000000",
-      msg: '"OnlyRepay"',
+      msg: '{"Execute":{"actions":[{"Repay":{"token_id":"usdc.fakes.testnet","max_amount":"50000000000000000000"}}]}}',
     });
     expect(repay?.deposit).toBe(1n);
     expect(card?.payload[1]?.actions[0]?.methodName).toBe("ft_transfer");

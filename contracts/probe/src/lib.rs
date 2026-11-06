@@ -1,5 +1,7 @@
 //! Throwaway Phase 0 probe (BUILD-PLAN P0.3, P0.4). Deleted at P6.2 unless reused.
 
+mod trigger;
+
 use near_sdk::{
     assert_one_yocto, env,
     json_types::U128,
@@ -20,6 +22,7 @@ pub struct Probe {
     next_op_id: u64,
     in_flight: Option<u64>,
     last_result: Option<ProbeResult>,
+    last_trigger_result: Option<trigger::TriggerResult>,
 }
 
 #[near(serializers = [json, borsh])]
@@ -62,6 +65,7 @@ impl Probe {
             next_op_id: 0,
             in_flight: None,
             last_result: None,
+            last_trigger_result: None,
         }
     }
 
@@ -139,7 +143,7 @@ impl Probe {
     pub fn probe_repay_via_execute(&mut self, amount: U128) -> Promise {
         self.assert_owner();
         let internal = Self::internal(amount, self.debt_extra_decimals);
-        let msg = serde_json::to_string(&json!({"Execute":{"actions":[{"Repay":{"token_id":self.debt_token_id,"amount":internal}}]}})).expect("JSON encoding");
+        let msg = serde_json::to_string(&json!({"Execute":{"actions":[{"Repay":{"token_id":self.debt_token_id,"max_amount":internal}}]}})).expect("JSON encoding");
         self.transfer("repay_via_execute", self.debt_token_id.clone(), amount, msg)
     }
 

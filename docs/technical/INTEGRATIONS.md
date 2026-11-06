@@ -32,6 +32,12 @@
 
 [V] Opt-in live adapter check passed: `RHEA_LIVE_READ=1 pnpm exec vitest run packages/rhea/test/live.test.ts --reporter=verbose --disableConsoleIntercept`; public mainnet `brianphan01.near`, block 223245899, engine health 258633 bps, data age 36595 ms. UI parity is unverified: web reader failed and computer-use browser host was unavailable. P1.4 stays unchecked pending that comparison. No account creation, key access, funds, deployment or transaction submission was involved. D30 records the user-approved switch from APY assumptions to protocol-reported APR fields.
 
+## Trigger and Guardian progress (2026-11-06)
+
+P0.4 update [V]: seven joined reads plus private callback passed sandbox health 57000 bps and null/expired-price rejection on both imported Rhea versions. Sample read-only gas burnt: testnet 30.586/30.952 Tgas, mainnet 31.605/32.106 Tgas (at-threshold/triggered); this does not prove composed repay allocation. P0.4/D27 remain open. `fixtures/trigger-vectors.json` is hand-computed, Simulated and asserted in Rust and TypeScript.
+
+P2.1/P2.2 [V]: policy core and reserve lifecycle passed unit and sandbox tests, including keyless accounts, paid activation, deactivated withdrawal, real failed fee/withdrawal receipts and restored balances/refunds. This is not a public deployment, a factory-creation proof or chosen D24 pricing. The version-aware manual builder now uses `Repay.max_amount` on 0.11.0; its dust/overpay boundary was exercised with imported deployed bytecode. Existing historical recipe examples with strict `amount` describe only exact repayment; use `max_amount` for rounded/full repayment.
+
 ## Environment variables (names only)
 
 `.env.example` will list these names with empty values at P0.7. Values never enter git.

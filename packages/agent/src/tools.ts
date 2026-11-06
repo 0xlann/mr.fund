@@ -68,6 +68,8 @@ export interface ProposalContext {
   fees: FeeSchedule;
   /** The Rhea lending contract that receives the repay. */
   lendingId: string;
+  /** Read from the configured lending contract; no default or LLM override. */
+  lendingVersion: string;
   /** Whether the fee recipient is registered on the fee token. */
   feeRecipientRegistered: boolean;
   /** The fee token's `storage_balance_bounds().min`, needed only if the recipient is unregistered. */
@@ -446,6 +448,8 @@ const proposeCard: Runner = (args, ctx) => {
 
   const payload = repayPayload(d, {
     lendingId: wallet.lendingId,
+    lendingVersion: wallet.lendingVersion,
+    extraDecimals: s.assets[tokenId]?.token.extraDecimals ?? -1,
     recipientRegistered: wallet.feeRecipientRegistered,
     ...(wallet.storageDepositYocto === undefined
       ? {}

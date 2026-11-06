@@ -11,6 +11,10 @@ This is the interface contract among the Guardian implementation, its clients (w
 
 ## Storage and state machine
 
+P2.1 implementation [V, 2026-11-06]: `new(config: GuardianConfig, policy: Policy)` groups immutable ids internally and initializes `created`. Enums serialize snake_case to match shared TypeScript; amounts, op ids and nanosecond times are decimal strings. `set_policy` also requires `lifetime_cap >= spent_total`, preserving I3 across updates. History `from` indexes the retained ring and `limit` clamps to 50. P2.2 below adds the token receiver and reserve lifecycle; automatic repay, upgrade and access-key methods are absent. Keyless factory creation remains separate evidence.
+
+P0.4 read-only evidence [V, 2026-11-06]: joined position/config/feed/price reads reproduce shared engine vectors exactly, with null/expired/future prices rejected and derivative `extra_call` positions unsupported. The probe threshold is owner-supplied; a Guardian must bind it to policy. Read-only gas burnt was 30.586–32.106 Tgas in sandbox with imported deployed code and Simulated prices. **Composed trigger + repay + settlement gas allocation is unproven**, so D27 remains open. This probe does not claim liquidation protection or a live trigger.
+
 Units: token amounts are `U128` atomic units of that token (JSON decimal strings). Health and thresholds are basis points, `u32`, where 10000 = 100%. Time is nanoseconds from `env::block_timestamp()` stored as `u64`; durations in policy are seconds.
 
 ### Guardian
@@ -88,6 +92,10 @@ pub struct GuardianFactory {
 
 ## Public interfaces
 
+P2.2 implementation [V, 2026-11-06]: `GuardianConfig` now includes immutable `activation_fee: U128`; this is not a chosen product price (D24 remains open). `ft_on_transfer` accepts only owner-sent debt tokens with strict `activate`/`reserve` messages. Deposits during a pending operation return the full amount to serialize accounting. Activation books reserve and enters Active only after fee success; fee failure returns the full incoming amount to the outer NEP-141 resolver. Withdrawals debit before transfer and restore on observed failure. Private callbacks check operation id and reserve-operation kind. Owner withdrawal works in every status, including Created, to avoid trapping preactivation topups (I9). Added failure events: `activation_failed`, `reserve_withdraw_failed`.
+
+Boundary: owner predecessor + exactly 1 yocto for withdrawals; configured debt-token predecessor + owner sender for deposits. Invariants exercised: I1's owner-withdrawal exception, I4, I5, I8, I9. Negative tests include unauthorized/wrong-token deposits, below-minimum activation, pending withdrawals and real NEP-141 recipient-registration failures. This does not guarantee Rhea repayment or trigger verification and assumes a conforming configured token.
+
 Check order matters: authentication first, then state, then arguments, then external calls. All JSON. Every rejection by an authorized caller returns a value and writes history; unauthorized calls panic and change nothing.
 
 ### Factory
@@ -156,6 +164,7 @@ NEP-297 log lines `EVENT_JSON:{"standard":"mrfund_guardian","version":"1.0.0","e
 
 - Rhea message strings are JSON **inside** the NEP-141 `msg` string: `"\"OnlyRepay\""` is the JSON string `"OnlyRepay"`; `Execute` is `{"Execute":{"actions":[…]}}`. `AssetAmount` is `{token_id, amount?, max_amount?}`; set exactly one of `amount` or `max_amount` (source checks `amount` first). Amounts inside Rhea actions are Rhea internal units (token atomic × `10^extra_decimals`); amounts in `ft_transfer_call` are token atomic units. A shared test vector file `fixtures/encodings.json` is asserted from both Rust and TypeScript (P2.7, P4.2).
 - **Repay message depends on the deployed Rhea version [V, P0.3 sandbox, 2026-11-06]:** mainnet `0.16.2` accepts `"OnlyRepay"`; deployed testnet `0.11.0` rejects it and repays through `Execute` with a `Repay` action whose amount is in Rhea internal units. The Guardian's repay method must be chosen per configured lending contract version and tested on the network D19 picks; the statements above that use `"OnlyRepay"` describe mainnet.
+- **Rounded full-repay correction [V, 2026-11-06]:** the legacy action must use bounded `max_amount`, not strict `amount`. Sandbox debt with subatomic dust caused strict overpayment to panic in deployed 0.11.0's pool arithmetic; the same call with `max_amount` cleared the debt and retained the exact excess as supplied balance. The TypeScript builder and explicit probe path now use this form. This is not a guarantee that accepted tokens all reduced debt; verify post-state separately.
 - No signatures, nonces or off-chain payloads are accepted by the Guardian; authority is the NEAR predecessor plus the deposit rule. Replay is not applicable; double execution is prevented by the in-flight lock and cooldown.
 
 **Invariants (each has a negative test in the matrix):**
@@ -165,7 +174,7 @@ NEP-297 log lines `EVENT_JSON:{"standard":"mrfund_guardian","version":"1.0.0","e
 | I1 | After every settled or failed action: `reserve ≥ reserve_floor`, unless the owner withdrew below it |
 | I2 | No single automatic repay exceeds `max_per_action` |
 | I3 | `spent_total ≤ lifetime_cap` |
-| I4 | Reserve tokens leave only to `lending_id` with `"OnlyRepay"`, to `fee_recipient_id` (at most `action_fee` per settled action, plus the activation fee once), or to `owner_id` |
+| I4 | Reserve tokens leave only to `lending_id` through the verified version's fixed repay message (`OnlyRepay` or bounded `Execute` containing only `Repay`), to `fee_recipient_id` (at most `action_fee` per settled action, plus the activation fee once), or to `owner_id` |
 | I5 | Only `watcher_id` or `owner_id` can call `request_repay`; only `owner_id` can call owner methods |
 | I6 | At most one action in flight; starts are separated by at least `cooldown_sec` |
 | I7 | `Paused` or `Deactivated` ⇒ `request_repay` never starts an action |

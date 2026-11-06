@@ -2,6 +2,18 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-06: a strict legacy repay amount fails when full debt rounds up
+
+- What happened: review asked for the legacy full-repay dust boundary. A sandbox debt of 10000000000000000001 internal units failed when the atomic-ceiled repayment used strict `Repay.amount`; deployed testnet bytecode panicked in pool subtraction.
+- Root cause: exact `amount` exceeded the real internal debt. Atomic rounding makes that a normal full-repay boundary, not merely an invalid user amount.
+- Rule: use bounded `Repay.max_amount` on verified legacy Rhea. The regression now clears debt and checks the exact excess supplied balance. Do not infer debt reduction or refund from token acceptance alone.
+
+### 2026-11-06: trigger gas burnt is not the continuation's available gas
+
+- What happened: P0.4's read-only check burnt about 31 Tgas; the initial assertion described the difference from 300 Tgas as repayment margin. Independent review caught that branches and callbacks reserve gas separately.
+- Root cause: total burn was treated as proof of continuation allocation without scheduling repayment after the callback.
+- Rule: keep D27 open until a sandbox transaction composes check, repay and settlement with the intended budgets. Report read-only measurements separately.
+
 ### 2026-11-06: the deployed testnet Rhea rejects the repay message the docs and builders use
 
 - What happened: the P0.3 sandbox deployed the actual testnet bytecode (`0.11.0`) and the probe's `"OnlyRepay"` transfer failed with `unknown variant`. The same message works on the mainnet bytecode (`0.16.2`). The docs, the Guardian spec and the TypeScript repay builders (P4.2, 389 tests) all assumed `OnlyRepay` everywhere.

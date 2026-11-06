@@ -44,10 +44,14 @@ const draft = (over: Partial<CardDraft> = {}): CardDraft => ({
   cappedBy: null,
   ...over,
 });
-const build = (
-  d: CardDraft,
-  p: Parameters<typeof repayPayload>[1] = { lendingId: LENDING, recipientRegistered: true },
-) => repayPayload(d, p);
+const build = (d: CardDraft, p: Partial<Parameters<typeof repayPayload>[1]> = {}) =>
+  repayPayload(d, {
+    lendingId: LENDING,
+    recipientRegistered: true,
+    lendingVersion: "0.16.2",
+    extraDecimals: 12,
+    ...p,
+  });
 
 describe("ONLY_REPAY_MSG", () => {
   it("is the JSON string OnlyRepay inside the msg string", () => {
@@ -57,6 +61,26 @@ describe("ONLY_REPAY_MSG", () => {
 });
 
 describe("repayPayload", () => {
+  it("uses the proven legacy Execute/Repay encoding with internal units", () => {
+    const r = build(draft({ fees: [] }), { lendingVersion: "0.11.0" });
+    expect(r.ok && r.value[0]?.actions[0]?.args).toEqual({
+      receiver_id: LENDING,
+      amount: "50000000",
+      msg: '{"Execute":{"actions":[{"Repay":{"token_id":"usdc.fakes.testnet","max_amount":"50000000000000000000"}}]}}',
+    });
+    expect(r.ok && JSON.stringify(r.value[0]?.actions[0]?.args)).toBe(
+      vec("wallet_repay_legacy").args_json,
+    );
+  });
+  it("refuses absent or unproven versions instead of guessing", () => {
+    expect(build(draft(), { lendingVersion: "0.15.7" }).ok).toBe(false);
+    expect(build(draft(), { lendingVersion: "" }).ok).toBe(false);
+  });
+  it("refuses invalid extra decimals and legacy internal u128 overflow", () => {
+    for (const extraDecimals of [-1, 1.5, 39])
+      expect(build(draft(), { lendingVersion: "0.11.0", extraDecimals }).ok).toBe(false);
+    expect(build(draft(), { lendingVersion: "0.11.0", extraDecimals: 38 }).ok).toBe(false);
+  });
   it("repays through ft_transfer_call on the debt token, byte for byte", () => {
     const r = build(draft());
     expect(r.ok).toBe(true);

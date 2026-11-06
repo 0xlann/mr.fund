@@ -19,6 +19,7 @@ pub struct Fixture {
     owner_id: AccountId,
     token: FungibleToken,
     prices: BTreeMap<String, String>,
+    ages: BTreeMap<String, u64>,
 }
 #[near]
 impl Fixture {
@@ -28,6 +29,7 @@ impl Fixture {
             owner_id,
             token: FungibleToken::new(b"t".to_vec()),
             prices: BTreeMap::new(),
+            ages: BTreeMap::new(),
         }
     }
     pub fn mint(&mut self, account_id: AccountId, amount: U128) {
@@ -49,7 +51,29 @@ impl Fixture {
         if age == 0 {
             return None;
         }
-        self.prices.get(&price_id).map(|p| json!({"price":p,"conf":"0","expo":-8,"publish_time":env::block_timestamp()/1_000_000_000}))
+        let time = (env::block_timestamp() / 1_000_000_000)
+            .saturating_sub(*self.ages.get(&price_id).unwrap_or(&0));
+        self.prices
+            .get(&price_id)
+            .map(|p| json!({"price":p,"conf":"0","expo":-8,"publish_time":time}))
+    }
+
+    pub fn clear_price(&mut self, price_id: String) {
+        require!(
+            env::predecessor_account_id() == self.owner_id,
+            "Fixture owner only"
+        );
+        self.prices.remove(&price_id);
+    }
+
+    /// Intentionally return an expired reply even through no_older_than so the
+    /// probe must independently enforce freshness, rather than trust the oracle.
+    pub fn set_price_age(&mut self, price_id: String, age_sec: u64) {
+        require!(
+            env::predecessor_account_id() == self.owner_id,
+            "Fixture owner only"
+        );
+        self.ages.insert(price_id, age_sec);
     }
 
     /// Deployed Rhea testnet 0.11.0 uses the older Pyth interface.

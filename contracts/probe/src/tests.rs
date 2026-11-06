@@ -173,7 +173,7 @@ fn legacy_repay_bounds_rhea_action_in_internal_units() {
                     let msg: serde_json::Value =
                         serde_json::from_str(args["msg"].as_str().unwrap()).unwrap();
                     assert_eq!(
-                        msg["Execute"]["actions"][0]["Repay"]["amount"],
+                        msg["Execute"]["actions"][0]["Repay"]["max_amount"],
                         "7000000000000"
                     );
                     assert_eq!(

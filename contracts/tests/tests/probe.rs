@@ -64,6 +64,277 @@ async fn balance(token: &Contract, account: &Account) -> Result<u128> {
     Ok(v.parse()?)
 }
 
+async fn trigger_checks(
+    owner: &Account,
+    probe: &Contract,
+    oracle: &Contract,
+    network: &str,
+) -> Result<()> {
+    let config = json!({"oracle_id":oracle.id(),"collateral_price_id":"11".repeat(32),"debt_price_id":"22".repeat(32),"max_price_age_sec":60,"threshold_bps":57000,"legacy_oracle":network=="testnet"});
+    let mut gas = serde_json::Map::new();
+    for (name, threshold, expected, reason) in [
+        ("at_threshold", 57000, false, Some("trigger_not_met")),
+        ("below_threshold", 57001, true, None),
+    ] {
+        let mut cfg = config.clone();
+        cfg["threshold_bps"] = json!(threshold);
+        let result = owner
+            .call(probe.id(), "probe_check_trigger")
+            .args_json(json!({"config":cfg}))
+            .deposit(NearToken::from_yoctonear(1))
+            .max_gas()
+            .transact()
+            .await?;
+        assert!(result.failures().is_empty(), "{:?}", result.failures());
+        let burnt = result.total_gas_burnt.as_gas();
+        assert!(
+            burnt < 100_000_000_000_000,
+            "Read-only trigger check exceeds its 100 Tgas regression budget"
+        );
+        gas.insert(name.into(), json!(burnt));
+        let output: Value = result.json()?;
+        assert_eq!(output["health_bps"], 57000);
+        assert_eq!(output["triggered"], expected);
+        assert_eq!(output["reason"], json!(reason));
+    }
+    call(
+        owner,
+        oracle,
+        "clear_price",
+        json!({"price_id":"11".repeat(32)}),
+        NearToken::from_yoctonear(0),
+    )
+    .await?;
+    let output = call(
+        owner,
+        probe,
+        "probe_check_trigger",
+        json!({"config":config}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    assert_eq!(output["triggered"], false);
+    assert_eq!(output["reason"], "stale_price");
+    call(
+        owner,
+        oracle,
+        "set_price",
+        json!({"price_id":"11".repeat(32),"price":"500000000"}),
+        NearToken::from_yoctonear(0),
+    )
+    .await?;
+    call(
+        owner,
+        oracle,
+        "set_price_age",
+        json!({"price_id":"11".repeat(32),"age_sec":61}),
+        NearToken::from_yoctonear(0),
+    )
+    .await?;
+    let output = call(
+        owner,
+        probe,
+        "probe_check_trigger",
+        json!({"config":config}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    assert_eq!(output["triggered"], false);
+    assert_eq!(output["reason"], "stale_price");
+    call(
+        owner,
+        oracle,
+        "set_price_age",
+        json!({"price_id":"11".repeat(32),"age_sec":0}),
+        NearToken::from_yoctonear(0),
+    )
+    .await?;
+    let mut wrong = config.clone();
+    wrong["max_price_age_sec"] = json!(120);
+    let output = call(
+        owner,
+        probe,
+        "probe_check_trigger",
+        json!({"config":wrong}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    assert_eq!(output["reason"], "invalid_config");
+    std::fs::write(
+        target(&format!("probes/trigger-gas-{network}.json")),
+        serde_json::to_vec_pretty(&json!({"network":network,"prices":"Simulated","gas":gas}))?,
+    )?;
+    println!("P0.4 {network}: health 57000 bps, strict threshold, null/expired prices rejected, gas {gas:?}");
+    Ok(())
+}
+
+async fn guardian_reserve_flow(
+    worker: &near_workspaces::Worker<near_workspaces::network::Sandbox>,
+    owner: &Account,
+    watcher: &Account,
+    lending: &Contract,
+    oracle: &Contract,
+    collateral: &Contract,
+    debt: &Contract,
+) -> Result<()> {
+    let guardian = worker
+        .dev_deploy(&std::fs::read(target("near/guardian/guardian.wasm"))?)
+        .await?;
+    let init = json!({"config":{"owner_id":owner.id(),"watcher_id":watcher.id(),"lending_id":lending.id(),"oracle_id":oracle.id(),"debt_token_id":debt.id(),"collateral_token_ids":[collateral.id()],"fee_recipient_id":owner.id(),"activation_fee":"1000"},"policy":{"max_per_action":"1000","lifetime_cap":"10000","reserve_floor":"100","trigger_hf_bps":12000,"target_hf_bps":15000,"cooldown_sec":300,"action_fee":"1"}});
+    call(
+        owner,
+        &guardian,
+        "new",
+        init.clone(),
+        NearToken::from_yoctonear(0),
+    )
+    .await?;
+    guardian
+        .batch()
+        .delete_key(guardian.as_account().secret_key().public_key())
+        .transact()
+        .await?
+        .into_result()?;
+    assert!(guardian.view_access_keys().await?.is_empty());
+    call(
+        owner,
+        debt,
+        "storage_deposit",
+        json!({"account_id":guardian.id(),"registration_only":true}),
+        NearToken::from_millinear(10),
+    )
+    .await?;
+    call(
+        owner,
+        debt,
+        "ft_transfer_call",
+        json!({"receiver_id":guardian.id(),"amount":"5000","msg":"{\"activate\":{}}"}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    let status: Value = guardian.view("get_status").await?.json()?;
+    assert_eq!(status["status"], "active");
+    let reserve: Value = guardian.view("get_reserve").await?.json()?;
+    assert_eq!(reserve["reserve"], "4000");
+    assert_eq!(balance(debt, guardian.as_account()).await?, 4000);
+    let denied = watcher
+        .call(guardian.id(), "owner_withdraw_reserve")
+        .args_json(json!({"amount":"1"}))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(denied.is_failure());
+    assert_eq!(balance(debt, guardian.as_account()).await?, 4000);
+    call(
+        owner,
+        &guardian,
+        "pause",
+        json!({}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    call(
+        owner,
+        &guardian,
+        "resume",
+        json!({}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    call(
+        owner,
+        &guardian,
+        "deactivate",
+        json!({}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    // Sandbox fixture only: unregister/burn the owner's test-token wallet to
+    // force a real NEP-141 recipient-registration failure, then restore it.
+    call(
+        owner,
+        debt,
+        "storage_unregister",
+        json!({"force":true}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    let failed = owner
+        .call(guardian.id(), "owner_withdraw_reserve")
+        .args_json(json!({"amount":"4000"}))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(!failed.failures().is_empty());
+    assert!(!failed.json::<bool>()?);
+    let reserve: Value = guardian.view("get_reserve").await?.json()?;
+    assert_eq!(reserve["reserve"], "4000");
+    let status: Value = guardian.view("get_status").await?.json()?;
+    assert!(status["in_flight"].is_null());
+    assert_eq!(status["status"], "deactivated");
+    assert_eq!(balance(debt, guardian.as_account()).await?, 4000);
+    call(
+        owner,
+        debt,
+        "storage_deposit",
+        json!({"account_id":owner.id(),"registration_only":true}),
+        NearToken::from_millinear(10),
+    )
+    .await?;
+    call(
+        owner,
+        &guardian,
+        "owner_withdraw_reserve",
+        json!({"amount":"4000"}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    assert_eq!(balance(debt, guardian.as_account()).await?, 0);
+    let reserve: Value = guardian.view("get_reserve").await?.json()?;
+    assert_eq!(reserve["reserve"], "0");
+    let broken = worker
+        .dev_deploy(&std::fs::read(target("near/guardian/guardian.wasm"))?)
+        .await?;
+    let mut broken_init = init;
+    broken_init["config"]["fee_recipient_id"] = json!(watcher.id());
+    call(
+        owner,
+        &broken,
+        "new",
+        broken_init,
+        NearToken::from_yoctonear(0),
+    )
+    .await?;
+    call(
+        owner,
+        debt,
+        "storage_deposit",
+        json!({"account_id":broken.id(),"registration_only":true}),
+        NearToken::from_millinear(10),
+    )
+    .await?;
+    let before = balance(debt, owner).await?;
+    let failed = owner
+        .call(debt.id(), "ft_transfer_call")
+        .args_json(json!({"receiver_id":broken.id(),"amount":"3000","msg":"{\"activate\":{}}"}))
+        .deposit(NearToken::from_yoctonear(1))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(!failed.failures().is_empty());
+    assert_eq!(failed.json::<String>()?, "0");
+    assert_eq!(balance(debt, owner).await?, before);
+    assert_eq!(balance(debt, broken.as_account()).await?, 0);
+    let status: Value = broken.view("get_status").await?.json()?;
+    assert_eq!(status["status"], "created");
+    assert!(status["in_flight"].is_null());
+    let reserve: Value = broken.view("get_reserve").await?.json()?;
+    assert_eq!(reserve["reserve"], "0");
+    Ok(())
+}
+
 async fn cycle(network: &str) -> Result<()> {
     let metadata: Value = serde_json::from_slice(
         &std::fs::read(target(&format!("probes/rhea-{network}.json")))
@@ -144,6 +415,13 @@ async fn cycle(network: &str) -> Result<()> {
         .dev_deploy(&std::fs::read(target("near/probe/probe.wasm"))?)
         .await?;
     call(&owner, &probe, "new", json!({"owner_id":owner.id(),"lending_id":lending.id(),"collateral_token_id":collateral.id(),"debt_token_id":debt.id(),"debt_extra_decimals":12,"collateral_extra_decimals":0}), NearToken::from_yoctonear(0)).await?;
+    probe
+        .batch()
+        .delete_key(probe.as_account().secret_key().public_key())
+        .transact()
+        .await?
+        .into_result()?;
+    assert!(probe.view_access_keys().await?.is_empty());
     for token in [&collateral, &debt] {
         for account in [&owner, lending.as_account()] {
             call(
@@ -236,6 +514,7 @@ async fn cycle(network: &str) -> Result<()> {
     assert_eq!(borrowed["borrowed"][0]["balance"], "50000000000000000000");
     assert_eq!(balance(&debt, probe.as_account()).await?, 50_000_000);
     assert_eq!(position(&lending, &owner).await?["borrowed"], json!([]));
+    trigger_checks(&owner, &probe, &oracle, network).await?;
     // Missing owner check would allow this call and reduce probe debt.
     let before = position(&lending, probe.as_account()).await?;
     let rejected = attacker
@@ -258,11 +537,11 @@ async fn cycle(network: &str) -> Result<()> {
     assert!(format!("{:?}", forged.failures()).contains("private"));
     // Owner opens a different debt: OnlyRepay from probe must not touch it.
     call(&owner, &collateral, "ft_transfer_call", json!({"receiver_id":lending.id(),"amount":"100000000","msg":format!("{{\"Execute\":{{\"actions\":[{{\"IncreaseCollateral\":{{\"token_id\":\"{}\"}}}}]}}}}",collateral.id())}), NearToken::from_yoctonear(1)).await?;
-    call(&owner, &lending, "execute_with_pyth", json!({"actions":[{"Borrow":{"token_id":debt.id(),"amount":"10000000000000000000"}},{"Withdraw":{"token_id":debt.id(),"amount":"10000000000000000000"}}]}), NearToken::from_yoctonear(1)).await?;
+    call(&owner, &lending, "execute_with_pyth", json!({"actions":[{"Borrow":{"token_id":debt.id(),"amount":"10000000000000000001"}},{"Withdraw":{"token_id":debt.id(),"amount":"10000000000000000000"}}]}), NearToken::from_yoctonear(1)).await?;
     let owner_before = position(&lending, &owner).await?;
     assert_eq!(
         owner_before["borrowed"][0]["balance"],
-        "10000000000000000000"
+        "10000000000000000001"
     );
     if network == "testnet" {
         let before = position(&lending, probe.as_account()).await?;
@@ -305,6 +584,38 @@ async fn cycle(network: &str) -> Result<()> {
         position(&lending, &owner).await?["borrowed"],
         owner_before["borrowed"]
     );
+    if network == "testnet" {
+        let supplied_before: u128 = owner_before["supplied"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["token_id"] == debt.id().as_str())
+            .unwrap()["balance"]
+            .as_str()
+            .unwrap()
+            .parse()?;
+        let msg=json!({"Execute":{"actions":[{"Repay":{"token_id":debt.id(),"max_amount":"10000001000000000000"}}]}}).to_string();
+        call(
+            &owner,
+            &debt,
+            "ft_transfer_call",
+            json!({"receiver_id":lending.id(),"amount":"10000001","msg":msg}),
+            NearToken::from_yoctonear(1),
+        )
+        .await?;
+        let after = position(&lending, &owner).await?;
+        assert_eq!(after["borrowed"], json!([]));
+        let supplied_after: u128 = after["supplied"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|a| a["token_id"] == debt.id().as_str())
+            .unwrap()["balance"]
+            .as_str()
+            .unwrap()
+            .parse()?;
+        assert_eq!(supplied_after, supplied_before + 999_999_999_999);
+    }
     call(
         &owner,
         &probe,
@@ -318,7 +629,17 @@ async fn cycle(network: &str) -> Result<()> {
         json!([])
     );
     assert_eq!(balance(&collateral, probe.as_account()).await?, 100_000_000);
-    println!("P0.3 {network} WASM {version}: full contract-owned cycle, owner isolation and cross-account repay isolation passed; prices Simulated; source block {}", metadata["blockHeight"]);
+    guardian_reserve_flow(
+        &worker,
+        &owner,
+        &attacker,
+        &lending,
+        &oracle,
+        &collateral,
+        &debt,
+    )
+    .await?;
+    println!("P0.3 {network} WASM {version}: full contract-owned cycle, owner isolation and cross-account repay isolation passed; P2.2 Guardian activation and deactivated reserve withdrawal passed; prices Simulated; source block {}", metadata["blockHeight"]);
     Ok(())
 }
 

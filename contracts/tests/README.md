@@ -1,5 +1,14 @@
 # P0.3 sandbox probe
 
+P0.4 extends these cycles with joined position/config/feed/price reads and shared
+Rust/TypeScript health vectors. Null/expired/mismatched-config replies refuse
+the trigger. Generated gas files measure only the read-only check; composed
+trigger/repay/settlement allocation remains unproven. P2.1/P2.2 also exercise
+keyless Guardian activation, owner controls and reserve withdrawal, including
+real fee/withdrawal failures from unregistered test-token recipients. Preparation
+now builds Guardian too. None of these local checks is a public deployment or
+a product pricing decision.
+
 These tests deploy the actual Rhea bytecode downloaded from public testnet and
 mainnet into a **local sandbox with new state**. NEP-141 tokens and Pyth prices
 are test fixtures; all prices are **Simulated**. This is not a fork of live
@@ -36,11 +45,15 @@ conversion, operation locking and callback failures.
 P0.3 discovery: deployed testnet `0.11.0` calls Pyth `get_price(price_identifier)`
 and rejects `OnlyRepay`. Its explicit probe alternative is
 `probe_repay_via_execute`: NEP-141 `ft_transfer_call` with
-`{"Execute":{"actions":[{"Repay":{"token_id":"...","amount":"..."}}]}}`.
-The outer token amount is atomic; the inner `Repay.amount` is Rhea internal.
+`{"Execute":{"actions":[{"Repay":{"token_id":"...","max_amount":"..."}}]}}`.
+The outer amount is atomic; inner `Repay.max_amount` is Rhea internal. Strict
+`amount` overpayment panics on subatomic debt; the sandbox proves bounded full
+repayment and exact excess supplied balance. Accepted tokens do not necessarily
+all reduce debt and excess is not assumed refunded.
 Mainnet `0.16.2` uses `probe_repay` with `"OnlyRepay"`. There is no automatic
-retry or silent fallback. Existing product builders still use `OnlyRepay` and
-must be adapted and tested before a testnet repay demo can be claimed.
+retry or silent fallback. The product builder now requires an observed version
+and validated extra decimals, refuses unknown versions, and chooses the matching
+message. Live wallet proof and complete Rust byte-vector parity remain pending.
 
 Permission boundary: operations require the immutable owner as predecessor and
 exactly 1 yoctoNEAR. The probe only registers on its configured lending/token

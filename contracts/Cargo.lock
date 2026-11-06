@@ -1112,6 +1112,10 @@ dependencies = [
 [[package]]
 name = "guardian"
 version = "0.0.0"
+dependencies = [
+ "near-sdk",
+ "near-sys",
+]
 
 [[package]]
 name = "guardian-factory"
@@ -2655,6 +2659,7 @@ version = "0.0.0"
 dependencies = [
  "near-sdk",
  "near-sys",
+ "primitive-types",
 ]
 
 [[package]]

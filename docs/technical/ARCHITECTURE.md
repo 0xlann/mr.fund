@@ -244,6 +244,8 @@ interface Computed<T> { value: T; inputs: Record<string, string>; assumptions: s
 
 ### Rhea read adapter (`packages/rhea`, P1.4)
 
+P4.2 compatibility update [V, 2026-11-06]: manual repay builders require the observed `lendingVersion` and token `extraDecimals`. The agent's trusted `ProposalContext` supplies the version; LLM tool arguments cannot choose it. Version 0.16.2 uses `OnlyRepay`; 0.11.0 uses a fixed `Execute`/`Repay.max_amount` message, with inner units checked against u128. Unknown versions refuse without retries or guesses. `max_amount` is necessary for rounded full repayments: strict `amount` above subatomic debt failed on deployed testnet bytecode. Accepted excess may remain supplied, so token acceptance is not itself proof of debt reduction or refund.
+
 [V, 2026-11-06] `createRheaClient(rpcUrl, fetchImpl?)` provides `view(contractId, method, args, blockId?) -> Promise<Result<{data: unknown, blockHeight, blockHash}, AdapterError>>`. Contract data is validated rather than trusted through a generic cast. One JSON-RPC object per POST, a 10 s request timeout, no signing or batching. UTF-8/base64 works without a browser Buffer polyfill.
 
 `readPosition(client, {network, lendingId}, accountId)` returns `Promise<Result<PositionSnapshot, AdapterError>>`; `readMarket(client, config)` returns `Promise<Result<MarketSnapshot, AdapterError>>`. Both expose `rpc_unavailable` or `bad_response`, clarifying the earlier unspecified/throwing market signature. `MarketSnapshot` contains network, lending id, block height, read time, assets, prices and `unsupportedTokenIds`.

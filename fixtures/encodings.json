@@ -1,7 +1,15 @@
 {
   "version": 1,
-  "note": "Shared test vectors. TypeScript asserts them in packages/shared, packages/rhea and packages/guardian-client (P4.2); the Rust sandbox tests assert the same bytes (P2.7). Amounts are token atomic units as decimal strings. args_json is the exact serialized argument string, including key order. Gas is not part of the vectors: it is an unmeasured estimate until P2.7 and P4.5.",
+  "note": "Shared syntax vectors, not live-network compatibility claims. OnlyRepay is verified for Rhea 0.16.2; testnet 0.11.0 requires the legacy Execute/Repay vector. TypeScript asserts these; complete Rust byte parity remains P2.7. Outer amounts are token atomic strings; legacy inner Repay.max_amount is Rhea internal. args_json includes key order. Gas is not part of these vectors.",
   "cases": [
+    {
+      "name": "wallet_repay_legacy",
+      "build": { "tokenId": "usdc.fakes.testnet", "receiverId": "contract.1689937928.burrow.testnet", "amount": "50000000", "msg": "{\"Execute\":{\"actions\":[{\"Repay\":{\"token_id\":\"usdc.fakes.testnet\",\"max_amount\":\"50000000000000000000\"}}]}}" },
+      "receiver_id": "usdc.fakes.testnet",
+      "method": "ft_transfer_call",
+      "args_json": "{\"receiver_id\":\"contract.1689937928.burrow.testnet\",\"amount\":\"50000000\",\"msg\":\"{\\\"Execute\\\":{\\\"actions\\\":[{\\\"Repay\\\":{\\\"token_id\\\":\\\"usdc.fakes.testnet\\\",\\\"max_amount\\\":\\\"50000000000000000000\\\"}}]}}\"}",
+      "deposit": "1"
+    },
     {
       "name": "wallet_repay",
       "build": { "tokenId": "usdc.fakes.testnet", "receiverId": "contract.1689937928.burrow.testnet", "amount": "50000000", "msg": "\"OnlyRepay\"" },
