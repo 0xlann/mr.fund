@@ -201,7 +201,10 @@ const getPosition: Runner = (args, { snapshot: s, nowMs }) => {
   if (!h.ok) return engineRefusal(tool, h.error);
 
   const facts: Fact[] = [];
-  const notes = [...h.value.assumptions];
+  const notes = [
+    ...h.value.assumptions,
+    "Rates are the protocol-reported APR, not converted APY; supply rounds down and borrow rounds up to whole basis points.",
+  ];
   const text: Record<string, string> = {};
   const seen = new Set<string>();
 
@@ -218,8 +221,8 @@ const getPosition: Runner = (args, { snapshot: s, nowMs }) => {
     seen.add(tokenId);
     const price = s.prices[tokenId];
     if (price) facts.push(fact(`${a.token.symbol} price`, usdPerToken(price, a.token.decimals)));
-    facts.push(fact(`${a.token.symbol} supply rate`, percentOfBps(a.supplyApyBps)));
-    facts.push(fact(`${a.token.symbol} borrow rate`, percentOfBps(a.borrowApyBps)));
+    facts.push(fact(`${a.token.symbol} supply rate`, percentOfBps(a.supplyAprBps)));
+    facts.push(fact(`${a.token.symbol} borrow rate`, percentOfBps(a.borrowAprBps)));
   };
 
   for (const b of s.collateral) {
@@ -314,7 +317,7 @@ const compareRepayVsYield: Runner = (args, { snapshot: s, nowMs }) => {
 
   const r = repayVsYield(
     s,
-    { amount, tokenId, yieldApyBps: asset.supplyApyBps, horizonDays },
+    { amount, tokenId, yieldAprBps: asset.supplyAprBps, horizonDays },
     nowMs,
   );
   if (!r.ok) return engineRefusal(tool, r.error);
@@ -328,8 +331,8 @@ const compareRepayVsYield: Runner = (args, { snapshot: s, nowMs }) => {
       fact("amount compared", fromAtomic(v.amountUsed, decimals, symbol)),
       fact("repaying saves", fromAtomic(v.repaySaves, decimals, symbol)),
       fact("yield earns", fromAtomic(v.yieldEarns, decimals, symbol)),
-      fact(`${symbol} borrow rate`, percentOfBps(asset.borrowApyBps)),
-      fact(`${symbol} supply rate`, percentOfBps(asset.supplyApyBps)),
+      fact(`${symbol} borrow rate`, percentOfBps(asset.borrowAprBps)),
+      fact(`${symbol} supply rate`, percentOfBps(asset.supplyAprBps)),
       fact("horizon", { value: String(horizonDays), unit: "days" }),
       dataAgeFact(r.value.dataAgeMs),
     ],
@@ -511,7 +514,8 @@ const GLOSSARY: Record<string, string> = {
     "The Guardian is a small contract you own. It can repay part of your loan on your behalf, but only within the limits you set, and it reduces liquidation risk within those limits rather than promising anything.",
   comfort_line:
     "The comfort line is a health factor you choose as the level you feel relaxed at. It is a personal preference, not a protection mechanism.",
-  apy: "APY is a yearly rate. Here it is spread evenly over the period to give a rough comparison, not a promised return.",
+  apr: "APR is the annual rate reported by the protocol. Here it is spread evenly over the period to give a rough comparison, not a promised return.",
+  apy: "APY includes compounding. This app uses the protocol's reported APR instead and does not silently convert between the two.",
   repay:
     "Repaying sends tokens back to the lending protocol to reduce your debt, which lowers interest costs and raises your health factor.",
 };

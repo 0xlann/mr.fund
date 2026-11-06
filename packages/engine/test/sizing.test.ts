@@ -62,8 +62,8 @@ describe("repayToReachHealth", () => {
     s.assets["dai.testnet"] = {
       token: { id: "dai.testnet", symbol: "DAI", decimals: 18, extraDecimals: 0 },
       volatilityRatioBps: 9000,
-      supplyApyBps: 0,
-      borrowApyBps: 0,
+      supplyAprBps: 0,
+      borrowAprBps: 0,
       canBorrow: true,
       canUseAsCollateral: false,
     };

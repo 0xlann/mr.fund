@@ -219,7 +219,7 @@ interface Price { multiplier: bigint; decimals: number; publishTimeMs: number | 
 interface AssetState {
   token: TokenMeta;
   volatilityRatioBps: Bps;          // Rhea asset config volatility_ratio (10000 scale)
-  supplyApyBps: Bps; borrowApyBps: Bps;  // as reported by Rhea views, with source
+  supplyAprBps: Bps; borrowAprBps: Bps;  // supply_apr floors, borrow_apr ceils to integer bps (D30)
   canBorrow: boolean; canUseAsCollateral: boolean;
 }
 
@@ -242,13 +242,23 @@ type EngineError =
 interface Computed<T> { value: T; inputs: Record<string, string>; assumptions: string[]; dataAgeMs: number }
 ```
 
+### Rhea read adapter (`packages/rhea`, P1.4)
+
+[V, 2026-11-06] `createRheaClient(rpcUrl, fetchImpl?)` provides `view(contractId, method, args, blockId?) -> Promise<Result<{data: unknown, blockHeight, blockHash}, AdapterError>>`. Contract data is validated rather than trusted through a generic cast. One JSON-RPC object per POST, a 10 s request timeout, no signing or batching. UTF-8/base64 works without a browser Buffer polyfill.
+
+`readPosition(client, {network, lendingId}, accountId)` returns `Promise<Result<PositionSnapshot, AdapterError>>`; `readMarket(client, config)` returns `Promise<Result<MarketSnapshot, AdapterError>>`. Both expose `rpc_unavailable` or `bad_response`, clarifying the earlier unspecified/throwing market signature. `MarketSnapshot` contains network, lending id, block height, read time, assets, prices and `unsupportedTokenIds`.
+
+The config read anchors a final block hash; subsequent paginated asset, account, metadata, oracle and derivative views use that hash. No cache is implemented. `readAtMs` is the start of the read, so network latency cannot make balances younger. Unknown position assets remain in balances but lack metadata, causing the engine to refuse advice. Missing Pyth mappings mark assets unsupported. Invalid responses and failed metadata views are errors. Null oracle prices are omitted (`missing_price` in the engine); old non-null prices retain their publish time for freshness checks. Only Pyth-enabled configs and regular lending positions are supported.
+
+[V, D30, 2026-11-06] Rates retain Rhea's `supply_apr`/`borrow_apr` convention without APR/APY conversion. Decimal strings convert with integer arithmetic: supply floors and borrow ceils to basis points. Engine horizon estimates are linear, with no claim to model protocol compounding. Pyth conversion mirrors the published source: floor to `fraction_digits`, decimals = token decimals + fraction digits; derivative adjustments use `price * adjustment / 10^24`. Fixed prices retain `publishTimeMs: null` and `source: default_price`. Deployed-code parity and agreement with the Rhea UI remain separate checks.
+
 ### Engine functions (`packages/engine`, pure)
 
 ```ts
 healthBps(s: PositionSnapshot, nowMs: number): Result<Computed<Bps | "no_debt">, EngineError>
 liquidationPrice(s: PositionSnapshot, collateralTokenId: AccountId, nowMs: number): Result<Computed<Price>, EngineError>
 maxRepayUseful(s: PositionSnapshot, debtTokenId: AccountId, nowMs: number): Result<Computed<Atomic>, EngineError>   // outstanding debt, rounded up
-repayVsYield(s: PositionSnapshot, p: { amount: Atomic; tokenId: AccountId; yieldApyBps: Bps; horizonDays: number }, nowMs: number): Result<Computed<{ amountUsed: Atomic; repaySaves: Atomic; yieldEarns: Atomic; winner: "repay" | "yield" | "equal" }>, EngineError>
+repayVsYield(s: PositionSnapshot, p: { amount: Atomic; tokenId: AccountId; yieldAprBps: Bps; horizonDays: number }, nowMs: number): Result<Computed<{ amountUsed: Atomic; repaySaves: Atomic; yieldEarns: Atomic; winner: "repay" | "yield" | "equal" }>, EngineError>
 whatIfPrice(s: PositionSnapshot, shocks: { tokenId: AccountId; changeBps: number }[], nowMs: number): Result<Computed<{ healthBps: Bps | "no_debt"; liquidatable: boolean }>, EngineError>
 repayToReachHealth(s: PositionSnapshot, debtTokenId: AccountId, targetBps: Bps, nowMs: number): Result<Computed<Atomic>, EngineError>
 evaluateTrigger(s: PositionSnapshot, policy: GuardianPolicy, guardian: GuardianState, nowMs: number): Result<{ act: false; reason: string } | { act: true; amount: Atomic }, EngineError>

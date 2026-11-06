@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { repayVsYield } from "../src/compare";
 import { baseSnapshot, NOW, USDC, usdcAsset } from "./helpers";
 
-const params = { amount: 100_000_000n, tokenId: USDC, yieldApyBps: 1401, horizonDays: 365 };
+const params = { amount: 100_000_000n, tokenId: USDC, yieldAprBps: 1401, horizonDays: 365 };
 
 function run(p = params, s = baseSnapshot()) {
   const r = repayVsYield(s, p, NOW);
@@ -21,21 +21,21 @@ describe("repayVsYield", () => {
 
   it("carries inputs and assumptions", () => {
     const r = run();
-    expect(r.inputs.borrowApyBps).toBe("2100");
-    expect(r.inputs.yieldApyBps).toBe("1401");
+    expect(r.inputs.borrowAprBps).toBe("2100");
+    expect(r.inputs.yieldAprBps).toBe("1401");
     expect(r.inputs.horizonDays).toBe("365");
-    expect(r.assumptions.join(" ")).toContain("APY");
+    expect(r.assumptions.join(" ")).toContain("APR");
     expect(r.assumptions.join(" ")).toContain("Rates change");
   });
 
   it("is equal when the rates are equal", () => {
     const s = baseSnapshot();
-    s.assets[USDC] = { ...usdcAsset, borrowApyBps: 1401 };
+    s.assets[USDC] = { ...usdcAsset, borrowAprBps: 1401 };
     expect(run(params, s).value.winner).toBe("equal");
   });
 
   it("picks yield when it pays more than the loan costs", () => {
-    expect(run({ ...params, yieldApyBps: 3000 }).value.winner).toBe("yield");
+    expect(run({ ...params, yieldAprBps: 3000 }).value.winner).toBe("yield");
   });
 
   it("decides the winner on the rates, not on rounded amounts", () => {
@@ -69,8 +69,8 @@ describe("repayVsYield", () => {
     ["zero horizon", { horizonDays: 0 }],
     ["fractional horizon", { horizonDays: 1.5 }],
     ["horizon above ten years", { horizonDays: 3651 }],
-    ["negative yield rate", { yieldApyBps: -1 }],
-    ["fractional yield rate", { yieldApyBps: 1.5 }],
+    ["negative yield rate", { yieldAprBps: -1 }],
+    ["fractional yield rate", { yieldAprBps: 1.5 }],
   ])("rejects %s with invalid_amount", (_name, patch) => {
     const r = repayVsYield(baseSnapshot(), { ...params, ...patch }, NOW);
     expect(r.ok).toBe(false);

@@ -19,8 +19,8 @@ export interface AssetState {
   token: TokenMeta;
   /** Rhea asset config `volatility_ratio`, 10000 scale. */
   volatilityRatioBps: Bps;
-  supplyApyBps: Bps;
-  borrowApyBps: Bps;
+  supplyAprBps: Bps;
+  borrowAprBps: Bps;
   canBorrow: boolean;
   canUseAsCollateral: boolean;
 }

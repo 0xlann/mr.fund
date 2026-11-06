@@ -2,6 +2,12 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-06: real RPC rate fields contradicted the APY-only engine interface
+
+- What happened: P1.4 recorded testnet and mainnet views returning `supply_apr` and `borrow_apr`, while shared types and engine inputs were named APY.
+- Root cause: the interface adopted a UI label before validating the integration payload. Relabelling live values would hide the rate convention mismatch.
+- Rule: preserve protocol rate conventions and disclose estimation assumptions. Surface mismatches first; the user chose APR end to end (D30). Recorded fixtures and parsing tests now pin the actual payload.
+
 ### 2026-11-05: an independent review found the engine trusted its inputs and read a bad policy as "spend the maximum"
 
 - What happened: a fresh-context review of the engine (P1.1 to P1.5, P3.3) found no arithmetic error but four Important gaps. A Guardian policy with `targetHfBps: 0` made `evaluateTrigger` treat the failed sizing as "target unreachable" and size the largest allowed repay. A fixed-price (`default_price`) position was never aged, so balances read hours ago were advised on as fresh. Negative balances, out-of-range ratios and fractional clocks reached `BigInt` and threw out of functions that promise a `Result`.

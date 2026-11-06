@@ -11,5 +11,8 @@
   },
   "dependencies": {
     "@mrfund/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@mrfund/engine": "workspace:*"
   }
 }

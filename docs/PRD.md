@@ -102,6 +102,7 @@ Priorities: P0 must ship for the demo; P1 only after the P0 loop works end to en
 - **Outcome:** every number Mr.Fund states is reproducible from inputs.
 - **Functions (pure, no I/O):** health factor; liquidation price per collateral asset; repay needed to reach a target health; repay-versus-yield comparison over a stated horizon; what-if under a price shock; Guardian trigger evaluation; fee computation.
 - **Rules:** integer arithmetic in on-chain units with explicit decimals; rounding direction documented per function and always conservative (health rounds down, debt rounds up); rates compared over equal horizons; APY versus APR never mixed silently; every output carries its inputs and assumptions.
+- **Rate source update [V, D30, 2026-11-06]:** Rhea views return `supply_apr` and `borrow_apr`. Use those protocol-reported APRs end to end: supply floors and borrow ceils to integer basis points. Horizon estimates are linear and do not model compounding. The historical UI APY observation above remains a source observation, not an adapter input; the 21.00%/14.01% engine test is an illustrative APR vector, not a live rate claim.
 - **Rejection cases:** missing or stale input → typed error, never a default value; negative or overflowing amounts → typed error.
 - **Acceptance:** unit tests with worked vectors from the protocol's documentation and from a recorded real snapshot; property tests (more collateral never lowers health; repaying never lowers health; a price drop never raises health).
 

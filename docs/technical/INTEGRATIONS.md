@@ -26,6 +26,12 @@
 | X post and submission | Required public demo and entry | 0xlann only | manual | Human-only by event rules | P6.4, P6.5 |
 | NEAR Intents | Cross-chain funding (future, D13) | lead | — | Official: no testnet; community Tidepool sandbox exists | Future only; never claimed |
 
+## P1.4 read adapter evidence (2026-11-06)
+
+[V] `scripts/probes/record-rhea.mjs` exercised only public read-only views; it generates `fixtures/rhea/{testnet,mainnet}-reads.json` with provenance and decoded responses. Reproduce with `node scripts/probes/record-rhea.mjs testnet` and `node scripts/probes/record-rhea.mjs mainnet brianphan01.near`. The fixtures are historical recordings, never live product data. Testnet: block 276419739 / `2CwSM6GRX8jXaSBgDdiHx9DYW3eJy2MruF4zY3QRgGKX`, account `owner.1689937928.burrow.testnet`; mainnet: block 223245720 / `9upbo7URSwA6gqnr5pQVmQjYUF2arAC7EVSrGNkxdSvs`, account `brianphan01.near`. Assets pagination, config, account, Pyth mapping, token metadata, prices and configured derivative views were read at the same block per recording. Testnet oracle responses were null; fixed-price assets retained their configured prices. The generator records metadata RPC errors explicitly (including mainnet `aurora`); the runtime adapter refuses such failures with a typed error.
+
+[V] Opt-in live adapter check passed: `RHEA_LIVE_READ=1 pnpm exec vitest run packages/rhea/test/live.test.ts --reporter=verbose --disableConsoleIntercept`; public mainnet `brianphan01.near`, block 223245899, engine health 258633 bps, data age 36595 ms. UI parity is unverified: web reader failed and computer-use browser host was unavailable. P1.4 stays unchecked pending that comparison. No account creation, key access, funds, deployment or transaction submission was involved. D30 records the user-approved switch from APY assumptions to protocol-reported APR fields.
+
 ## Environment variables (names only)
 
 `.env.example` will list these names with empty values at P0.7. Values never enter git.

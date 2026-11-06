@@ -14,8 +14,8 @@ import { outstandingDebtAtomic } from "./sizing";
 export interface RepayVsYieldParams {
   amount: Atomic;
   tokenId: AccountId;
-  /** Supply APY of the yield option, in the same token. */
-  yieldApyBps: Bps;
+  /** Supply APR of the yield option, in the same token. */
+  yieldAprBps: Bps;
   horizonDays: number;
 }
 
@@ -39,7 +39,7 @@ const invalid = (reason: string): Result<never, EngineError> =>
 
 /**
  * Compare using spare money to repay a loan against parking it at a yield, over the same horizon.
- * Both rates are APY. The winner is decided on the rates, never on rounded amounts.
+ * Both rates are APR. The winner is decided on the rates, never on rounded amounts.
  */
 export function repayVsYield(
   s: PositionSnapshot,
@@ -52,7 +52,7 @@ export function repayVsYield(
   if (!Number.isInteger(p.horizonDays) || p.horizonDays < 1 || p.horizonDays > MAX_HORIZON_DAYS) {
     return invalid(`horizon must be a whole number of days from 1 to ${MAX_HORIZON_DAYS}`);
   }
-  if (!Number.isInteger(p.yieldApyBps) || p.yieldApyBps < 0) {
+  if (!Number.isInteger(p.yieldAprBps) || p.yieldAprBps < 0) {
     return invalid("yield rate must be a non-negative whole number of basis points");
   }
   const debt = outstandingDebtAtomic(s, p.tokenId);
@@ -60,12 +60,12 @@ export function repayVsYield(
 
   const capped = p.amount > debt;
   const amountUsed = capped ? debt : p.amount;
-  const borrowApyBps = asset.borrowApyBps;
+  const borrowAprBps = asset.borrowAprBps;
   const winner =
-    borrowApyBps > p.yieldApyBps ? "repay" : borrowApyBps < p.yieldApyBps ? "yield" : "equal";
+    borrowAprBps > p.yieldAprBps ? "repay" : borrowAprBps < p.yieldAprBps ? "yield" : "equal";
 
   const assumptions = [
-    "Both rates are APY, prorated linearly over the horizon without compounding.",
+    "Both rates are APR, prorated linearly over the horizon without compounding.",
     "Rates change continuously; this is an estimate, not a promised return.",
     "Amounts are rounded down.",
   ];
@@ -74,8 +74,8 @@ export function repayVsYield(
   return ok({
     value: {
       amountUsed,
-      repaySaves: accrue(amountUsed, borrowApyBps, p.horizonDays),
-      yieldEarns: accrue(amountUsed, p.yieldApyBps, p.horizonDays),
+      repaySaves: accrue(amountUsed, borrowAprBps, p.horizonDays),
+      yieldEarns: accrue(amountUsed, p.yieldAprBps, p.horizonDays),
       winner,
     },
     inputs: {
@@ -83,8 +83,8 @@ export function repayVsYield(
       accountId: s.accountId,
       tokenId: p.tokenId,
       amount: String(p.amount),
-      borrowApyBps: String(borrowApyBps),
-      yieldApyBps: String(p.yieldApyBps),
+      borrowAprBps: String(borrowAprBps),
+      yieldAprBps: String(p.yieldAprBps),
       horizonDays: String(p.horizonDays),
     },
     assumptions,

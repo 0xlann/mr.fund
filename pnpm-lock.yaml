@@ -263,6 +263,10 @@ importers:
       '@mrfund/shared':
         specifier: workspace:*
         version: link:../shared
+    devDependencies:
+      '@mrfund/engine':
+        specifier: workspace:*
+        version: link:../engine
 
   packages/shared: {}
 

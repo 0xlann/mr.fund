@@ -79,7 +79,7 @@ export function repayCard(
   const { symbol, decimals } = asset.token;
   const dec = (n: Atomic) => decimalString(n, decimals);
   const debtAfter = outstandingDebtAtomic(afterSnapshot, req.tokenId);
-  const bpsCost = asset.borrowApyBps;
+  const bpsCost = asset.borrowAprBps;
 
   const numbers: CardNumber[] = [
     { label: "Debt", before: dec(debt), after: dec(debtAfter), unit: symbol },
@@ -125,7 +125,7 @@ export function repayCard(
     unit: symbol,
   });
   assumptions.push(
-    `Annual interest cost uses the current ${symbol} borrow rate of ${pct(bpsCost)}% for one year, without compounding.`,
+    `Annual interest cost uses the current ${symbol} protocol-reported borrow APR of ${pct(bpsCost)}% for one year, without compounding.`,
     "Debt and interest cost are rounded up; health is rounded down.",
   );
 

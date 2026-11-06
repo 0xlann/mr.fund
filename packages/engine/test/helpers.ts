@@ -9,8 +9,8 @@ export const USDC = "usdc.fakes.testnet";
 export const wnearAsset: AssetState = {
   token: { id: WNEAR, symbol: "wNEAR", decimals: 24, extraDecimals: 0 },
   volatilityRatioBps: 6000,
-  supplyApyBps: 0,
-  borrowApyBps: 0,
+  supplyAprBps: 0,
+  borrowAprBps: 0,
   canBorrow: false,
   canUseAsCollateral: true,
 };
@@ -19,8 +19,8 @@ export const wnearAsset: AssetState = {
 export const usdcAsset: AssetState = {
   token: { id: USDC, symbol: "USDC", decimals: 6, extraDecimals: 12 },
   volatilityRatioBps: 9500,
-  supplyApyBps: 1401,
-  borrowApyBps: 2100,
+  supplyAprBps: 1401,
+  borrowAprBps: 2100,
   canBorrow: true,
   canUseAsCollateral: false,
 };
