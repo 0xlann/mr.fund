@@ -5,6 +5,158 @@ use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 mod support;
 use support::encodings;
+#[path = "support/outcomes.rs"]
+mod outcome_recordings;
+
+async fn capture_outcome(
+    worker: &near_workspaces::Worker<near_workspaces::network::Sandbox>,
+    signer: &Account,
+    lending: &Contract,
+    request: encodings::Call,
+    name: &str,
+    source: &Value,
+) -> Result<near_workspaces::result::ExecutionFinalResult> {
+    let before = position(lending, signer).await?;
+    let result = signer
+        .call(&request.receiver.parse()?, request.method)
+        .args(request.args.clone())
+        .deposit(NearToken::from_yoctonear(request.deposit))
+        .max_gas()
+        .transact()
+        .await?;
+    let after = position(lending, signer).await?;
+    outcome_recordings::record(
+        worker,
+        signer,
+        &request,
+        &result,
+        name,
+        source,
+        json!({"before":before,"after":after}),
+    )
+    .await?;
+    Ok(result)
+}
+
+async fn record_outcomes(
+    worker: &near_workspaces::Worker<near_workspaces::network::Sandbox>,
+    owner: &Account,
+    unregistered: &Account,
+    lending: &Contract,
+    debt: &Contract,
+    receiver: &Contract,
+    source: &Value,
+) -> Result<()> {
+    let version = source["version"].as_str().unwrap();
+    // Separate zero-rate owner loan for reproducible outcome recordings.
+    call(owner, lending, "execute_with_pyth", json!({"actions":[{"Borrow":{"token_id":debt.id(),"amount":"10000000000000000001"}},{"Withdraw":{"token_id":debt.id(),"amount":"10000000000000000000"}}]}), NearToken::from_yoctonear(1)).await?;
+    let success = capture_outcome(
+        worker,
+        owner,
+        lending,
+        encodings::repay(
+            debt.id().as_str(),
+            lending.id().as_str(),
+            1_000_000,
+            version,
+            12,
+        )?,
+        "repay-success",
+        source,
+    )
+    .await?;
+    assert!(success.failures().is_empty());
+    let failed_fee = capture_outcome(
+        worker,
+        owner,
+        lending,
+        encodings::transfer(debt.id().as_str(), unregistered.id().as_str(), 1)?,
+        "fee-failure",
+        source,
+    )
+    .await?;
+    assert!(!failed_fee.failures().is_empty());
+    let refund = capture_outcome(
+        worker,
+        owner,
+        lending,
+        encodings::transfer_call(
+            debt.id().as_str(),
+            lending.id().as_str(),
+            2,
+            "invalid-rhea-message",
+        )?,
+        "full-refund",
+        source,
+    )
+    .await?;
+    assert_eq!(refund.json::<String>()?, "0");
+    encoded_call(
+        owner,
+        encodings::storage(debt.id().as_str(), receiver.id().as_str(), 10u128.pow(22))?,
+    )
+    .await?;
+    let partial = capture_outcome(
+        worker,
+        owner,
+        lending,
+        encodings::transfer_call(
+            debt.id().as_str(),
+            receiver.id().as_str(),
+            4,
+            "\"OnlyRepay\"",
+        )?,
+        "partial-refund-fixture-receiver",
+        source,
+    )
+    .await?;
+    assert!(partial.failures().is_empty());
+    assert_eq!(partial.json::<String>()?, "2");
+    let strict = json!({"Execute":{"actions":[{"Repay":{"token_id":debt.id(),"amount":"9000001000000000000"}}]}}).to_string();
+    let detached = capture_outcome(
+        worker,
+        owner,
+        lending,
+        encodings::transfer_call(
+            debt.id().as_str(),
+            lending.id().as_str(),
+            9_000_001,
+            &strict,
+        )?,
+        "detached-failure",
+        source,
+    )
+    .await?;
+    assert!(!detached.failures().is_empty());
+    // Failed strict action can accept tokens into supplied balance, so refill
+    // the wallet locally before the valid bounded full repayment.
+    call(
+        owner,
+        debt,
+        "mint",
+        json!({"account_id":owner.id(),"amount":"9000001"}),
+        NearToken::from_yoctonear(0),
+    )
+    .await?;
+    let surplus = capture_outcome(
+        worker,
+        owner,
+        lending,
+        encodings::repay(
+            debt.id().as_str(),
+            lending.id().as_str(),
+            9_000_001,
+            version,
+            12,
+        )?,
+        "repay-surplus",
+        source,
+    )
+    .await?;
+    assert!(surplus.failures().is_empty());
+    assert_eq!(position(lending, owner).await?["borrowed"], json!([]));
+    Ok(())
+}
 
 async fn encoded_call(signer: &Account, request: encodings::Call) -> Result<Value> {
     let result = signer
@@ -896,6 +1048,10 @@ async fn cycle(network: &str) -> Result<()> {
         &oracle,
         &collateral,
         &debt,
+    )
+    .await?;
+    record_outcomes(
+        &worker, &owner, &attacker, &lending, &debt, &oracle, &metadata,
     )
     .await?;
     println!(

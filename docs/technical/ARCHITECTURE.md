@@ -291,6 +291,8 @@ No tool signs, sends, changes a policy or calls the watcher. A card's payload is
 
 ### Card (`packages/shared`)
 
+P4.3 backend update [V, local, 2026-11-07]: `packages/rhea` exports a pure outcome parser, bounded read-only outcome RPC adapter, ordered batch aggregation and fresh position reconciliation. Execution, token acceptance/refunds and debt/supplied deltas remain separate. `toCardReceipt` confirms repayment only when the entire batch succeeds and a valid post-read observes debt reduction; terminal execution without post-state stays separately visible as execution evidence while the receipt remains submitted. Health is injected from the deterministic engine by the composition root. Full API, limits, receipt mapping and sandbox fixture provenance: [REPAY-OUTCOMES](REPAY-OUTCOMES.md). Wallet/UI integration remains incomplete.
+
 ```ts
 type CardAction = "repay" | "guardian_activate" | "guardian_deactivate" | "guardian_withdraw";  // P1 adds "deposit"
 interface Card {

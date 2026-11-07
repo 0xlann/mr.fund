@@ -7,7 +7,7 @@ This is a repository assessment and proposed sequence, not new implementation or
 | Area | Observed implementation | Remaining work |
 | --- | --- | --- |
 | Finance/read adapter | Bigint engine, block-pinned reads, protocol APR, recorded responses | Deployed rounding comparison and Rhea display parity remain open; P1.2/P1.4 must not be ticked from fixture tests alone |
-| Manual repay | Version-aware builders and TypeScript encoding fixtures | Rust byte parity, complete receipt interpretation, fresh observed post-state; wallet/UI integration excluded |
+| Manual repay | Version-aware builders, Rust/TS byte parity, raw receipt parser and bounded post-state reconciliation | Production builder gas, wallet/UI integration and public wallet proof |
 | Guardian | Policy, owner controls, reserve activation/withdrawal and local negative tests | Automatic request/settlement, composed trigger gas, owner position methods, factory |
 | Agent | Validated tools, deterministic cards, number and persona guards | Guardian reads, actual provider loop, multilingual evaluation, server API |
 | Watcher | Scaffold only | Deterministic polling, constrained signing, request reconciliation and heartbeat |
@@ -16,19 +16,19 @@ Evidence detail remains in BUILD-PLAN and INTEGRATIONS. Imported deployed WASM r
 
 ## Proposed changes and order
 
-Status update (2026-11-07): `verify-rhea-protocol-evidence` completed its eight scoped tasks and was synced to `openspec/specs/protocol-evidence/spec.md`, then [archived](changes/archive/2026-11-07-verify-rhea-protocol-evidence/tasks.md). Public UI parity and legacy scalar health remain explicitly unverified; the six follow-up changes below are still proposals.
+Status update (2026-11-07): `verify-rhea-protocol-evidence` completed its eight scoped tasks and was synced to `openspec/specs/protocol-evidence/spec.md`, then [archived](changes/archive/2026-11-07-verify-rhea-protocol-evidence/tasks.md). `add-repay-outcome-parser` completed nine tasks, synced `openspec/specs/repay-outcomes/spec.md` and was [archived](changes/archive/2026-11-07-add-repay-outcome-parser/tasks.md). Five follow-up changes remain proposed. Public UI parity, legacy scalar health and live wallet execution remain unverified.
 
 | Change | Can start locally? | Dependencies / completion gate |
 | --- | --- | --- |
-| `verify-rhea-protocol-evidence` | Yes | Public display comparison is separate evidence; do not fabricate it if unavailable |
-| `add-repay-outcome-parser` | Yes | Sandbox outcome recordings; no wallet or signer required |
+| `verify-rhea-protocol-evidence` | Completed / archived | Public display comparison remains separate unverified evidence |
+| `add-repay-outcome-parser` | Completed / archived | Parser, twelve sandbox recordings and fresh observed post-state; no wallet/UI execution claim |
 | `complete-guardian-request-settlement` | Yes, sandbox core and experiment | Composed gas proof before automatic integration; D27 remains open until evidence reviewed |
 | `add-guardian-client-and-tools` | Yes, typed existing views | Action history depends on settlement; Guardian cards remain conditional on D18 G1/G3 |
 | `add-tool-driven-chat-api` | Yes, fake-provider harness and API | Full seven-tool evaluation follows Guardian tools; live inference/model selection needs B6 |
 | `add-guardian-position-and-factory` | No, implementation gated | Founder D18 G1/G3 first; local provisioning experiment must settle code/storage strategy |
 | `add-deterministic-guardian-watcher` | Pure loop tests can start after client ABI | Settlement and D27 proof before automatic submission; hosting requires D29/B8 |
 
-Recommended next implementation: `add-repay-outcome-parser`, following the completed protocol evidence work. Contract core remains the parallel critical path; this document does not itself start implementation.
+Recommended next implementation: `complete-guardian-request-settlement`, starting with its local composed-gas experiment. Typed existing Guardian reads in `add-guardian-client-and-tools` can also proceed locally. Contract core remains the critical path; this document does not itself start implementation or resolve D18/D19/D27.
 
 ## Decisions preserved
 

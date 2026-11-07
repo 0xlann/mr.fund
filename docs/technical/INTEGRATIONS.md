@@ -42,6 +42,10 @@ P2.1/P2.2 [V]: policy core and reserve lifecycle passed unit and sandbox tests, 
 
 [V] Independent Rust assertions now cover all five `fixtures/encodings.json` syntax vectors. The same test-only encoder executes token registration, version-specific wallet dust repayment and fee transfer against the imported WASM; both versions also pass contract-owned partial/full repayment and exact borrow risk boundary checks. Modern liquidation event discount implies 8550 bps, agreeing with the engine on that vector. Legacy 0.11.0 omits discount fields, so scalar health remains unknown. Public display comparison again failed because the browser access host was unavailable. Full provenance, numerical scope and remaining gates: [PROTOCOL-EVIDENCE](PROTOCOL-EVIDENCE.md). No public write or deployment occurred.
 
+## P4.3 backend outcome integration (2026-11-07)
+
+[V, sandbox/recorded replay] Twelve raw outcome recordings now cover both imported Rhea versions, including successful repayment, supplied surplus, successful top-level returns with failed receipts, full refunds and failed fee transfers. Partial refund is explicitly from a sandbox-only NEP-141 receiver. Production read APIs validate the configured RPC network, request FINAL receipt details and reconcile a fresh final position without signing/sending/retrying. Missing post-state cannot create a confirmed repayment or pleased mood. See [REPAY-OUTCOMES](REPAY-OUTCOMES.md) for APIs, bounds and reproduction; B7/D19 public wallet proof and UI remain open.
+
 ## Environment variables (names only)
 
 `.env.example` will list these names with empty values at P0.7. Values never enter git.
