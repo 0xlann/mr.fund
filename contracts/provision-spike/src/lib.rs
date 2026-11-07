@@ -70,8 +70,8 @@ impl Spike {
 
     #[private]
     pub fn on_created(&mut self, child_id: AccountId, strategy: String) -> Created {
-        let succeeded = env::promise_results_count() == 1
-            && env::promise_result_checked(0, 64).is_ok();
+        let succeeded =
+            env::promise_results_count() == 1 && env::promise_result_checked(0, 64).is_ok();
         let created = Created {
             child_id,
             strategy,

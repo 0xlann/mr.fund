@@ -104,7 +104,9 @@ async fn deploy_factory(
 ) -> Result<(Account, Contract)> {
     let owner = worker.dev_create_account().await?;
     let factory = worker
-        .dev_deploy(&std::fs::read(target("near/provision_spike/provision_spike.wasm"))?)
+        .dev_deploy(&std::fs::read(target(
+            "near/provision_spike/provision_spike.wasm",
+        ))?)
         .await?;
     let init = factory.call("new").transact().await?;
     assert!(init.is_success(), "{:?}", init.failures());
@@ -118,7 +120,10 @@ async fn provisioning_strategy_measurements() -> Result<()> {
     let guardian_wasm = std::fs::read(target("near/guardian/guardian.wasm"))?;
     let expected_hash: Vec<u8> = Sha256::digest(&guardian_wasm).to_vec();
     let embedded: Vec<u8> = factory.view("code_hash").await?.json()?;
-    assert_eq!(embedded, expected_hash, "factory embeds the prepared Guardian");
+    assert_eq!(
+        embedded, expected_hash,
+        "factory embeds the prepared Guardian"
+    );
     let factory_storage = factory.view_account().await?.storage_usage;
     println!(
         "guardian_wasm_bytes={} factory_storage_bytes={} factory_storage_cost_yocto={}",
@@ -146,20 +151,50 @@ async fn provisioning_strategy_measurements() -> Result<()> {
 
     // Strategy A (stored code).
     let funded = 6_000_000_000_000_000_000_000_000u128;
-    let stored = attempt(&worker, &owner, &factory, "create_stored", "stored-ok", funded, init_args(owner.id())).await?;
+    let stored = attempt(
+        &worker,
+        &owner,
+        &factory,
+        "create_stored",
+        "stored-ok",
+        funded,
+        init_args(owner.id()),
+    )
+    .await?;
     report("stored funded=6 NEAR", &stored);
     assert!(stored.transaction_succeeded && stored.child_exists);
     let child_id: AccountId = format!("stored-ok.{}", factory.id()).parse()?;
-    assert!(worker.view_access_keys(&child_id).await?.is_empty(), "stored child is keyless");
+    assert!(
+        worker.view_access_keys(&child_id).await?.is_empty(),
+        "stored child is keyless"
+    );
     let status: Value = worker.view(&child_id, "get_status").await?.json()?;
     assert_eq!(status["status"], "created");
     let stored_floor = u128::from(stored.child_storage_usage.context("storage")?) * BYTE_COST;
 
     // Boundary: exactly the storage cost succeeds, one yocto less fails.
-    let at_floor = attempt(&worker, &owner, &factory, "create_stored", "stored-floor", stored_floor, init_args(owner.id())).await?;
+    let at_floor = attempt(
+        &worker,
+        &owner,
+        &factory,
+        "create_stored",
+        "stored-floor",
+        stored_floor,
+        init_args(owner.id()),
+    )
+    .await?;
     report("stored funded=floor", &at_floor);
     assert!(at_floor.transaction_succeeded && at_floor.child_exists);
-    let below = attempt(&worker, &owner, &factory, "create_stored", "stored-below", stored_floor - 1, init_args(owner.id())).await?;
+    let below = attempt(
+        &worker,
+        &owner,
+        &factory,
+        "create_stored",
+        "stored-below",
+        stored_floor - 1,
+        init_args(owner.id()),
+    )
+    .await?;
     report("stored funded=floor-1", &below);
     // Atomic failure: no child, callback saw the failure, and the refund lands on
     // the FACTORY (the child receipt's predecessor), never directly on the owner.
@@ -168,38 +203,98 @@ async fn provisioning_strategy_measurements() -> Result<()> {
     println!("stored_funding_floor_yocto={stored_floor}");
 
     // Failure phases for stored code.
-    let bad = attempt(&worker, &owner, &factory, "create_stored", "stored-badinit", funded, json!({})).await?;
+    let bad = attempt(
+        &worker,
+        &owner,
+        &factory,
+        "create_stored",
+        "stored-badinit",
+        funded,
+        json!({}),
+    )
+    .await?;
     report("stored init panics", &bad);
     assert!(!bad.child_exists && bad.callback_succeeded == Some(false));
     assert_eq!(bad.factory_delta, funded as i128);
-    let dup = attempt(&worker, &owner, &factory, "create_stored", "stored-ok", funded, init_args(owner.id())).await?;
+    let dup = attempt(
+        &worker,
+        &owner,
+        &factory,
+        "create_stored",
+        "stored-ok",
+        funded,
+        init_args(owner.id()),
+    )
+    .await?;
     report("stored duplicate label", &dup);
     assert!(dup.callback_succeeded == Some(false));
     assert_eq!(dup.factory_delta, funded as i128);
 
     if global_available {
-        let global = attempt(&worker, &owner, &factory, "create_global", "global-ok", funded, init_args(owner.id())).await?;
+        let global = attempt(
+            &worker,
+            &owner,
+            &factory,
+            "create_global",
+            "global-ok",
+            funded,
+            init_args(owner.id()),
+        )
+        .await?;
         report("global funded=6 NEAR", &global);
         if global.child_exists {
             let id: AccountId = format!("global-ok.{}", factory.id()).parse()?;
             let state = format!("{:?}", worker.view_account(&id).await?.contract_state);
             println!("global child contract_state={state}");
-            assert!(state.contains("GlobalHash"), "child references the global code by hash");
-            assert!(worker.view_access_keys(&id).await?.is_empty(), "global child is keyless");
+            assert!(
+                state.contains("GlobalHash"),
+                "child references the global code by hash"
+            );
+            assert!(
+                worker.view_access_keys(&id).await?.is_empty(),
+                "global child is keyless"
+            );
             let s: Result<Value, _> = worker.view(&id, "get_status").await.and_then(|r| r.json());
             println!("global child get_status={s:?}");
             let floor = u128::from(global.child_storage_usage.context("storage")?) * BYTE_COST;
             println!("global_funding_floor_yocto={floor}");
-            let g_floor = attempt(&worker, &owner, &factory, "create_global", "global-floor", floor, init_args(owner.id())).await?;
+            let g_floor = attempt(
+                &worker,
+                &owner,
+                &factory,
+                "create_global",
+                "global-floor",
+                floor,
+                init_args(owner.id()),
+            )
+            .await?;
             report("global funded=floor", &g_floor);
-            let g_below = attempt(&worker, &owner, &factory, "create_global", "global-below", floor - 1, init_args(owner.id())).await?;
+            let g_below = attempt(
+                &worker,
+                &owner,
+                &factory,
+                "create_global",
+                "global-below",
+                floor - 1,
+                init_args(owner.id()),
+            )
+            .await?;
             report("global funded=floor-1", &g_below);
             // The exact 1-yocto boundary seen for stored code did not reproduce here;
             // walk funding down by whole storage bytes to find where creation fails.
             for (n, bytes) in [1u128, 10, 100, 300, 600].into_iter().enumerate() {
                 let funding = floor - bytes * BYTE_COST;
                 let label = format!("global-minus{n}");
-                let a = attempt(&worker, &owner, &factory, "create_global", &label, funding, init_args(owner.id())).await?;
+                let a = attempt(
+                    &worker,
+                    &owner,
+                    &factory,
+                    "create_global",
+                    &label,
+                    funding,
+                    init_args(owner.id()),
+                )
+                .await?;
                 report(&format!("global funded=floor-{bytes} bytes"), &a);
             }
             // Is an under-funded global child really usable? Grow its state by 60 bytes.
@@ -213,15 +308,37 @@ async fn provisioning_strategy_measurements() -> Result<()> {
                 .transact()
                 .await;
             match grow {
-                Ok(r) => println!("[thin global child grows state] ok={} failures={:?}", r.is_success(), r.failures()),
+                Ok(r) => println!(
+                    "[thin global child grows state] ok={} failures={:?}",
+                    r.is_success(),
+                    r.failures()
+                ),
                 Err(e) => println!("[thin global child grows state] error={e:?}"),
             }
             println!("thin child after: {:?}", worker.view_account(&thin).await?);
-            let g_bad = attempt(&worker, &owner, &factory, "create_global", "global-badinit", funded, json!({})).await?;
+            let g_bad = attempt(
+                &worker,
+                &owner,
+                &factory,
+                "create_global",
+                "global-badinit",
+                funded,
+                json!({}),
+            )
+            .await?;
             report("global init panics", &g_bad);
             assert!(!g_bad.child_exists && g_bad.callback_succeeded == Some(false));
             assert_eq!(g_bad.factory_delta, funded as i128);
-            let g_dup = attempt(&worker, &owner, &factory, "create_global", "global-ok", funded, init_args(owner.id())).await?;
+            let g_dup = attempt(
+                &worker,
+                &owner,
+                &factory,
+                "create_global",
+                "global-ok",
+                funded,
+                init_args(owner.id()),
+            )
+            .await?;
             report("global duplicate label", &g_dup);
             assert!(g_dup.callback_succeeded == Some(false));
             assert_eq!(g_dup.factory_delta, funded as i128);
