@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["probe", "guardian", "guardian-factory", "protocol-trigger", "tests", "tests/fixtures"]
+members = ["probe", "guardian", "guardian-factory", "provision-spike", "protocol-trigger", "tests", "tests/fixtures"]
 
 [workspace.package]
 edition = "2021"

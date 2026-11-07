@@ -32,3 +32,7 @@ No deployed state migration. Finalize additive config/receiver ABI with settleme
 ## Open Questions
 
 D18 is required. Code strategy, measured funding floor and child failure behavior are mandatory local experiment outputs, not founder decisions invented here.
+
+## Measured results (task 1.2/1.3, 2026-11-07)
+
+Stored code was chosen over global contracts; numbers and the refund ABI are in `docs/technical/SMART-CONTRACT.md` "Provisioning experiment". Two assumptions above changed: (1) create, transfer, deploy and init run in one receipt that reverts atomically, so a failed creation leaves no keyless child (the failed-initialization-after-creation case is not reachable with this strategy); the deposit returns to the factory and is forwarded to the owner in a checked callback. (2) The factory embeds the Guardian bytes and has no code setter; a new Guardian build means a new factory. The global strategy remains open only with a passing testnet publish/use and an explanation of its unbound storage check.

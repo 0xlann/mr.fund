@@ -1,8 +1,11 @@
 ## 1. Mandatory custody and provisioning gates
 
-- [ ] 1.1 STOP: verify founder-recorded D18 G1/G3 before implementation; if open wait, if G2 rescope instead of executing later tasks.
-- [ ] 1.2 Confirm settlement operation/config ABI and version encodings are stable; run a local stored-code/global-contract provisioning/storage/failure-phase experiment on pinned toolchain.
-- [ ] 1.3 Record chosen code strategy, account-id derivation, funding floor and create/refund ABI from measured results before factory/client implementation.
+- [x] 1.1 STOP: verify founder-recorded D18 G1/G3 before implementation; if open wait, if G2 rescope instead of executing later tasks.
+  - D18 recorded as G1 by the user on 2026-11-07 (OPEN-DECISIONS D18); G2 not selected, so this change proceeds. D19/B7 still gate any public account creation or deployment.
+- [x] 1.2 Confirm settlement operation/config ABI and version encodings are stable; run a local stored-code/global-contract provisioning/storage/failure-phase experiment on pinned toolchain.
+  - Settlement ABI unchanged: `GuardianConfig`/`Policy` and the `0.11.0` Execute/`0.16.2` OnlyRepay encodings are the archived `complete-guardian-request-settlement` surface (28 Guardian unit tests and the sandbox suite pass on the unmodified code). Experiment: `contracts/tests/tests/provisioning.rs` with throwaway `contracts/provision-spike`; both strategies work in the sandbox. Numbers in SMART-CONTRACT "Provisioning experiment".
+- [x] 1.3 Record chosen code strategy, account-id derivation, funding floor and create/refund ABI from measured results before factory/client implementation.
+  - Recorded in SMART-CONTRACT (Factory, Provisioning experiment): stored code; id `sha256(owner ‖ nonce)` first 32 hex; creation floor 2.37578 NEAR measured, usable floor deferred to 4.2; `create_guardian`/`CreateOutcome`/`claim_refund` ABI. The design assumption of a keyless failed child was not observed: creation is atomic.
 
 ## 2. Owner position operations
 
