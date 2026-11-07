@@ -50,3 +50,7 @@ Original font/license sources:
 ## Window garden scenery
 
 `window-garden.webp` was generated with the built-in imagegen tool on 2026-11-07 for this project, then resized and encoded as WebP (768 × 1024, 253,514 bytes). The complete generation prompt is preserved in `window-garden.prompt.txt`. It depicts a sunlit garden with trees and sky, without a baked-in window or interior. The runtime centres and crops it to the window opening without stretching; the existing frame and blinds remain actual 3D geometry.
+
+### Consultation facial preview — 2026-11-07
+
+The Jungle Jim Businessman head receives runtime additive geometry morph targets in `src/play/characterFace.ts`: localized mouth, brow and smile offsets calibrated to the original head mesh. These are project-authored procedural modifications to the credited CC BY 4.0 model, not supplied facial animation clips or phoneme lip-sync. The source GLB is unchanged.

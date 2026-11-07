@@ -6,10 +6,9 @@ import { atomic, draft, metrics, snapshot } from "../src/play/demo";
 import { Playground } from "../src/play/Playground";
 
 type SceneProps = {
-  visit: { id: number; panel: "guardian" | "chat" } | null;
-  onVisitReady: (id: number) => void;
-  onStateChange: (state: "loading" | "ready" | "fallback") => void;
-  onInteract: (panel: "chat" | "guardian" | "activity" | "position") => void;
+  station: "office" | "chat";
+  speaking: boolean;
+  hud: { panelOpen: boolean; positionColumn: boolean; stacked: boolean };
 };
 const scene = vi.hoisted(() => ({ current: null as SceneProps | null }));
 vi.mock("next/dynamic", () => ({
@@ -32,6 +31,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 const advance = async (ms = 1200) => {
   await act(async () => {
@@ -40,12 +40,13 @@ const advance = async (ms = 1200) => {
 };
 function click(name: string) {
   fireEvent.click(screen.getByRole("button", { name }));
-  if (name === "Chat" && scene.current?.visit?.panel === "chat")
-    act(() => scene.current?.onVisitReady(scene.current.visit?.id ?? -1));
 }
-function connect() {
-  click("Connect wallet");
-  click("Demo wallet1,000 test USDC · instant connection");
+const DEMO_WALLET = "Demo wallet1,000 test USDC · instant connection";
+/** Welcome, then wallet, then the chair gesture: the whole flow into a consultation. */
+async function begin() {
+  click("Start consultation");
+  click(DEMO_WALLET);
+  await advance(800);
 }
 
 // These tests exercise local state, not wallet signing or on-chain enforcement.
@@ -61,8 +62,7 @@ describe("/play demo", () => {
   });
   it("keeps balances on wallet rejection and updates the engine result after approval", async () => {
     render(createElement(Playground));
-    connect();
-    click("Chat");
+    await begin();
     click("Find my smartest move");
     await advance();
     click("Execute now");
@@ -72,67 +72,101 @@ describe("/play demo", () => {
     click("Approve demo action");
     await advance();
     click("Position");
-    expect(screen.getByText("$1,800.00")).toBeTruthy();
+    expect(screen.getAllByText("$1,800.00").length).toBeGreaterThan(1);
     click("Chat");
     click("Execute now");
     click("Approve demo action");
     await advance();
     click("Position");
-    expect(screen.getByText("$1,700.00")).toBeTruthy();
+    expect(screen.getAllByText("$1,700.00").length).toBeGreaterThan(1);
     expect(screen.getAllByText("167.64%").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /Activity/ }));
     expect(screen.getByText("Repaid 100.00 USDC")).toBeTruthy();
   });
-  it("waits for the Guardian scene gesture and discards a cancelled completion", () => {
+  it("opens on a welcome screen and keeps the office tools behind Start consultation", () => {
     render(createElement(Playground));
-    click("Guardian");
-    const cancelled = scene.current?.visit?.id;
-    expect(cancelled).toBeTypeOf("number");
-    expect(screen.queryByRole("button", { name: "Meet your Guardian" })).toBeNull();
-    expect(screen.getByText("Opening Guardian…")).toBeTruthy();
-    click("Guardian");
-    expect(scene.current?.visit?.id).toBe(cancelled);
-    click("Chat");
-    act(() => scene.current?.onVisitReady(cancelled ?? -1));
-    expect(screen.queryByRole("button", { name: "Meet your Guardian" })).toBeNull();
-    click("Guardian");
-    const current = scene.current?.visit?.id;
-    expect(current).not.toBe(cancelled);
-    act(() => scene.current?.onVisitReady(current ?? -1));
-    expect(screen.getByRole("button", { name: "Meet your Guardian" })).toBeTruthy();
-    expect(screen.queryByText("Opening Guardian…")).toBeNull();
-  });
-  it("cancels with Escape and opens Guardian if WebGL fails during the approach", () => {
-    render(createElement(Playground));
-    click("Guardian");
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(scene.current?.visit).toBeNull();
-    expect(screen.queryByText("Opening Guardian…")).toBeNull();
-    click("Guardian");
-    act(() => scene.current?.onStateChange("fallback"));
-    expect(screen.getByRole("button", { name: "Meet your Guardian" })).toBeTruthy();
-  });
-  it("keeps Chat closed until the chair gesture finishes and cancels an old seated request", () => {
-    render(createElement(Playground));
-    fireEvent.click(screen.getByRole("button", { name: "Chat" }));
-    const old = scene.current?.visit?.id;
+    expect(screen.getByRole("heading", { name: "The DeFi manager you can talk to." })).toBeTruthy();
+    expect(scene.current?.station).toBe("office");
+    expect(screen.queryByRole("navigation", { name: "Office actions" })).toBeNull();
     expect(screen.queryByRole("textbox", { name: "Message Mr.Fund" })).toBeNull();
-    expect(screen.getByText("Taking a seat…")).toBeTruthy();
-    click("Position");
-    act(() => scene.current?.onVisitReady(old ?? -1));
-    expect(screen.queryByRole("textbox", { name: "Message Mr.Fund" })).toBeNull();
-    act(() => scene.current?.onInteract("chat"));
-    const current = scene.current?.visit?.id;
-    expect(scene.current?.visit?.panel).toBe("chat");
-    act(() => scene.current?.onVisitReady(current ?? -1));
+    click("Start consultation");
+    const wallet = screen.getByRole("dialog", { name: "Connect to begin." });
+    expect(within(wallet).getByText("NETWORK · TESTNET · SIMULATED")).toBeTruthy();
+    expect(screen.queryByRole("navigation", { name: "Office actions" })).toBeNull();
+  });
+  it("starts a seated consultation after connecting and changes tools without a journey", async () => {
+    render(createElement(Playground));
+    click("Start consultation");
+    click(DEMO_WALLET);
+    expect(screen.getByText("Connecting to the simulated testnet…")).toBeTruthy();
+    expect(scene.current?.station).toBe("office");
+    await advance(800);
+    expect(scene.current?.station).toBe("chat");
     expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
-    expect(screen.queryByText("Taking a seat…")).toBeNull();
+    expect(screen.getByRole("region", { name: "Position stats" })).toBeTruthy();
+    click("Guardian");
+    expect(screen.getByRole("button", { name: "Meet your Guardian" })).toBeTruthy();
+    click("Activity");
+    click("Chat");
+    expect(scene.current?.station).toBe("chat");
+  });
+  it("keeps the welcome screen after cancelling wallet connection", () => {
+    render(createElement(Playground));
+    click("Start consultation");
+    click("Close dialog");
+    expect(screen.getByRole("button", { name: "Start consultation" })).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: "Message Mr.Fund" })).toBeNull();
+  });
+  it("keeps chat beside a persistent position column on desktop", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    render(createElement(Playground));
+    await begin();
+    expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
+    expect(screen.getByRole("complementary", { name: "Consultation details" })).toBeTruthy();
+    expect(scene.current?.hud).toEqual({ panelOpen: true, positionColumn: true, stacked: false });
+    expect(screen.queryByRole("button", { name: "Position" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Office actions" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Close overlay" })).toBeNull();
+    const guardian = screen.getByRole("tab", { name: "Guardian" });
+    fireEvent.click(guardian);
+    expect(guardian.getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("button", { name: "Meet your Guardian" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
+    fireEvent.keyDown(guardian, { key: "ArrowRight" });
+    expect(screen.getByRole("tab", { name: "Activity" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    expect(document.activeElement).toBe(screen.getByRole("tab", { name: "Activity" }));
+    fireEvent.keyDown(document.activeElement as Element, { key: "Home" });
+    expect(screen.getByRole("tab", { name: "Position" }).getAttribute("aria-selected")).toBe(
+      "true",
+    );
+    click("Open voice input");
+    expect(screen.getByRole("dialog", { name: "Speak with Mr.Fund." })).toBeTruthy();
+    click("Try a demo transcript");
+    click("Send my question");
+    expect(screen.queryByRole("dialog", { name: "Speak with Mr.Fund." })).toBeNull();
+    await advance();
+    expect(screen.getByText("SIMULATED WHAT-IF")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
+  });
+  it("animates a reply then returns to listening without changing the financial state", async () => {
+    render(createElement(Playground));
+    await begin();
+    click("Find my smartest move");
+    await advance();
+    expect(scene.current?.speaking).toBe(true);
+    await advance(9000);
+    expect(scene.current?.speaking).toBe(false);
+    expect(screen.getAllByText("158.33%").length).toBeGreaterThan(0);
   });
   it("validates Guardian rules and preserves reserve on an over-limit rejection", async () => {
     render(createElement(Playground));
-    connect();
+    await begin();
     click("Guardian");
-    act(() => scene.current?.onVisitReady(scene.current.visit?.id ?? -1));
     click("Meet your Guardian");
     const trigger = screen.getByLabelText(/Trigger below health/);
     fireEvent.change(trigger, { target: { value: "100" } });
@@ -164,7 +198,7 @@ describe("/play demo", () => {
   });
   it("blocks stale cards and recovers the position with Refresh", async () => {
     render(createElement(Playground));
-    click("Chat");
+    await begin();
     click("Find my smartest move");
     await advance();
     click("Demo settings");
@@ -176,22 +210,21 @@ describe("/play demo", () => {
     await advance();
     expect(screen.getByRole("button", { name: "Execute now" })).toBeTruthy();
   });
-  it("starts with the room visible and opens and closes tools as overlays", () => {
+  it("opens and closes tools as overlays once the consultation has started", async () => {
     render(createElement(Playground));
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.queryByRole("textbox", { name: "Message Mr.Fund" })).toBeNull();
-    click("Chat");
+    await begin();
     expect(screen.getByRole("dialog", { name: "Let's talk money." })).toBeTruthy();
-    expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
     click("Close overlay");
     expect(screen.queryByRole("dialog")).toBeNull();
     click("Position");
     expect(screen.getByRole("dialog", { name: "Here's where you stand." })).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.queryByRole("dialog")).toBeNull();
+    expect(scene.current?.station).toBe("chat");
   });
   it("offers explicit voice input and reviews a labelled sample before sending", async () => {
     render(createElement(Playground));
+    await begin();
     click("Voice");
     click("Start voice input");
     expect(screen.getByRole("alert").textContent).toContain("isn't available");
@@ -200,7 +233,6 @@ describe("/play demo", () => {
       (screen.getByLabelText("SAMPLE TRANSCRIPT · SIMULATED") as HTMLTextAreaElement).value,
     ).toBe("What if NEAR drops 20%?");
     click("Send my question");
-    act(() => scene.current?.onVisitReady(scene.current.visit?.id ?? -1));
     await advance();
     expect(screen.getByRole("dialog", { name: "Let's talk money." })).toBeTruthy();
     expect(screen.getByText("SIMULATED WHAT-IF")).toBeTruthy();

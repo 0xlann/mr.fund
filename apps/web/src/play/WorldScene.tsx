@@ -8,52 +8,33 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 import { FontLoader } from "three/addons/loaders/FontLoader.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
-import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
-import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
-import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import wordmarkTypeface from "./assets/wordmark.typeface.json";
-import { officeFraming } from "./officeViewport";
+import { createCharacterFace } from "./characterFace";
+import { hudReserve, officeFraming } from "./officeViewport";
 import { createRealisticCharacterMotion } from "./realisticCharacter";
 import { fitRoomFurniture } from "./roomFurniture";
-import { pickRoomTarget } from "./roomInteractions";
-import { createRoomJourney, type RoomVisit } from "./roomJourney";
-import { createSafeDoorMotion } from "./safeDoor";
 
-export type Station = "office" | "guardian" | "activity" | "chat";
-export type GuardianLamp = "inactive" | "active" | "paused" | "deactivated";
+export type Station = "office" | "chat";
 type Vec = [number, number, number];
 
 type WorldProps = {
   /** Engine-derived mood: calm, concerned, pleased or thinking. Never model-driven. */
   mood: string;
-  /** Increment to play the wave clip. */
+  /** Increment to play the wave clip (a greeting when the wallet connects). */
   wave: number;
   station: Station;
-  guardian: GuardianLamp;
   /** Simulated health in basis points, or null when unavailable. */
   healthBps: number | null;
   activityCount: number;
-  onWave: () => void;
-  onInteract: (panel: "chat" | "guardian" | "activity" | "position") => void;
-  visit: RoomVisit | null;
-  panelOpen: boolean;
-  onVisitReady: (id: number) => void;
-  onStateChange: (state: "loading" | "ready" | "fallback") => void;
+  speaking: boolean;
+  /** Screen areas covered by the HUD, so the actor stays centred in what remains visible. */
+  hud: { panelOpen: boolean; positionColumn: boolean; stacked: boolean };
 };
 
-// Camera stations; officeFraming reserves the visible tool panel width at every breakpoint.
+// Welcome shows the whole room; consultation zooms to the seated actor.
 const STATIONS: Record<Station, { pos: Vec; target: Vec }> = {
-  chat: { pos: [3.45, 2.8, 3.0], target: [3.45, 2.35, -2.15] },
+  chat: { pos: [-2.65, 2.9, 3.5], target: [-2.65, 2.5, -2.15] },
   office: { pos: [0.4, 2.65, 7.8], target: [0.1, 2.25, 0.5] },
-  guardian: { pos: [-1.1, 2.8, 5.3], target: [-3.35, 1.9, -0.8] },
-  activity: { pos: [3.4, 2.9, 4.8], target: [4.8, 2.7, -3.4] },
-};
-const LAMP: Record<GuardianLamp, { color: string; level: number }> = {
-  inactive: { color: "#6b7280", level: 0.15 },
-  active: { color: "#dbf884", level: 0.45 },
-  paused: { color: "#ffb35c", level: 0.25 },
-  deactivated: { color: "#ff6a55", level: 0.18 },
 };
 const SEGMENTS = 10;
 const ROWS = 6;
@@ -69,7 +50,6 @@ export function WorldScene(props: WorldProps) {
   live.current = props;
   const [assetError, setAssetError] = useState("");
   const [state, setState] = useState<"loading" | "ready" | "fallback">("loading");
-  useEffect(() => props.onStateChange(state), [state, props.onStateChange]);
 
   useEffect(() => {
     const el = host.current;
@@ -97,7 +77,7 @@ export function WorldScene(props: WorldProps) {
     renderer.domElement.className = "block h-full w-full";
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#1c2331");
+    scene.background = new THREE.Color("#0d141c");
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envMap = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = envMap;
@@ -130,13 +110,12 @@ export function WorldScene(props: WorldProps) {
         metalness,
         ...(emissive ? { emissive: new THREE.Color(emissive), emissiveIntensity: level } : {}),
       });
-    const cream = mat("#fff0ce");
-    const floorMat = mat("#bd8562", 0.9);
+    const cream = mat("#35434b");
+    const floorMat = mat("#3b302d", 0.9);
     const ink = mat("#202945", 0.5);
     const blue = mat("#2047df", 0.5);
     const lime = mat("#d8f568", 0.45);
     const orange = mat("#ff643b", 0.7);
-    const gold = mat("#f7cf62", 0.25, 0.6);
 
     function add<T extends THREE.Object3D>(obj: T, parent: THREE.Object3D = world) {
       obj.traverse((o) => {
@@ -178,14 +157,6 @@ export function WorldScene(props: WorldProps) {
       return add(mesh, parent);
     }
 
-    function groupInteractive(startIndex: number, panel: "chat" | "position" | "activity") {
-      const group = new THREE.Group();
-      group.userData.panel = panel;
-      for (const object of world.children.slice(startIndex)) group.add(object);
-      world.add(group);
-      return group;
-    }
-
     const labelTextures: THREE.CanvasTexture[] = [];
     function surfaceLabel(
       text: string,
@@ -193,7 +164,6 @@ export function WorldScene(props: WorldProps) {
       width: number,
       position: Vec,
       parent: THREE.Object3D,
-      panel?: "guardian" | "position" | "activity",
     ) {
       const labelCanvas = document.createElement("canvas");
       labelCanvas.width = 1024;
@@ -229,8 +199,6 @@ export function WorldScene(props: WorldProps) {
         }),
       );
       label.position.set(...position);
-      if (panel) label.userData.panel = panel;
-      else label.userData.pointerPassthrough = true;
       add(label, parent);
       label.castShadow = false;
       label.receiveShadow = false;
@@ -238,7 +206,7 @@ export function WorldScene(props: WorldProps) {
 
     // Room shell
     box(12, 0.4, 11, floorMat, 0, -0.2, 0.5, 0.02);
-    const wallMaterial = mat("#244d57", 0.85);
+    const wallMaterial = mat("#142b34", 0.85);
     box(12, 7.5, 0.3, wallMaterial, 0, 3.75, -3.75, 0.02);
     // Left wall surrounds a tall side window, leaving the opening clear.
     box(0.3, 0.65, 11, wallMaterial, -6, 0.325, 0.5, 0.02);
@@ -253,24 +221,24 @@ export function WorldScene(props: WorldProps) {
     rugInner.scale.z = 0.7;
 
     // Wide wooden boards and lower wall panels give the room a tangible scale.
-    const boardColors = ["#c89673", "#d09e7d", "#c28e69", "#d8a887"];
+    const boardColors = ["#40342f", "#493b33", "#392f2b", "#514037"];
     for (let i = 0; i < 15; i++) {
       box(
         0.78,
         0.025,
         11,
-        mat(boardColors[i % boardColors.length] ?? "#c89673", 0.95),
+        mat(boardColors[i % boardColors.length] ?? "#40342f", 0.95),
         -5.6 + i * 0.8,
         0.015,
         0.5,
         0.005,
       );
     }
-    box(12, 1.05, 0.06, mat("#f4d8b6", 0.9), 0, 0.58, -3.55, 0.01);
+    box(12, 1.05, 0.06, mat("#1b3039", 0.9), 0, 0.58, -3.55, 0.01);
     box(12, 0.08, 0.12, cream, 0, 1.14, -3.48, 0.01);
     for (let x = -5.6; x < 6; x += 1.4) box(0.055, 0.9, 0.045, cream, x, 0.59, -3.49, 0.005);
     // A few personal objects make this an office, not an empty showroom.
-    const shelfWood = mat("#bf764e", 0.8);
+    const shelfWood = mat("#684637", 0.8);
     for (let level = 0; level < 2; level++) {
       box(2.1, 0.12, 0.48, shelfWood, -4.15, 3.2 + level * 0.8, -3.2, 0.025);
       for (let book = 0; book < 5; book++) {
@@ -374,14 +342,11 @@ export function WorldScene(props: WorldProps) {
       5.2 - letterCenter.y * letterScale,
       -3.57,
     );
-    lettering.userData.pointerPassthrough = true;
     add(lettering);
 
     // Health wall chart (lit by the simulated health)
-    const chartStart = world.children.length;
-    const healthFrame = box(2.7, 1.95, 0.12, ink, 2.1, 3.7, -3.55, 0.04);
-    healthFrame.userData.panel = "position";
-    surfaceLabel("POSITION", "#dbf884", 1.85, [2.1, 4.37, -3.482], world, "position");
+    box(2.7, 1.95, 0.12, ink, 2.1, 3.7, -3.55, 0.04);
+    surfaceLabel("POSITION", "#dbf884", 1.85, [2.1, 4.37, -3.482], world);
     const segments: THREE.MeshStandardMaterial[] = [];
     for (let i = 0; i < SEGMENTS; i++) {
       const segMat = mat("#3a4250", 0.6);
@@ -391,22 +356,16 @@ export function WorldScene(props: WorldProps) {
     }
     box(2.4, 0.04, 0.05, mat("#ff8d70", 0.65), 2.1, 3.2, -3.44, 0.01);
 
-    const chartGroup = groupInteractive(chartStart, "position");
-
     // Ledger board (lights one row per recorded demo event)
-    const ledgerStart = world.children.length;
-    const ledgerFrame = box(2.3, 2.9, 0.12, cream, 4.8, 3.3, -3.55, 0.05);
-    ledgerFrame.userData.panel = "activity";
+    box(2.3, 2.9, 0.12, cream, 4.8, 3.3, -3.55, 0.05);
     box(2.0, 0.34, 0.08, blue, 4.8, 4.45, -3.48, 0.03);
-    surfaceLabel("ACTIVITY", "#fff8e7", 1.7, [4.8, 4.45, -3.432], world, "activity");
+    surfaceLabel("ACTIVITY", "#fff8e7", 1.7, [4.8, 4.45, -3.432], world);
     const rows: THREE.MeshStandardMaterial[] = [];
     for (let i = 0; i < ROWS; i++) {
       const rowMat = mat("#e3dac2", 0.7);
       rows.push(rowMat);
       box(1.8, 0.2, 0.05, rowMat, 4.8, 3.95 - i * 0.37, -3.47, 0.02);
     }
-
-    const ledgerGroup = groupInteractive(ledgerStart, "activity");
 
     // Imported furniture keeps the user's original textures and proportions.
     const furnitureLoader = new GLTFLoader();
@@ -463,45 +422,10 @@ export function WorldScene(props: WorldProps) {
         },
       );
     }
-    const vault = new THREE.Group();
-    let safeDoorMotion: ReturnType<typeof createSafeDoorMotion> | null = null;
-    vault.position.set(-4.0, 0.05, -1.65);
-    vault.rotation.y = 0.2;
-    vault.userData.panel = "guardian";
-    world.add(vault);
-    const lampMat = mat("#6b7280", 0.4, 0, "#6b7280", 0.15);
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.085, 20, 14), lampMat);
-    lamp.visible = false;
-    add(lamp, vault);
-    const safeHeight = 2.4;
-    loadFurniture(
-      "/brankas/simple_safe.glb",
-      "safe",
-      vault,
-      safeHeight,
-      [0, 0, 0],
-      0,
-      (fit) => {
-        safeDoorMotion = createSafeDoorMotion(fit.group);
-        surfaceLabel(
-          "GUARDIAN",
-          "#dbf884",
-          Math.min(1.68, fit.width * 0.7),
-          [0, safeHeight - 0.17, fit.depth / 2 + 0.012],
-          vault,
-          "guardian",
-        );
-        lamp.position.set(fit.width / 2 - 0.17, safeHeight - 0.16, fit.depth / 2 + 0.04);
-        lamp.scale.setScalar(safeHeight / 2.9);
-        lamp.visible = true;
-      },
-      "Object_5",
-    );
-
-    // The complete workstation remains one clickable Chat target.
+    // The workstation groups the desk, laptop and mug.
     const deskGroup = new THREE.Group();
-    deskGroup.userData.panel = "chat";
     world.add(deskGroup);
+    deskGroup.position.x = -6.1;
     loadFurniture(
       "/office%20table/office_desk.glb",
       "desk",
@@ -538,7 +462,7 @@ export function WorldScene(props: WorldProps) {
     handle.position.set(4.72, 1.68, -0.3);
     add(handle, deskGroup);
 
-    // Plant and coin stack
+    // Plant
     cylinder(0.34, 0.26, 0.55, ink, -2.1, 0.28, -2.6);
     const stem = cylinder(0.025, 0.025, 1.3, lime, -2.1, 1.2, -2.6);
     stem.rotation.z = 0.1;
@@ -550,12 +474,11 @@ export function WorldScene(props: WorldProps) {
       leaf.position.set(-2.1 + sign * 0.2, 0.95 + i * 0.14, -2.6);
       add(leaf);
     }
-    for (let i = 0; i < 4; i++) cylinder(0.25, 0.25, 0.1, gold, 1.0, 0.1 + i * 0.11, 1.5);
 
     // Character
+    let characterFace: ReturnType<typeof createCharacterFace> = null;
     let characterMotion: ReturnType<typeof createRealisticCharacterMotion> = null;
     let character: THREE.Object3D | undefined;
-    const journey = createRoomJourney();
     let seatedDrop = 0;
     let characterCenterX = 0;
     let baseY = 0;
@@ -608,6 +531,7 @@ export function WorldScene(props: WorldProps) {
             }
           }
         });
+        characterFace = createCharacterFace(character);
         const bounds = new THREE.Box3().setFromObject(character, true);
         const scale = 3.9 / (bounds.max.y - bounds.min.y);
         character.scale.setScalar(scale);
@@ -626,56 +550,6 @@ export function WorldScene(props: WorldProps) {
       },
     );
 
-    // Wall tools get a crisp frame edge as well as the silhouette pass.
-    const boardAccents = new Map<
-      THREE.Object3D,
-      { material: THREE.MeshStandardMaterial; edge: THREE.LineSegments }
-    >();
-    function boardAccent(root: THREE.Object3D, frame: THREE.Mesh) {
-      const original = frame.material;
-      if (!(original instanceof THREE.MeshStandardMaterial)) return;
-      const material = original.clone();
-      frame.material = material;
-      const edge = new THREE.LineSegments(
-        new THREE.EdgesGeometry(frame.geometry, 35),
-        new THREE.LineBasicMaterial({
-          color: "#dbf884",
-          transparent: true,
-          opacity: 1,
-          depthTest: false,
-          toneMapped: false,
-        }),
-      );
-      edge.visible = false;
-      edge.renderOrder = 1000;
-      // An accent line is visual feedback, never another pointer target.
-      edge.raycast = () => {};
-      frame.add(edge);
-      boardAccents.set(root, { material, edge });
-    }
-    boardAccent(chartGroup, healthFrame);
-    boardAccent(ledgerGroup, ledgerFrame);
-
-    // Only hovered silhouettes receive the outline glow. No scene-wide bloom is used.
-    const hoverTarget = new THREE.WebGLRenderTarget(1, 1, {
-      type: THREE.HalfFloatType,
-      samples: 4,
-    });
-    const hoverComposer = new EffectComposer(renderer, hoverTarget);
-    hoverComposer.setPixelRatio(pixelRatio);
-    const scenePass = new RenderPass(scene, camera);
-    const outline = new OutlinePass(new THREE.Vector2(1, 1), scene, camera);
-    outline.visibleEdgeColor.set("#dbf884");
-    outline.hiddenEdgeColor.set("#000000");
-    outline.edgeStrength = 4;
-    outline.edgeThickness = 1.8;
-    outline.edgeGlow = 0.55;
-    outline.pulsePeriod = 0;
-    const output = new OutputPass();
-    hoverComposer.addPass(scenePass);
-    hoverComposer.addPass(outline);
-    hoverComposer.addPass(output);
-
     let width = 1;
     let height = 1;
     const resize = new ResizeObserver(() => {
@@ -683,7 +557,6 @@ export function WorldScene(props: WorldProps) {
       height = Math.max(el.clientHeight, 1);
       camera.aspect = width / height;
       renderer.setSize(width, height, false);
-      hoverComposer.setSize(width, height);
       camera.updateProjectionMatrix();
     });
     resize.observe(el);
@@ -694,71 +567,18 @@ export function WorldScene(props: WorldProps) {
     });
     observer.observe(el);
 
-    // Hover and clicks share one occlusion-aware hit test, including all prop parts.
+    // The pointer only adds a small camera parallax.
     const pointer = new THREE.Vector2();
     const smoothPointer = new THREE.Vector2();
     const still = new THREE.Vector2();
-    const raycaster = new THREE.Raycaster();
-    const ndc = new THREE.Vector2();
-    const propRoots = {
-      guardian: vault,
-      position: chartGroup,
-      activity: ledgerGroup,
-      chat: deskGroup,
-    };
-    const pointerTargets: THREE.Object3D[] = Object.values(propRoots);
-    let overCanvas = false;
-    let hovered: THREE.Object3D | null = null;
-    function hitInteractive() {
-      raycaster.setFromCamera(ndc, camera);
-      if (character && pointerTargets.length === 4) pointerTargets.push(character);
-      return pickRoomTarget(raycaster.intersectObjects(pointerTargets, true), propRoots, character);
-    }
-    function selectHover(root: THREE.Object3D | null) {
-      if (root === hovered) return;
-      const previousAccent = hovered ? boardAccents.get(hovered) : undefined;
-      if (previousAccent) {
-        previousAccent.edge.visible = false;
-        previousAccent.material.emissive.set("#000000");
-        previousAccent.material.emissiveIntensity = 0;
-      }
-      hovered = root;
-      const nextAccent = root ? boardAccents.get(root) : undefined;
-      if (nextAccent) {
-        nextAccent.edge.visible = true;
-        nextAccent.material.emissive.set("#a6d94b");
-        nextAccent.material.emissiveIntensity = 0.3;
-      }
-      outline.selectedObjects = root ? [root] : [];
-      renderer.domElement.style.cursor = root ? "pointer" : "";
-    }
-    const clearHover = () => {
-      overCanvas = false;
-      selectHover(null);
-    };
     const onMove = (event: PointerEvent) => {
+      if (event.pointerType === "touch") return;
       pointer.set(
         (event.clientX / window.innerWidth) * 2 - 1,
         -(event.clientY / window.innerHeight) * 2 + 1,
       );
-      ndc.copy(pointer);
-      overCanvas = event.target === renderer.domElement && event.pointerType !== "touch";
-      if (!overCanvas) selectHover(null);
-    };
-    const onDown = (event: PointerEvent) => {
-      if (event.target !== renderer.domElement) return;
-      ndc.set(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        -(event.clientY / window.innerHeight) * 2 + 1,
-      );
-      const hit = hitInteractive();
-      if (hit?.action === "wave") live.current.onWave();
-      else if (hit) live.current.onInteract(hit.action);
     };
     window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerdown", onDown);
-    window.addEventListener("blur", clearHover);
-    renderer.domElement.addEventListener("pointerleave", clearHover);
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     const camPos = new THREE.Vector3(...STATIONS.office.pos);
@@ -768,12 +588,11 @@ export function WorldScene(props: WorldProps) {
     const offset = new THREE.Vector3();
     const stationVec = new THREE.Vector3();
     let shift = 0;
+    let shiftY = 0;
     let frame = 0;
     let previous = 0;
-    let elapsed = 0;
     let lastLit = -1;
     let lastRows = -1;
-    let lastLamp = "";
 
     function render(time: number) {
       frame = requestAnimationFrame(render);
@@ -782,22 +601,17 @@ export function WorldScene(props: WorldProps) {
       if (!visible || document.hidden) return;
       const p = live.current;
       const calm = reduced.matches;
-      elapsed += delta;
 
-      // Camera glides between stations; narrow screens pull back to fit the character
-      const walkingToChat =
-        p.station === "chat" &&
-        (journey.frame.phase === "walking" ||
-          journey.frame.phase === "standing" ||
-          journey.frame.phase === "idle");
-      const stationName = walkingToChat ? "office" : p.station;
+      // Camera glides from the wide welcome shot to the seated consultation shot.
+      const stationName = p.station;
       const station = STATIONS[stationName];
       wantLook.set(...station.target);
       if (height <= 600 && stationName === "office") wantLook.y -= 0.25;
       stationVec.set(...station.pos).sub(wantLook);
       const viewHeight =
         2 * stationVec.length() * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-      const framing = officeFraming(width, height, p.panelOpen, stationName, viewHeight);
+      const reserve = hudReserve(width, height, p.hud);
+      const framing = officeFraming(width, height, reserve, stationName, viewHeight);
       stationVec.multiplyScalar(framing.pull);
       wantPos.copy(wantLook).add(stationVec);
       const k = calm ? 1 : 1 - Math.exp(-delta * 3);
@@ -807,10 +621,10 @@ export function WorldScene(props: WorldProps) {
       offset.set(smoothPointer.x * 0.5, smoothPointer.y * 0.22, 0);
       camera.position.copy(camPos).add(offset);
       camera.lookAt(camLook);
-      const wantShift = framing.shift;
-      shift += (wantShift - shift) * k;
-      if (Math.abs(shift) > 0.001)
-        camera.setViewOffset(width, height, shift * width, 0, width, height);
+      shift += (framing.shift - shift) * k;
+      shiftY += (framing.shiftY - shiftY) * k;
+      if (Math.abs(shift) > 0.001 || Math.abs(shiftY) > 0.001)
+        camera.setViewOffset(width, height, shift * width, shiftY * height, width, height);
       else camera.clearViewOffset();
 
       // Data-driven set dressing
@@ -835,40 +649,30 @@ export function WorldScene(props: WorldProps) {
           row.emissiveIntensity = on ? 0.08 : 0;
         });
       }
-      const lampStyle = LAMP[p.guardian];
-      if (p.guardian !== lastLamp) {
-        lastLamp = p.guardian;
-        lampMat.color.set(lampStyle.color);
-        lampMat.emissive.set(lampStyle.color);
-      }
-      lampMat.emissiveIntensity =
-        p.guardian === "active" && !calm
-          ? lampStyle.level + Math.sin(elapsed * 3) * 0.08
-          : lampStyle.level;
-
       if (character) {
-        const completed = journey.update(delta, p.visit, calm);
-        const travel = journey.frame;
-        characterMotion?.update(
+        characterFace?.update(
           delta,
-          p.wave,
+          p.speaking
+            ? "speaking"
+            : p.mood === "thinking"
+              ? "thinking"
+              : p.mood === "concerned"
+                ? "concerned"
+                : p.mood === "pleased"
+                  ? "pleased"
+                  : "listening",
           calm,
-          p.mood,
-          travel.phase === "idle" ? smoothPointer.x : 0,
-          travel,
         );
-        character.position.set(
-          characterCenterX + travel.x,
-          baseY - seatedDrop * travel.sit,
-          travel.z,
-        );
-        character.rotation.set(0, travel.yaw, 0);
-        safeDoorMotion?.setOpen(travel.door);
-        if (completed !== null) p.onVisitReady(completed);
+        characterMotion?.update(delta, p.wave, calm, p.mood, smoothPointer.x, {
+          walk: 0,
+          stride: 0,
+          reach: 0,
+          sit: 1,
+        });
+        character.position.set(characterCenterX - 2.65, baseY - seatedDrop, -2.15);
+        character.rotation.set(0, 0, 0);
       }
-      if (overCanvas) selectHover(hitInteractive()?.root ?? null);
-      if (hovered) hoverComposer.render(delta);
-      else renderer.render(scene, camera);
+      renderer.render(scene, camera);
     }
     frame = requestAnimationFrame(render);
 
@@ -878,13 +682,6 @@ export function WorldScene(props: WorldProps) {
       resize.disconnect();
       observer.disconnect();
       window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("blur", clearHover);
-      renderer.domElement.removeEventListener("pointerleave", clearHover);
-      outline.dispose();
-      output.dispose();
-      scenePass.dispose();
-      hoverComposer.dispose();
       const importedTextures = new Set<THREE.Texture>();
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh) {
@@ -898,11 +695,6 @@ export function WorldScene(props: WorldProps) {
         }
       });
       for (const texture of importedTextures) texture.dispose();
-      for (const accent of boardAccents.values()) {
-        accent.edge.geometry.dispose();
-        const material = accent.edge.material;
-        for (const item of Array.isArray(material) ? material : [material]) item.dispose();
-      }
       for (const texture of labelTextures) texture.dispose();
       envMap.dispose();
       pmrem.dispose();
@@ -916,8 +708,8 @@ export function WorldScene(props: WorldProps) {
     <div
       ref={host}
       role="img"
-      aria-label="Interactive 3D office. Mr.Fund stands beside his desk; a vault shows the Guardian status, a wall chart shows position health and a board counts demo activity. Click Mr.Fund to wave."
-      className="fixed inset-0 z-0 overflow-hidden bg-[#f3bca0]"
+      aria-label="3D office. Mr.Fund sits at his desk for your consultation. A wall chart shows simulated position health."
+      className="fixed inset-0 z-0 overflow-hidden bg-[#0d141c]"
     >
       {assetError && (
         <span
