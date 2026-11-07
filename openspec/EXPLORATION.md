@@ -16,6 +16,8 @@ Evidence detail remains in BUILD-PLAN and INTEGRATIONS. Imported deployed WASM r
 
 ## Proposed changes and order
 
+Status update (2026-11-07): `verify-rhea-protocol-evidence` completed its eight scoped tasks and was synced to `openspec/specs/protocol-evidence/spec.md`, then [archived](changes/archive/2026-11-07-verify-rhea-protocol-evidence/tasks.md). Public UI parity and legacy scalar health remain explicitly unverified; the six follow-up changes below are still proposals.
+
 | Change | Can start locally? | Dependencies / completion gate |
 | --- | --- | --- |
 | `verify-rhea-protocol-evidence` | Yes | Public display comparison is separate evidence; do not fabricate it if unavailable |
@@ -26,7 +28,7 @@ Evidence detail remains in BUILD-PLAN and INTEGRATIONS. Imported deployed WASM r
 | `add-guardian-position-and-factory` | No, implementation gated | Founder D18 G1/G3 first; local provisioning experiment must settle code/storage strategy |
 | `add-deterministic-guardian-watcher` | Pure loop tests can start after client ABI | Settlement and D27 proof before automatic submission; hosting requires D29/B8 |
 
-Recommended first implementation: protocol encoding parity, then receipt parser. Contract core is the parallel critical path; no agents or implementation are started by this document.
+Recommended next implementation: `add-repay-outcome-parser`, following the completed protocol evidence work. Contract core remains the parallel critical path; this document does not itself start implementation.
 
 ## Decisions preserved
 
