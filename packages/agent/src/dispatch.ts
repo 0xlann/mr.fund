@@ -8,7 +8,7 @@ export interface ToolCall {
 }
 
 /** Run one tool call. Never throws; every failure is a typed refusal the model can read. */
-export function dispatch(call: ToolCall, ctx: ToolContext): ToolResult {
+export async function dispatch(call: ToolCall, ctx: ToolContext): Promise<ToolResult> {
   const run = Object.hasOwn(RUNNERS, call.name) ? RUNNERS[call.name] : undefined;
   if (!run) {
     return {
@@ -18,7 +18,7 @@ export function dispatch(call: ToolCall, ctx: ToolContext): ToolResult {
     };
   }
   try {
-    return run(call.arguments as Record<string, unknown>, ctx);
+    return await run(call.arguments as Record<string, unknown>, ctx);
   } catch {
     return {
       ok: false,

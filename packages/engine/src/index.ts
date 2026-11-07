@@ -1,6 +1,7 @@
 export * from "./card";
 export * from "./compare";
 export * from "./fees";
+export * from "./guardian-card";
 export * from "./health";
 export * from "./mood";
 export * from "./sizing";

@@ -4,7 +4,7 @@
 
 - **Decided by the founder on 2026-11-04:** D1 to D15 and D17 (verbatim table below), plus D20 to D23: 0xlann submits and owns `github.com/0xlann/mr.fund`; project skills are committed; `main` plus a `dev` branch; `docs/DESIGN.md` waits for frontend work.
 - **Decided 2026-11-05:** D16 tech stack, Option A (Next.js + Rust Guardian + Node watcher).
-- **Open, founder-owned, needed by the Phase 0 gate (2026-11-06):** D18 Guardian custody model (lead recommends G1 Guardian-held loan), D19 demo network (founder leans testnet; lead recommends the testnet-first ladder).
+- **Custody decided, network still open:** user selected D18 **G1 Guardian-held loan** on 2026-11-07. D19 demo network remains founder-owned and open (founder leans testnet; lead recommends the testnet-first ladder).
 - **The finding that changed the plan:** Rhea lending has **no repay-on-behalf** in its published source, so a Guardian cannot automatically repay a loan that lives in the user's wallet (D18, B1). Rhea's testnet lending contract exists, but its stablecoin price feeds returned `null` (D19, B2).
 - **Work that can proceed before those decisions:** the deterministic finance engine and Rhea read adapter are TypeScript under every viable stack option (BUILD-PLAN P1.1 to P1.5), and Phase 0 probes are read-only or testnet-only.
 
@@ -38,7 +38,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 
 | Id | Decision | Owner | Status | Needed by | Resolution |
 | --- | --- | --- | --- | --- | --- |
-| D18 | Guardian custody model | founder | Open (founder, 2026-11-04: "make it open decisions") | Phase 0 gate 2026-11-06 | Lead recommends G1 Guardian-held loan |
+| D18 | Guardian custody model | founder | Decided G1, 2026-11-07 | Phase 0 gate | User chose Guardian-held loan; owner position/factory implementation may proceed locally |
 | D19 | Demo network | founder | Open (founder leans testnet, 2026-11-04) | Phase 0 gate 2026-11-06 | Lead recommends the testnet-first ladder |
 | D20 | Submitter and GitHub owner | founder | Decided 2026-11-04 | P6.5 | 0xlann submits; repository `github.com/0xlann/mr.fund` |
 | D21 | Project skills tracked in git | founder | Decided 2026-11-04 | done | `.claude/skills/` committed with `skills-lock.json` |
@@ -70,7 +70,7 @@ Character rendering (part of this decision, D26), listed without choosing: sprit
 
 **Resolution (2026-11-05):** Option A, chosen in a coding session after the question "can the backend be NestJS?" was answered. A NestJS `apps/api` (variant A′) was offered and not chosen: the backend is one streaming chat endpoint plus a separate watcher, so Route Handlers are enough and add no extra deployable. If a NestJS API is wanted later, keep it a separate process from the watcher (the chat process holds only the LLM key, the watcher only its function-call key). Package manager: pnpm 12.14.0. Lint and format: Biome 2.6.5 (lead choice, code files only). D26 (character rendering) and D29 (watcher host) remain open. The scaffold is BUILD-PLAN P0.7.
 
-### D18. Guardian custody model (Open)
+### D18. Guardian custody model (Decided G1, 2026-11-07)
 
 **How Rhea lending decides whose debt is repaid** [V, `ref-finance/burrowland` commit `2110c7047f2d72a9189abcbaad5eafb4e4a87f9e`, read 2026-11-04]:
 
@@ -94,7 +94,7 @@ Caveat [U]: the deployed contracts do not match the published source. Mainnet `c
 
 Recommendation [I]: **G1**, with wallet loans served by chat, cards and manual repay (F1 to F5). The cards already give the G2 experience, so G3 needs little extra beyond alerts. The demo then shows a Guardian-held loan for steps 5 to 7 of the never-cut demo.
 
-Blocker: B1. Founder response 2026-11-04: "make it open decisions and give the context on how the things works and whats the blocker". Affected docs: PRD F6, SMART-CONTRACT (written for G1 and marked draft), BUILD-PLAN Phase 2 and P5.
+Decision [user, 2026-11-07]: **G1 — Guardian-held loan**. This resolves B1 and permits local owner-position/factory work. Existing wallet loans remain manual repay/card flows; no automatic repayment on behalf is claimed. D19/B7 still gate public account creation, funding and deployment. Final provisioning ABI/storage evidence remains required before factory-dependent activation builders.
 
 ### D19. Demo network (Open; founder leans testnet)
 
@@ -179,7 +179,7 @@ Live testnet and mainnet `get_assets_paged_detailed` return decimal strings `sup
 
 | Id | Missing prerequisite | Owner | Status | Blocks plan ids | Next action / proof |
 | --- | --- | --- | --- | --- | --- |
-| B1 | Guardian custody choice (D18) | founder | Open | P2.4, P2.6, P5.1, P5.5 | Founder picks G1, G2 or G3 at the Phase 0 gate with the P0.3 evidence |
+| B1 | Guardian custody choice (D18) | founder | Resolved G1, 2026-11-07 | P2.4, P2.6, P5.1, P5.5 | User explicitly selected G1 Guardian-held loan; public network/funding gates remain separate |
 | B2 | Demo network choice and Gate 1 proof (D19) | lead runs probes, founder decides | Open | P0.2, P5.5, P6.4 | P0.2 result: fresh USDC price on testnet and a borrow transaction, or fallback |
 | B3 | Gate 2 proof on deployed Rhea code | lead | Open | P0.3, Phase 2 | Contract-owned position completes supply, collateral, borrow, withdraw, repay and release on testnet and in a sandbox with mainnet code imported |
 | B4 | Gate 3: in-contract trigger price source | lead | Open | P0.4, P2.5 | Contract reads a fresh price and computes the same health as the engine, or D27 fallback |

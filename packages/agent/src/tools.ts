@@ -8,8 +8,8 @@
  * number can appear in a reply only if it is a fact here.
  *
  * Implemented now: get_position, compare_repay_vs_yield, what_if_price,
- * propose_card (repay, wallet loan) and explain_term. guardian_status and
- * guardian_history wait for guardian-client and the custody decision (D18).
+ * propose_card (repay, wallet loan), explain_term, guardian_status and
+ * guardian_history. Guardian owner cards remain conditional on provisioning ABI.
  *
  * Does not guarantee: that a snapshot is fresh. The caller supplies it; the
  * engine refuses stale prices and the tool passes the refusal on.
@@ -36,6 +36,7 @@ import {
   toAtomic,
   usdPerWholeToken,
 } from "@mrfund/shared";
+import { type GuardianToolContext, guardianTool, proposeGuardianControl } from "./guardian-tools";
 import { fromAtomic, type SourceNumber } from "./numbers";
 
 export interface Fact extends SourceNumber {
@@ -83,6 +84,8 @@ export interface ToolContext {
   proposal?: ProposalContext;
   /** Card id source; defaults to a random UUID. */
   newId?: () => string;
+  /** Server-selected Guardian target and public-read dependencies; never model arguments. */
+  guardian?: GuardianToolContext;
 }
 
 export interface ToolDefinition {
@@ -96,7 +99,7 @@ export interface ToolDefinition {
   };
 }
 
-type Runner = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult;
+type Runner = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
 
 // ---------------------------------------------------------------- helpers
 
@@ -405,6 +408,8 @@ const proposeCard: Runner = (args, ctx) => {
   const { snapshot: s, nowMs } = ctx;
   const a = argsOf(args, ["action", "amount", "token"]);
   if (typeof a === "string") return invalid(tool, a);
+  if (a.action === "guardian_deactivate" || a.action === "guardian_withdraw")
+    return proposeGuardianControl(a, ctx);
   if (a.action !== "repay") return invalid(tool, "action must be: repay");
   if (!ctx.proposal) {
     return refuse(tool, "not_available", "No wallet is connected, so a card cannot be prepared.");
@@ -548,6 +553,8 @@ const explainTerm: Runner = (args) => {
 // --------------------------------------------------------------- registry
 
 export const RUNNERS: Readonly<Record<string, Runner>> = {
+  guardian_status: (args, ctx) => guardianTool(args, ctx, false),
+  guardian_history: (args, ctx) => guardianTool(args, ctx, true),
   get_position: getPosition,
   compare_repay_vs_yield: compareRepayVsYield,
   what_if_price: whatIf,
@@ -560,6 +567,29 @@ export const TOOL_NAMES: readonly string[] = Object.keys(RUNNERS);
 /** What the LLM sees: name, purpose and a closed argument schema. */
 export function toolDefinitions(): ToolDefinition[] {
   return [
+    {
+      name: "guardian_status",
+      description:
+        "Read validated Guardian policy/reserve state. Watcher liveness and activation history may be unavailable; nothing is signed or sent.",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+    },
+    {
+      name: "guardian_history",
+      description:
+        "Read retained Guardian attempts with accepted token spend and confirmed fees. Bounded history may be truncated; transaction links are unavailable without verified evidence.",
+      parameters: {
+        type: "object",
+        properties: {
+          sinceMs: {
+            type: "integer",
+            minimum: 0,
+            description: "Inclusive Unix timestamp in milliseconds.",
+          },
+          limit: { type: "integer", minimum: 1, maximum: 50 },
+        },
+        additionalProperties: false,
+      },
+    },
     {
       name: "get_position",
       description:
@@ -616,7 +646,7 @@ export function toolDefinitions(): ToolDefinition[] {
       parameters: {
         type: "object",
         properties: {
-          action: { type: "string", enum: ["repay"] },
+          action: { type: "string", enum: ["repay", "guardian_deactivate", "guardian_withdraw"] },
           amount: {
             type: "string",
             description: 'Amount in whole tokens, for example "50". Optional.',

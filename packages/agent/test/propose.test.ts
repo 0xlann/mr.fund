@@ -31,19 +31,20 @@ const ctx = (
   newId: () => "card-1",
   ...extra,
 });
-const propose = (args: unknown, c: ToolContext = ctx()) =>
-  dispatch({ name: "propose_card", arguments: args }, c);
+const propose = async (args: unknown, c: ToolContext = ctx()) =>
+  await dispatch({ name: "propose_card", arguments: args }, c);
 
 function ok(r: ToolResult) {
   if (!r.ok) throw new Error(`expected ok, got ${r.refusal.code}: ${r.refusal.message}`);
   return r;
 }
 const fact = (r: ToolResult, label: string) => ok(r).facts.find((f) => f.label === label);
+const repayResult = await propose({ action: "repay", amount: "50" });
 
 describe("propose_card (repay)", () => {
-  const r = propose({ action: "repay", amount: "50" });
+  const r = repayResult;
 
-  it("returns the engine's before and after numbers as facts", () => {
+  it("returns the engine's before and after numbers as facts", async () => {
     expect(fact(r, "Debt before")).toEqual({ label: "Debt before", value: "200", unit: "USDC" });
     expect(fact(r, "Debt after")).toEqual({ label: "Debt after", value: "150", unit: "USDC" });
     expect(fact(r, "Health factor before")).toEqual({
@@ -62,7 +63,7 @@ describe("propose_card (repay)", () => {
     expect(fact(r, "data age")?.unit).toBe("s");
   });
 
-  it("builds a draft card with the builder's payload and no reason yet", () => {
+  it("builds a draft card with the builder's payload and no reason yet", async () => {
     const card = ok(r).card;
     expect(card?.id).toBe("card-1");
     expect(card?.action).toBe("repay");
@@ -80,26 +81,26 @@ describe("propose_card (repay)", () => {
     expect(card?.payload[1]?.actions[0]?.methodName).toBe("ft_transfer");
   });
 
-  it("tells the model what the card is, including risks, and that nothing was signed", () => {
+  it("tells the model what the card is, including risks, and that nothing was signed", async () => {
     expect(ok(r).text.card).toBe("draft");
     expect(ok(r).text.risks).toMatch(/Rates change/);
     expect(ok(r).notes.join(" ")).toMatch(/Nothing is signed or sent/);
     expect(ok(r).scenario).toBe(false);
   });
 
-  it("is a draft, not a signed or sent transaction", () => {
+  it("is a draft, not a signed or sent transaction", async () => {
     expect(ok(r).card?.receipt).toBeUndefined();
   });
 });
 
 describe("propose_card amounts", () => {
-  it("defaults to the whole debt", () => {
-    const r = propose({ action: "repay" });
+  it("defaults to the whole debt", async () => {
+    const r = await propose({ action: "repay" });
     expect(fact(r, "repay amount")?.value).toBe("200");
   });
 
-  it("caps at the wallet balance and says which limit applied", () => {
-    const r = propose(
+  it("caps at the wallet balance and says which limit applied", async () => {
+    const r = await propose(
       { action: "repay", amount: "150" },
       ctx({ walletBalances: { [USDC]: 30n * USDC_1 } }),
     );
@@ -107,23 +108,26 @@ describe("propose_card amounts", () => {
     expect(ok(r).text.cappedBy).toBe("wallet");
   });
 
-  it("accepts a numeric amount and a token symbol", () => {
-    const r = propose({ action: "repay", amount: 50, token: "usdc" });
+  it("accepts a numeric amount and a token symbol", async () => {
+    const r = await propose({ action: "repay", amount: 50, token: "usdc" });
     expect(fact(r, "repay amount")?.value).toBe("50");
   });
 
-  it.each([["abc"], ["-1"], ["0"], ["1.1234567"], [""], [null]])("refuses amount %j", (amount) => {
-    const r = propose({ action: "repay", amount });
-    expect(r.ok).toBe(false);
-  });
+  it.each([["abc"], ["-1"], ["0"], ["1.1234567"], [""], [null]])(
+    "refuses amount %j",
+    async (amount) => {
+      const r = await propose({ action: "repay", amount });
+      expect(r.ok).toBe(false);
+    },
+  );
 });
 
 describe("propose_card refusals", () => {
   const code = (r: ToolResult) => (r.ok ? "ok" : r.refusal.code);
 
-  it("needs a connected wallet context", () => {
+  it("needs a connected wallet context", async () => {
     const { proposal: _p, ...noWallet } = ctx();
-    expect(code(propose({ action: "repay" }, noWallet))).toBe("not_available");
+    expect(code(await propose({ action: "repay" }, noWallet))).toBe("not_available");
   });
 
   it.each([
@@ -134,33 +138,35 @@ describe("propose_card refusals", () => {
     [{ action: "repay", payload: [] }],
     [{ action: "repay", recipient: "evil.near" }],
     ["repay"],
-  ])("refuses arguments %j", (args) => {
-    expect(code(propose(args))).toBe("invalid_arguments");
+  ])("refuses arguments %j", async (args) => {
+    expect(code(await propose(args))).toBe("invalid_arguments");
   });
 
-  it("refuses when the wallet holds none of the token", () => {
-    expect(code(propose({ action: "repay" }, ctx({ walletBalances: {} })))).toBe("invalid_amount");
+  it("refuses when the wallet holds none of the token", async () => {
+    expect(code(await propose({ action: "repay" }, ctx({ walletBalances: {} })))).toBe(
+      "invalid_amount",
+    );
   });
 
-  it("refuses when there is no debt", () => {
+  it("refuses when there is no debt", async () => {
     const s = baseSnapshot({ borrowed: [] });
-    expect(code(propose({ action: "repay" }, ctx({}, { snapshot: s })))).toBe("no_debt");
+    expect(code(await propose({ action: "repay" }, ctx({}, { snapshot: s })))).toBe("no_debt");
   });
 
-  it("refuses stale data instead of building a card", () => {
-    expect(code(propose({ action: "repay" }, ctx({}, { nowMs: NOW + 600_000 })))).toBe(
+  it("refuses stale data instead of building a card", async () => {
+    expect(code(await propose({ action: "repay" }, ctx({}, { nowMs: NOW + 600_000 })))).toBe(
       "stale_snapshot",
     );
   });
 
-  it("refuses an unregistered fee recipient with no deposit amount", () => {
-    expect(code(propose({ action: "repay" }, ctx({ feeRecipientRegistered: false })))).toBe(
+  it("refuses an unregistered fee recipient with no deposit amount", async () => {
+    expect(code(await propose({ action: "repay" }, ctx({ feeRecipientRegistered: false })))).toBe(
       "invalid_input",
     );
   });
 
-  it("registers the recipient first when the deposit amount is known", () => {
-    const r = propose(
+  it("registers the recipient first when the deposit amount is known", async () => {
+    const r = await propose(
       { action: "repay", amount: "50" },
       ctx({ feeRecipientRegistered: false, storageDepositYocto: 1_250_000_000_000_000_000_000n }),
     );
@@ -171,18 +177,18 @@ describe("propose_card refusals", () => {
     ]);
   });
 
-  it("refuses a fee token the position does not describe", () => {
+  it("refuses a fee token the position does not describe", async () => {
     const bad = { ...FEES, tokenId: "mystery.testnet" };
-    expect(code(propose({ action: "repay", amount: "50" }, ctx({ fees: bad })))).toBe(
+    expect(code(await propose({ action: "repay", amount: "50" }, ctx({ fees: bad })))).toBe(
       "invalid_input",
     );
   });
 });
 
 describe("propose_card and the model", () => {
-  const r = propose({ action: "repay", amount: "50" });
+  const r = repayResult;
 
-  it("keeps payload bytes out of the tool message but names the card", () => {
+  it("keeps payload bytes out of the tool message but names the card", async () => {
     const msg = toToolMessage(r);
     const parsed = JSON.parse(msg);
     expect(parsed.cardId).toBe("card-1");
@@ -190,16 +196,16 @@ describe("propose_card and the model", () => {
     expect(msg).not.toMatch(/OnlyRepay|ft_transfer|gas|deposit/);
   });
 
-  it("feeds the number checker: card numbers pass, invented ones fail", () => {
+  it("feeds the number checker: card numbers pass, invented ones fail", async () => {
     const good = "Repaying 50 USDC lifts your health from 142.5% to 190%, and the fee is 0.1 USDC.";
     expect(checkNumbers(good, sourcesOf(r)).ok).toBe(true);
     expect(checkNumbers("That lifts your health to 210%.", sourcesOf(r)).ok).toBe(false);
   });
 
-  it("generates an id when none is injected", () => {
+  it("generates an id when none is injected", async () => {
     const c = ctx();
     const { newId: _n, ...rest } = c;
-    const out = propose({ action: "repay", amount: "50" }, rest);
+    const out = await propose({ action: "repay", amount: "50" }, rest);
     expect(ok(out).card?.id.length).toBeGreaterThan(8);
   });
 });
