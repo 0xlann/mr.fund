@@ -7,7 +7,7 @@
 - **What it is:** a real DeFi app with a game-like character (D2). Not a simulation, not a course, not a trading bot. One character, one lending protocol, one position, one complete real loop.
 - **P0 loop:** ask → Mr.Fund reads the real position → explains in plain words → recommendation card → Adjust or Execute now → wallet approval (or Guardian policy) → receipt → follow-up questions.
 - **Primary success condition:** a judge watches a real Rhea lending position get explained, a real repay transaction get signed and receipted, and a real Guardian contract **reject** an over-limit action, all on the demo network (D19, open).
-- **Outstanding Phase 0 decisions:** Guardian custody model (D18) and demo network (D19); D16 is resolved. Research on 2026-11-04 found that Rhea repays only the caller's own debt, so automatic protection requires a Guardian-held loan (D18 option G1, recommended); see [OPEN-DECISIONS](OPEN-DECISIONS.md).
+- **Phase 0 decisions:** D16 is resolved and user selected D18 **G1 Guardian-held loan** on 2026-11-07; demo network D19 remains open. Rhea repays only the caller's own debt, so automation requires the loan to live in the Guardian. Factory/provisioning and public deployment still need their separate evidence; see [OPEN-DECISIONS](OPEN-DECISIONS.md).
 - **The three rules that never bend:** the AI talks; deterministic code decides numbers; the contract decides permissions.
 
 ## Problem, users and buyer
@@ -124,7 +124,7 @@ Priorities: P0 must ship for the demo; P1 only after the P0 loop works end to en
 ### F6 Activate Guardian (P0)
 
 - **Outcome:** opt-in automatic protection, with an extra fee, that can act only within limits the user set (D7, D8).
-- **Custody (D18, open; G1 recommended):** Rhea repays only the caller's own debt, so the Guardian cannot repay a loan held in the user's wallet. Under G1, activation creates a Guardian account owned by the user (a contract with no access keys), and the protected loan lives there: the user deposits collateral into it and borrows through it, and borrowed tokens go to the user's wallet. Wallet loans keep chat, cards and manual repay (F1 to F5). Under G2, F6 becomes a prepared repay card the user signs, and the automation, rejection beat and AI Security claim are dropped.
+- **Custody (D18, G1 selected 2026-11-07):** Rhea repays only the caller's own debt, so the Guardian cannot repay a loan held in the user's wallet. The intended G1 flow creates a Guardian account owned by the user (a contract with no access keys), and the protected loan lives there: the user deposits collateral into it and borrows through it, and borrowed tokens go to the user's wallet. Wallet loans keep chat, cards and manual repay (F1 to F5). This is the chosen product design; factory/provisioning execution remains pending its implementation and final ABI.
 - **Interactive form fields** (all required unless noted):
 
   | Field | Meaning | Validation |

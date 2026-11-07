@@ -2,7 +2,7 @@
 
 ## TL;DR and approval
 
-- **Status: draft for unresolved custody/network.** D16 Option A was decided on 2026-11-05: Next.js App Router/Route Handlers, Rust Guardian and a separate Node watcher. Guardian custody remains **Open** (D18, written here for recommended G1), as does the demo network (D19). These diagrams include planned components; current implementation/evidence is tracked in BUILD-PLAN, not implied by arrows.
+- **Status: draft for unresolved network/provisioning.** D16 Option A was decided on 2026-11-05: Next.js App Router/Route Handlers, Rust Guardian and a separate Node watcher. User selected **G1 Guardian-held loan** (D18, 2026-11-07); the demo network (D19) remains open. These diagrams include planned components; current implementation/evidence is tracked in BUILD-PLAN, not implied by arrows.
 - **Core invariant:** *the AI talks; deterministic code decides numbers; the contract decides permissions.* The LLM can read data and propose a card. It cannot build a transaction payload, sign anything, or reach the Guardian. Manual actions are signed by the user's wallet; automatic actions are requested by a deterministic watcher (no LLM in that path) and authorized only by the Guardian contract.
 - **No private keys leave the user.** The watcher holds one function-call key that can call exactly one Guardian method and attach no deposit.
 
@@ -283,11 +283,21 @@ The engine rounds health down and debt up. Verification is split: shared-vector 
 | `compare_repay_vs_yield` | `amount?`, `horizonDays` (default 365) | `repayVsYield` result | None |
 | `what_if_price` | `shocks[]` (bounded −95% to +500%) | `whatIfPrice` result, labelled scenario | None |
 | `propose_card` | `action` (enum), `amount?` | Card built by the engine, or a typed refusal | Creates a draft card shown in the UI; no signing |
-| `guardian_status` | none | Status, policy, reserve, spendable, watcher heartbeat | None |
-| `guardian_history` | `sinceMs?`, `limit` ≤ 50 | Attempts with reasons and tx links | None |
+| `guardian_status` | none | Validated status/policy/reserve/config, block provenance; correlated heartbeat observation or explicit unavailable | None |
+| `guardian_history` | `sinceMs?`, `limit` 1–50 | Backend-filtered retained attempts/reasons and known spend/fees; truncation and unavailable transaction links disclosed | None |
 | `explain_term` | `term` (enum of glossary terms) | Short fixed explanation | None |
 
 No tool signs, sends, changes a policy or calls the watcher. A card's payload is created by `rhea` or `guardian-client` builders from engine-validated parameters; the LLM's text never becomes payload bytes.
+
+Guardian read integration (local, 2026-11-07): `guardian-client` has an injected structural `GuardianViewClient` and a bounded public RPC implementation. `readGuardian` anchors `get_config` at finality `final`, pins status/policy/reserve/the complete retained ring to that block hash, rejects mixed provenance and validates actual Rust decimal-string u128/U64, snake_case enums, operation phases, policy and reserve arithmetic. Nanoseconds remain bigint; `nsToMs` checks conversion. `toGuardianState` explicitly maps the engine input. These are public reads, not authentication or on-chain code-hash verification.
+
+`dispatch` always returns `Promise<ToolResult>`; every caller awaits it, including formerly synchronous tools. The server injects `ToolContext.guardian` with a trusted network/account target and optional heartbeat dependency. Model arguments cannot choose contracts, owners, network, recipients or hashes. Tools correlate the Guardian owner/network/lending target and debt-token metadata with trusted snapshot context before emitting SourceNumbers. `sinceMs` is inclusive; filtering and latest-limit selection happen in the backend after reading at most 50 retained attempts. An empty result never proves no past activity.
+
+Heartbeat evidence must match network/Guardian/current watcher and ordered nonfuture `lastSeenMs`/`observedAtMs`; more than 90 seconds since last seen yields `stale_observation`, otherwise `recent_observation`. Missing, malformed or failed observations remain unavailable; neither state proves uptime or a historical cause. Attempts lack transaction hashes and activation metadata, so no explorer link or paid-activation fee/date is inferred. Configured activation fee is explicitly separate from historical payment. Pending/unresolved placeholder zeros never become factual zero consumption or confirmed zero fees; only known accepted spend and terminal confirmed fees enter numeric facts. Full F7 event-link/activation-fee evidence remains open until a verified source is connected.
+
+Existing-instance owner controls: `guardianOwnerPayload` builds only fixed-target pause/resume/deactivate/withdraw/policy/rotation calls with 1 yocto and the current Rust ABI. It validates owner binding, a nonfuture read age no greater than 120 seconds, status transitions, shared locks, policy bounds and cumulative-spend floor. Owner withdrawal remains available after deactivation and may cross the automation reserve floor. `guardianOwnerCard` produces engine-owned deactivate/withdraw drafts from validated state; `propose_card` supports those two actions using a fresh server read. Reason prose never changes amounts or recipients, and payload bytes stay out of the tool message. These are unsigned existing-instance drafts, not proof of live execution or a deployed factory.
+
+Activation is deliberately unavailable: `guardianOwnerPayload({kind:"activate",…})` refuses until the final provisioning ABI is verified; the tool registry does not advertise it. No registration/create/fund sequence, factory method or funding amount is guessed. User requested stopping at client/tools; the separate factory work remains outside this merge. OpenSpec conditional tasks stay open, so the change is not archived while activation/provisioning tests are incomplete.
 
 ### Card (`packages/shared`)
 
@@ -380,7 +390,7 @@ Verification commands (actual run summaries are in BUILD-PLAN; commands alone ar
 - Package unit tests: `vitest run` in each `packages/*` (exact runner script per D16).
 - `playwright test` for UI flows with the fake wallet adapter.
 
-Observed evidence includes public read-only adapter recordings, local TypeScript/Rust tests and sandbox cycles on imported deployed Rhea code with new state and Simulated prices. No public deployment or live wallet repayment is claimed. D18/D19 remain open.
+Observed evidence includes public read-only adapter recordings, local TypeScript/Rust tests and sandbox cycles on imported deployed Rhea code with new state and Simulated prices. No public deployment or live wallet repayment is claimed. D18 is G1 as of 2026-11-07; D19 and public funding/deployment gates remain open.
 
 ## Sources
 
