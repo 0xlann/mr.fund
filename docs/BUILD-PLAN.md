@@ -236,6 +236,8 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Tests: Playwright with a fake wallet adapter (dev builds only, labelled) for loading, stale, empty, error, card draft, adjusting, failed and confirmed states.
   - Evidence: Playwright summary; screenshots in `docs/screens/` (committed only if small).
 
+  - UI demo progress [V, 2026-11-07]: `/play` now contains the office, an animated local Quaternius GLB character, scripted chat, engine-backed illustrative position/recommendation/what-if values, a mock wallet approval and receipt flow, Guardian setup/review/controls/replay, activity, and demo data states. Styling is Tailwind v4 with solid colors; `docs/DESIGN.md` records direction, scope, and asset provenance. The landing route is unchanged. Four DOM/engine interaction tests pass (repay rejection/approval, Guardian validation/rejection/replay/deactivation/withdrawal, stale recovery, and input/engine boundaries). `pnpm test` passed 459 tests with 1 opt-in live test skipped; `pnpm typecheck` and `pnpm lint` passed. `pnpm --filter @mrfund/web build` compiled and prerendered `/play`, including the final Bricolage Grotesque / Instrument Sans font update. The local route returned HTTP 200. Browser inspection is explicitly assigned to the user. This does not satisfy real-wallet, deployed-contract, live-LLM, or Playwright acceptance; P4.4 and the money-path boxes remain open.
+
 - [ ] **P4.5 First real manual repay** (F5).
   - On the D19 network with a real wallet: ask → card → Execute now → wallet → receipt; post-transaction health read from chain.
   - Evidence: transaction hash and explorer link in INTEGRATIONS recipe 5.
