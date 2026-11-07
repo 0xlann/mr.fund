@@ -27,4 +27,6 @@ Add parser and receipt adapter, update exports/callers and docs; no database or 
 
 ## Open Questions
 
+Receipt mapping clarification: execution can be terminal while post-state is unavailable. Keep structured execution evidence, and map an otherwise successful batch to `submitted` until fresh observed debt reduction is available; when tokens were accepted but a valid post-read shows no reduction, map to `partial`. This avoids a confirmed-repayment claim based on token acceptance alone. Observed debt/health changes are not causal attribution.
+
 Public wallet outcome evidence waits for B7/D19 and P4.5; local sandbox fixtures suffice for parser implementation only.

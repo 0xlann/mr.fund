@@ -5,11 +5,10 @@ use near_contract_standards::{
     storage_management::{StorageBalance, StorageBalanceBounds, StorageManagement},
 };
 use near_sdk::{
-    env,
+    AccountId, NearToken, PanicOnDefault, PromiseOrValue, env,
     json_types::U128,
     near, require,
-    serde_json::{json, Value},
-    AccountId, NearToken, PanicOnDefault, PromiseOrValue,
+    serde_json::{Value, json},
 };
 use std::collections::BTreeMap;
 
@@ -79,6 +78,14 @@ impl Fixture {
     /// Deployed Rhea testnet 0.11.0 uses the older Pyth interface.
     pub fn get_price(&self, price_identifier: String) -> Option<Value> {
         self.get_price_no_older_than(price_identifier, 60)
+    }
+
+    /// Deliberate partial/full-refund receiver for recorded NEP-141 fixtures.
+    /// This is not a Rhea repayment implementation.
+    pub fn ft_on_transfer(&mut self, sender_id: AccountId, amount: U128, msg: String) -> U128 {
+        require!(sender_id == self.owner_id, "Fixture owner only");
+        require!(msg == "\"OnlyRepay\"", "Intentional fixture rejection");
+        U128(amount.0 / 2)
     }
 }
 #[near]

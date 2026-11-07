@@ -1,5 +1,14 @@
 # P0.3 sandbox probe
 
+P4.3 outcome recording: ordinary probe cycles capture raw FINAL RPC outcomes,
+receipt action details, execution block headers and before/after account views
+under ignored `contracts/target/probes/outcomes/`. To regenerate the twelve
+tracked fixtures explicitly, run
+`RECORD_OUTCOMES=1 cargo test --manifest-path contracts/Cargo.toml -p contract-tests --test probe`.
+The partial-refund receiver is a sandbox fixture, not Rhea. No fixture records
+public transactions or private keys. See
+[REPAY-OUTCOMES](../../docs/technical/REPAY-OUTCOMES.md).
+
 2026-11-07: independent Rust test encoders assert all five shared syntax vectors;
 the harness uses them for actual token registration, wallet repayment and fee
 transfer. Both imported versions pass partial/full/dust repayment and the exact
