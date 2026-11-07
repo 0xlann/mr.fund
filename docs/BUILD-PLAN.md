@@ -238,6 +238,8 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
 
   - UI demo progress [V, 2026-11-07]: `/play` now contains the office, an animated local Quaternius GLB character, scripted chat, engine-backed illustrative position/recommendation/what-if values, a mock wallet approval and receipt flow, Guardian setup/review/controls/replay, activity, and demo data states. Styling is Tailwind v4 with solid colors; `docs/DESIGN.md` records direction, scope, and asset provenance. The landing route is unchanged. Four DOM/engine interaction tests pass (repay rejection/approval, Guardian validation/rejection/replay/deactivation/withdrawal, stale recovery, and input/engine boundaries). `pnpm test` passed 459 tests with 1 opt-in live test skipped; `pnpm typecheck` and `pnpm lint` passed. `pnpm --filter @mrfund/web build` compiled and prerendered `/play`, including the final Bricolage Grotesque / Instrument Sans font update. The local route returned HTTP 200. Browser inspection is explicitly assigned to the user. This does not satisfy real-wallet, deployed-contract, live-LLM, or Playwright acceptance; P4.4 and the money-path boxes remain open.
 
+  - Room interface follow-up [V, 2026-11-07]: continued the user's full-screen `WorldScene` changes into a character-first room with a five-action dock and opt-in Chat, Voice, Position, Guardian and Activity overlays. Existing mock approval/receipt flows remain intact. Added explicit browser voice input, editable transcript review, unsupported/error recovery and a labelled sample. Removed promotional cards, room labels and the office-open badge on request. Removed bloom/post-processing and tuned native antialiasing, exposure and lighting after the user reported a hazy scene. `pnpm test` passed 461 tests with 1 live test skipped, including 6 playground tests; `pnpm lint` passed; the production build prerendered `/play`. The user performs browser inspection. No new commits or push were made in this follow-up.
+
 - [ ] **P4.5 First real manual repay** (F5).
   - On the D19 network with a real wallet: ask → card → Execute now → wallet → receipt; post-transaction health read from chain.
   - Evidence: transaction hash and explorer link in INTEGRATIONS recipe 5.
@@ -316,3 +318,15 @@ Ranked; cut trigger: any P0 regression or less than 24 hours to the deadline.
 | Accounts, keys, hosting, publishing, submission | founder and 0xlann | B6 to B9, P6.4, P6.5 |
 
 Founder blockers on the critical path: B1 (custody) and B2 (network) at P0.8; B5 (stack) at P0.7; B6 (LLM key) before P3.4; B7 (accounts) before P0.2.
+
+Local `/play` follow-up, 2026-11-07 [V]: integrated user-downloaded Jake FBX and office furniture GLBs. Actual downloaded-rig, texture/morph and furniture normalization checks: 6 tests passed; web typecheck and production build passed. Browser visual QA remains with the user. [U]: lighter replacement character pending user selection after GitHub research.
+
+2026-11-07 [I]: User requested temporary restoration of Jungle Jim Businessman while the lighter-character choice is deferred; Jake assets remain inactive.
+
+2026-11-07 local `/play` follow-up [V]: Guardian entry waits for scene walk/reach/door completion, with cancellation, return and reduced-motion paths. The downloaded safe starts closed at its calibrated -90° hinge angle; the geometry regression fails at the old zero-angle pose and passes after correction. Targeted UI/journey/rig/door tests: 14 passed. Floating coin removed. Browser visual QA remains with the user.
+
+2026-11-07 local `/play` follow-up [V]: Chat uses a shared room journey with Guardian: aisle route, seated rig pose, frontal camera, scene-driven panel completion, standing before departure, cancellation and reduced-motion behavior. Targeted UI/journey/actual-rig/door tests: 19 passed; Biome, web typecheck and production build passed. Browser visual QA remains with the user.
+
+2026-11-07 [V]: Corrected sideways walking-arm swing by calibrating each arm axis to the actor frame, with opposite arm/leg timing. The actual-rig regression fails on the former local-X offsets and passes facing forward and after a 90° turn. Active rig/journey tests: 10 passed.
+
+2026-11-07 [V]: Added a phone-portrait orientation gate before `/play` mounts, preserved demo state across subsequent rotations, and adapted panel widths, short-screen controls and camera framing for tablets and phone landscape. Final verification: `pnpm lint` (104 files), `pnpm test` (489 passed, 1 skipped), workspace `pnpm typecheck`, and the Next.js production build passed. Responsive checks are automated; browser visual QA remains with the user. Raw source ZIP stays ignored locally; inactive Jake trial is archived in local scratch.

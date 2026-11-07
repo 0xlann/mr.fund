@@ -1,6 +1,20 @@
 # Mr.Fund: lessons
 
-Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
+Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### 2026-11-07: arm swing must use the actor's axis, not bone-local X
+
+The downloaded Businessman arm bones use local axes that differ from the actor's axes. Applying an X Euler offset after the resting arm rotation swung the hands sideways. The walking controller now converts the actor's left/right axis into each resting arm's coordinates, then applies the fore/aft swing about that calibrated axis. The arms move opposite their matching leg. A regression on the actual downloaded skeleton failed before the fix and passes for both forward-facing and 90°-turned actors.
+
+### 2026-11-07: a safe's zero rotation is not its closed pose
+
+The downloaded safe is authored with an open door and geometry baked relative to its hinge. Resetting local Z rotation to zero left the door open and made the entry animation close it. CPU checks on the original mesh identified -90° as the closed position: the door spans the cabinet front and its depth ends flush with the body. Calibrate hinge endpoints against actual geometry, then test the default, open and restored states rather than assuming zero means closed. The regression fails with the old zero-angle pose and passes at the calibrated angle.
+
+### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
+
+### 2026-11-07: floating decoration can block pointer access to wall tools
+
+- What happened: the user reported missing Position and Activity hover feedback. The hit-test stopped at the first scene intersection, including decorative floating objects in front of interactive boards.
+- Root cause: decorative geometry and real occluders shared the same pointer policy. A noninteractive first hit returned null before checking the board behind it.
+- Rule: explicitly mark pointer-transparent decorations and share one target resolver between hover and click. Three regression tests cover decoration passthrough to both boards, genuine wall occlusion, nested prop surfaces and the character. Typecheck passed; browser inspection remains with the user.
 
 ### 2026-11-06: a strict legacy repay amount fails when full debt rounds up
 
