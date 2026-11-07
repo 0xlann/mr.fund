@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { Playground } from "../../play/Playground";
+import { PlayViewport } from "../../play/PlayViewport";
 import "./tailwind.css";
 
 const bodyFont = localFont({
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 export default function PlayPage() {
   return (
     <div className={`${bodyFont.variable} ${displayFont.variable}`}>
-      <Playground />
+      <PlayViewport />
     </div>
   );
 }

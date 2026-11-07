@@ -8,19 +8,19 @@ import {
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
+  BarChart3,
   Check,
   CheckCheck,
   ChevronDown,
   CircleHelp,
   Copy,
-  ExternalLink,
   Hand,
   History,
-  LayoutGrid,
   LoaderCircle,
   LockKeyhole,
   LogOut,
   MessageCircle,
+  Mic,
   MoreHorizontal,
   Pause,
   Play,
@@ -31,12 +31,22 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Volume2,
+  VolumeX,
   Wallet,
   X,
   Zap,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
 import {
   amount,
   atomic,
@@ -49,19 +59,22 @@ import {
   scenario,
   snapshot,
 } from "./demo";
+import type { RoomVisit } from "./roomJourney";
 import { playClasses } from "./styles";
+import { VoicePanel } from "./VoicePanel";
 
-const OfficeScene = dynamic(() => import("./OfficeScene").then((m) => m.OfficeScene), {
+const WorldScene = dynamic(() => import("./WorldScene").then((m) => m.WorldScene), {
   ssr: false,
   loading: () => (
-    <div className="office-scene absolute inset-[119px_-15px_7px] cursor-grab touch-pan-y [&:active]:cursor-grabbing [&_canvas]:w-full [&_canvas]:h-full [&_canvas]:block min-[1500px]:inset-[130px_-10px_10px] max-[820px]:inset-[113px_-70px_15px] max-[620px]:inset-[110px_-30px_5px]">
-      <span className="scene-loading absolute top-[50%] w-full text-center text-[11px] text-[#713825]">
+    <div className="fixed inset-0 z-0 bg-[#1c2331]">
+      <span className="absolute bottom-[36%] left-0 w-full animate-pulse text-center text-[11px] font-semibold text-[#dcdfe6]">
         Opening the office…
       </span>
     </div>
   ),
 });
 type Tab = "office" | "guardian" | "activity";
+type Panel = "chat" | "voice" | "position" | "guardian" | "activity";
 type Modal = "wallet" | "settings" | "setup" | "help" | null;
 type Message = {
   id: number;
@@ -189,7 +202,74 @@ function Tag({ children, className = "" }: { children: ReactNode; className?: st
 }
 
 export function Playground() {
-  const [tab, setTab] = useState<Tab>("office");
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const [roomVisit, setRoomVisit] = useState<RoomVisit | null>(null);
+  const [openingPanel, setOpeningPanel] = useState<RoomVisit["panel"] | null>(null);
+  const [sceneState, setSceneState] = useState<"loading" | "ready" | "fallback">("loading");
+  const visitSequence = useRef(0);
+  const pendingVisit = useRef<RoomVisit | null>(null);
+  const finishVisit = useCallback((id: number) => {
+    if (pendingVisit.current?.id !== id) return;
+    const destination = pendingVisit.current.panel;
+    pendingVisit.current = null;
+    setOpeningPanel(null);
+    setPanel(destination);
+  }, []);
+  const openPanel = useCallback(
+    (value: Panel | null) => {
+      if ((value === "guardian" || value === "chat") && sceneState !== "fallback") {
+        if (
+          pendingVisit.current?.panel === value ||
+          (panel === value && roomVisit?.panel === value)
+        )
+          return;
+        const visit = { id: ++visitSequence.current, panel: value };
+        pendingVisit.current = visit;
+        setOpeningPanel(value);
+        setRoomVisit(visit);
+        setPanel(null);
+        return;
+      }
+      pendingVisit.current = null;
+      setOpeningPanel(null);
+      setRoomVisit(null);
+      setPanel(value);
+    },
+    [panel, sceneState, roomVisit],
+  );
+  useEffect(() => {
+    if (sceneState === "fallback" && pendingVisit.current !== null)
+      finishVisit(pendingVisit.current.id);
+  }, [sceneState, finishVisit]);
+  useEffect(() => {
+    if (!openingPanel) return;
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === "Escape") openPanel(null);
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [openingPanel, openPanel]);
+
+  const [sound, setSound] = useState(false);
+  const panelClose = useRef<HTMLButtonElement>(null);
+  const previousFocus = useRef<HTMLElement | null>(null);
+  function setTab(value: Tab) {
+    openPanel(value === "office" ? "chat" : value);
+  }
+  useEffect(() => {
+    if (!panel) return;
+    previousFocus.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    panelClose.current?.focus();
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !document.querySelector("dialog[open]")) openPanel(null);
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+      previousFocus.current?.focus();
+    };
+  }, [panel, openPanel]);
   const [connected, setConnected] = useState(false);
   const [modal, setModal] = useState<Modal>(null);
   const [dataState, setDataState] = useState<DataState>("fresh");
@@ -229,6 +309,7 @@ export function Playground() {
     setNow(Date.now());
     return () => {
       for (const timer of timeouts.current) clearTimeout(timer);
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     };
   }, []);
   useEffect(() => {
@@ -311,6 +392,7 @@ export function Playground() {
   }
   function _ask(text: string) {
     if (!text.trim() || thinking) return;
+    openPanel("chat");
     const question = text.trim().slice(0, 500);
     setMessages((prev) => [...prev, { id: ++messageId.current, role: "user", text: question }]);
     setInput("");
@@ -361,6 +443,13 @@ export function Playground() {
           "That action is outside this demo's permissions. I can help with the supported Rhea debt and Guardian limits. A chat message never authorizes a transaction.";
       setMessages((prev) => [...prev, { id, role: "assistant", text, ...(kind ? { kind } : {}) }]);
       setThinking(false);
+      if (sound && typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = indo ? "id-ID" : "en-US";
+        utterance.rate = 0.95;
+        window.speechSynthesis.speak(utterance);
+      }
     }, 900);
   }
   function requestAction(action: Pending) {
@@ -597,7 +686,6 @@ export function Playground() {
     setModal(null);
     setNotice("Demo reset. A fresh start for your money.");
   }
-  const latest = receipts[0];
   const healthText =
     current.health === null || dataState === "error" || dataState === "loading"
       ? "—"
@@ -926,173 +1014,264 @@ export function Playground() {
     );
   }
 
+  const panelTitles: Record<Panel, { label: string; title: string }> = {
+    chat: { label: "THE CONVERSATION", title: "Let's talk money." },
+    voice: { label: "A LITTLE FACE TIME", title: "I'm all ears." },
+    position: { label: "YOUR FINANCIAL PICTURE", title: "Here's where you stand." },
+    guardian: { label: "YOUR RULES. ON WATCH.", title: "Meet your Guardian." },
+    activity: { label: "THE PAPER TRAIL", title: "Every move, accounted for." },
+  };
+  const dockItems: { id: Panel; label: string; icon: ReactNode; color: string }[] = [
+    {
+      id: "chat",
+      label: "Chat",
+      icon: <MessageCircle size={25} strokeWidth={1.8} />,
+      color: "bg-[#284bdf] text-white",
+    },
+    {
+      id: "position",
+      label: "Position",
+      icon: <BarChart3 size={25} strokeWidth={1.8} />,
+      color: "bg-[#fff3d9] text-[#26314a]",
+    },
+    {
+      id: "voice",
+      label: "Voice",
+      icon: <Mic size={29} strokeWidth={1.8} />,
+      color: "bg-[#ff643b] text-[#292b30]",
+    },
+    {
+      id: "guardian",
+      label: "Guardian",
+      icon: <ShieldCheck size={25} strokeWidth={1.8} />,
+      color: "bg-[#dbf884] text-[#34492c]",
+    },
+    {
+      id: "activity",
+      label: "Activity",
+      icon: <History size={25} strokeWidth={1.8} />,
+      color: "bg-[#d6ccf1] text-[#46325f]",
+    },
+  ];
   return (
-    <main className="play-app pt-[18px]! [--ink:#1c2331] [--cream:#f6f4ec] [--paper:#fffef9] [--orange:#ff643b] [--blue:#284bdf] [--lime:#dbf884] [--muted:#7b7d80] [--line:#dfdfd6] box-border bg-[var(--cream)] text-[var(--ink)] font-[family-name:var(--font-body)] text-[14px] min-h-screen p-[0_max(28px,calc((100vw_-_1456px)/2))_22px] antialiased [font-optical-sizing:auto] [&_*]:box-border [&_button]:[font:inherit] [&_input]:[font:inherit] [&_select]:[font:inherit] [&_button]:[-webkit-tap-highlight-color:transparent] [&_a]:[-webkit-tap-highlight-color:transparent] [&_button]:cursor-pointer [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-[.45] [&_a]:text-inherit [&_a]:no-underline [&_button]:text-inherit [&_:where(h1)]:m-0 [&_:where(h2)]:m-0 [&_:where(h3)]:m-0 [&_:where(p)]:m-0 [&_button:focus-visible]:[outline:3px_solid_var(--blue)] [&_button:focus-visible]:outline-offset-4 [&_a:focus-visible]:[outline:3px_solid_var(--blue)] [&_a:focus-visible]:outline-offset-4 [&_input:focus-visible]:[outline:3px_solid_var(--blue)] [&_input:focus-visible]:outline-offset-4 [&_select:focus-visible]:[outline:3px_solid_var(--blue)] [&_select:focus-visible]:outline-offset-4 [&_summary:focus-visible]:[outline:3px_solid_var(--blue)] [&_summary:focus-visible]:outline-offset-4 [&_::selection]:bg-[var(--lime)] [&_::selection]:text-[var(--ink)] [&_svg]:shrink-0 [&_.mood-concerned_.mood-face]:text-[#b95a1f] [&_.mood-pleased_.mood-chip]:bg-[var(--lime)] min-[1500px]:pl-[max(45px,calc((100vw_-_1456px)/2))] min-[1500px]:pr-[max(45px,calc((100vw_-_1456px)/2))] max-[1100px]:pl-[20px] max-[1100px]:pr-[20px] max-[620px]:p-[0_14px_20px] motion-reduce:[&_*]:[transition:none]! motion-reduce:[&_*]:[scroll-behavior:auto]! motion-reduce:[&_*::before]:[transition:none]! motion-reduce:[&_*::before]:[scroll-behavior:auto]! motion-reduce:[&_*::after]:[transition:none]! motion-reduce:[&_*::after]:[scroll-behavior:auto]! motion-reduce:[&_*]:animate-none m-[-8px] [&_button]:[font-family:inherit] [&_button]:[line-height:inherit] [&_input]:[font-family:inherit]">
-      <header className="play-header h-[79px] flex items-center justify-between gap-[20px] bg-[var(--ink)] text-[var(--paper)] p-[0_23px] rounded-[18px] [&_nav]:flex [&_nav]:items-center [&_nav]:gap-[7px] [&_nav_button]:flex [&_nav_button]:items-center [&_nav_button]:gap-[8px] [&_nav_button]:border-0 [&_nav_button]:bg-transparent [&_nav_button]:text-[#b2b7c0] [&_nav_button]:p-[12px_17px] [&_nav_button]:rounded-[10px] [&_nav_button]:text-[12px] [&_nav_button]:font-semibold [&_nav_button]:[transition:background_.18s,color_.18s] [&_nav_button:hover]:bg-[#333b4b] [&_nav_button:hover]:text-white [&_nav_button.active]:bg-[#3a4250] [&_nav_button.active]:text-white max-[1100px]:p-[0_18px] max-[1100px]:h-[74px] max-[1100px]:[&_nav_button]:p-[11px_12px] max-[1100px]:[&_nav_button]:text-[10px] max-[1100px]:[&_nav_button]:gap-[6px] max-[820px]:gap-[9px] max-[820px]:[&_.brand-mark]:w-[33px] max-[820px]:[&_.brand-mark]:h-[33px] max-[820px]:[&_nav]:gap-[1px] max-[820px]:[&_nav_button]:p-[10px] max-[820px]:[&_nav_button]:text-[9px] max-[820px]:[&_nav_button]:gap-[5px] max-[820px]:[&_nav_button_svg]:w-[13px] max-[620px]:h-[115px] max-[620px]:relative max-[620px]:p-[0_14px_44px] max-[620px]:rounded-[14px] max-[620px]:[&_.brand-mark]:w-[33px] max-[620px]:[&_.brand-mark]:h-[33px] max-[620px]:[&_nav]:absolute max-[620px]:[&_nav]:left-[12px] max-[620px]:[&_nav]:right-[12px] max-[620px]:[&_nav]:bottom-[9px] max-[620px]:[&_nav]:flex max-[620px]:[&_nav]:gap-[5px] max-[620px]:[&_nav]:[border-top:1px_solid_#ffffff12] max-[620px]:[&_nav]:pt-[7px] max-[620px]:[&_nav_button]:flex-1 max-[620px]:[&_nav_button]:justify-center max-[620px]:[&_nav_button]:p-[8px_7px] max-[620px]:[&_nav_button]:text-[10px] max-[620px]:[&_nav_button]:gap-[6px] max-[620px]:[&_nav_button]:rounded-[6px] max-[620px]:[&_nav_button_svg]:w-[14px]">
-        <a
-          className="wordmark flex items-center gap-[11px] font-[family-name:var(--font-display)] text-[32px] font-extrabold tracking-[-1.5px] max-[1100px]:text-[27px] max-[820px]:text-[24px] max-[820px]:gap-[7px] max-[620px]:text-[25px] max-[620px]:gap-[8px]"
-          href="/play"
-          aria-label="Mr.Fund office"
-        >
-          <span className="brand-mark h-[39px] w-[39px] flex items-center justify-center bg-[var(--orange)] rounded-[11px] text-[var(--ink)] text-[29px] leading-[1] relative tracking-[-3px] pr-[6px] [&>span]:text-[21px] [&>span]:absolute [&>span]:right-[4px] [&>span]:top-[2px] [&>span]:leading-[1]">
-            m<span>↗</span>
-          </span>
-          <span>
-            mr.fund
-            <span className="brand-dot text-[10px] [align-self:flex-start] [vertical-align:top] relative top-[7px] left-[3px] tracking-[0] max-[620px]:text-[8px] max-[620px]:top-[5px]">
-              ®
-            </span>
-          </span>
-        </a>
-        <nav aria-label="Playground navigation">
-          {(
-            [
-              { id: "office", name: "The office", icon: <LayoutGrid size={16} /> },
-              { id: "guardian", name: "Guardian", icon: <Shield size={16} /> },
-              { id: "activity", name: "Activity", icon: <History size={16} /> },
-            ] as const
-          ).map((item) => (
-            <button
-              type="button"
-              key={item.id}
-              className={playClasses(tab === item.id ? "active" : "")}
-              onClick={() => setTab(item.id)}
-            >
-              {item.icon}
-              <span>{item.name}</span>
-              {item.id === "activity" && receipts.length > 0 && (
-                <i className="nav-count not-italic text-[10px] bg-[var(--lime)] text-[var(--ink)] rounded-[8px] p-[1px_5px]">
-                  {receipts.length}
-                </i>
-              )}
-            </button>
-          ))}
-        </nav>
-        <div className="header-actions flex items-center gap-[13px] max-[1100px]:gap-[6px] max-[620px]:ml-auto">
+    <main className="play-app fixed inset-0 isolate h-dvh w-full overflow-hidden [--tool-width:min(460px,44vw)] [--dock-icon:49px] [--voice-icon:60px] [--dock-item:52px] sm:[--dock-icon:58px] sm:[--voice-icon:70px] sm:[--dock-item:64px] [@media(max-height:600px)]:[--dock-icon:44px] [@media(max-height:600px)]:[--voice-icon:52px] [@media(max-height:600px)]:[--dock-item:44px] [--ink:#1c2331] [--cream:#f6f4ec] [--paper:#fffef9] [--orange:#ff643b] [--blue:#284bdf] [--lime:#dbf884] [--line:#dfdfd6] bg-[#f3bca0] font-[family-name:var(--font-body)] text-sm text-[#1c2331] antialiased [font-optical-sizing:auto] [&_*]:box-border [&_button]:cursor-pointer [&_button]:[font-family:inherit] [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-45 [&_input]:[font-family:inherit] [&_select]:[font-family:inherit] [&_a]:text-inherit [&_a]:no-underline [&_:where(h1,h2,h3,p)]:m-0 [&_button:focus-visible]:outline-3 [&_button:focus-visible]:outline-offset-4 [&_button:focus-visible]:outline-[#284bdf] [&_input:focus-visible]:outline-2 [&_input:focus-visible]:outline-[#284bdf] [&_select:focus-visible]:outline-2 [&_select:focus-visible]:outline-[#284bdf] [&_svg]:shrink-0 selection:bg-[#dbf884] motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:transition-none!">
+      <h1 className="sr-only">Mr.Fund — your personal DeFi office</h1>
+      <WorldScene
+        mood={characterMood}
+        wave={wave}
+        station={roomVisit?.panel ?? "office"}
+        visit={roomVisit}
+        panelOpen={panel !== null}
+        onVisitReady={finishVisit}
+        onStateChange={setSceneState}
+        guardian={guardian}
+        healthBps={
+          dataState !== "fresh" || current.health === null
+            ? null
+            : current.health === "no_debt"
+              ? 30000
+              : current.health
+        }
+        activityCount={receipts.length}
+        onInteract={openPanel}
+        onWave={() => {
+          setWave((v) => v + 1);
+          setNotice("Hey there. Looking sharp yourself.");
+        }}
+      />
+
+      <header
+        className={`pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-end gap-3 p-4 sm:p-6 lg:px-9 [@media(max-height:600px)]:p-3 ${panel ? "[@media(max-height:600px)]:right-[calc(var(--tool-width)_+_28px)]" : ""}`}
+      >
+        <div className="pointer-events-auto flex items-center gap-2 sm:gap-3">
           <button
             type="button"
-            className="icon-button inline-flex items-center justify-center border-0 bg-transparent w-[32px] h-[32px] rounded-full p-0 [transition:background_.18s] [&:hover]:bg-[#8080801a] settings-button"
-            onClick={() => setModal("settings")}
-            aria-label="Demo settings"
+            onClick={() => openPanel("position")}
+            aria-label="Open position health"
+            className="hidden items-center gap-3 [@media(max-height:600px)]:hidden! rounded-2xl border-2 border-[#26314a] bg-[#fff8e7] px-4 py-2 shadow-[0_4px_0_#26314a] sm:flex"
           >
-            <Settings2 size={19} />
+            <span className="grid size-9 place-items-center rounded-full border border-[#a1b96c] bg-[#dbf884]">
+              <BarChart3 size={18} />
+            </span>
+            <span className="text-left">
+              <span className="block text-[8px] font-bold tracking-[.13em] text-[#7a806c]">
+                POSITION HEALTH
+              </span>
+              <b className="font-[family-name:var(--font-display)] text-xl tabular-nums">
+                {healthText}
+              </b>
+            </span>
           </button>
           <button
             type="button"
-            className={playClasses(`wallet-button ${connected ? "connected" : ""}`)}
             onClick={() => setModal("wallet")}
+            className="flex h-[60px] [@media(max-height:600px)]:h-11 items-center gap-2 rounded-2xl border-2 border-[#26314a] bg-[#26314a] px-3 text-[#fff8e7] shadow-[0_4px_0_#111927] sm:px-4"
           >
-            <Wallet size={17} />
-            <span>{connected ? "you.demo.testnet" : "Connect wallet"}</span>
-            {connected ? <ChevronDown size={14} /> : <ArrowUpRight size={16} />}
+            <Wallet size={19} />
+            <span className="text-[10px] font-bold sm:text-xs">
+              {connected ? "you.demo.testnet" : "Connect wallet"}
+            </span>
+            <ArrowUpRight size={15} className="hidden sm:block" />
           </button>
         </div>
       </header>
-      <div className="workspace-intro flex items-center justify-between p-[31px_1px_24px] [&_.eyebrow]:text-[#82837e] [&_.eyebrow]:mb-[5px] [&_.eyebrow]:text-[9px] [&_h1]:font-[family-name:var(--font-display)] [&_h1]:text-[31px] [&_h1]:font-medium [&_h1]:tracking-[-1.4px] [&_h1]:leading-[1.2] [&_h1>span]:text-[#8a8b83] max-[820px]:[&_h1]:text-[27px] max-[620px]:p-[25px_1px_20px] max-[620px]:items-end max-[620px]:[&_.eyebrow]:text-[7px] max-[620px]:[&_.eyebrow]:mb-[6px] max-[620px]:[&_h1]:text-[25px] max-[620px]:[&_h1]:tracking-[-1.2px]">
-        <div>
-          <span className="eyebrow text-[9px] font-extrabold tracking-[.15em] block leading-[1.5]">
-            YOUR PERSONAL DEFI OFFICE
-          </span>
-          <h1>
-            {tab === "office" ? (
-              <>
-                Big plans. <span>Clear moves.</span>
-              </>
-            ) : tab === "guardian" ? (
-              <>
-                A watchful eye. <span>Your rules.</span>
-              </>
+
+      <aside
+        aria-label="Office controls"
+        className={`absolute right-4 top-[103px] z-20 flex flex-col gap-3 sm:right-6 sm:top-[120px] lg:right-9 [@media(max-height:600px)]:top-[68px]! [@media(max-height:600px)]:flex-row [@media(max-height:600px)]:gap-2 ${panel ? "right-[calc(var(--tool-width)_+_32px)]!" : ""}`}
+      >
+        <button
+          type="button"
+          aria-label="Demo settings"
+          onClick={() => setModal("settings")}
+          className="grid size-11 place-items-center rounded-xl border-2 border-[#26314a] bg-[#fff8e7] shadow-[0_3px_0_#26314a] transition-transform hover:-translate-y-0.5"
+        >
+          <Settings2 size={17} />
+        </button>
+        <button
+          type="button"
+          aria-label={sound ? "Mute spoken replies" : "Enable spoken replies"}
+          aria-pressed={sound}
+          onClick={() => {
+            if (!("speechSynthesis" in window)) {
+              setNotice("Spoken replies aren't supported by this browser. Text chat still works.");
+              return;
+            }
+            setSound((v) => !v);
+            window.speechSynthesis.cancel();
+          }}
+          className="grid size-11 place-items-center rounded-xl border-2 border-[#26314a] bg-[#fff8e7] shadow-[0_3px_0_#26314a] transition-transform hover:-translate-y-0.5"
+        >
+          {sound ? <Volume2 size={17} /> : <VolumeX size={17} />}
+        </button>
+        <button
+          type="button"
+          aria-label="How it works"
+          onClick={() => setModal("help")}
+          className="grid size-11 place-items-center rounded-xl border-2 border-[#26314a] bg-[#fff8e7] shadow-[0_3px_0_#26314a] transition-transform hover:-translate-y-0.5"
+        >
+          <CircleHelp size={17} />
+        </button>
+      </aside>
+
+      <div
+        className={`pointer-events-none absolute inset-x-0 bottom-[144px] z-10 flex flex-col items-center px-4 [@media(max-height:600px)]:bottom-[112px] ${panel ? "right-[calc(var(--tool-width)_+_40px)]" : ""}`}
+      >
+        <div className="pointer-events-auto flex items-center gap-2 rounded-full border-2 border-[#26314a] bg-[#fff8e7] py-1.5 pl-2 pr-3 shadow-[0_3px_0_#26314a]">
+          <span className="grid size-7 place-items-center rounded-full bg-[#dbf884] text-[#35472d]">
+            {thinking ? (
+              <LoaderCircle size={14} className="animate-spin" />
             ) : (
-              <>
-                Good decisions. <span>On record.</span>
-              </>
+              <span className="text-lg leading-none">◡</span>
             )}
-          </h1>
-        </div>
-        <div className="network-label flex items-center gap-[9px] text-[10px] font-bold [&_small]:flex [&_small]:items-center [&_small]:gap-[6px] [&_small]:text-[8px] [&_small]:tracking-[.08em] [&_small]:text-[#777e77] [&_small]:mt-[3px] [&_i]:block [&_i]:w-[5px] [&_i]:h-[5px] [&_i]:bg-[#799d62] [&_i]:rounded-full max-[820px]:text-[8px] max-[620px]:hidden">
-          <span className="near-logo font-[family-name:var(--font-display)] text-[27px] transform-[skewY(-14deg)] leading-[1]">
-            N
           </span>
-          <span>
-            Built on NEAR
-            <small>
-              TESTNET UI DEMO <i />
-            </small>
+          <span className="text-[10px] font-bold">
+            {characterMood === "thinking"
+              ? "Thinking it through…"
+              : characterMood === "concerned"
+                ? "Let's take a closer look."
+                : characterMood === "pleased"
+                  ? "That's a good move."
+                  : "Mr.Fund"}
           </span>
+          <span className="mx-1 h-3 w-px bg-[#d3d8c7]" />
+          <button
+            type="button"
+            aria-label="Wave to Mr.Fund"
+            onClick={() => setWave((v) => v + 1)}
+            className="border-0 bg-transparent text-[#64744c]"
+          >
+            <Hand size={15} />
+          </button>
         </div>
       </div>
-      {tab === "office" && (
-        <>
-          <div className="office-grid grid grid-cols-[1.15fr_1fr] gap-[18px] max-[1100px]:grid-cols-[1fr_1fr] max-[1100px]:gap-[14px] max-[620px]:grid-cols-[1fr] max-[620px]:gap-[14px]">
-            <section
-              className={playClasses(`character-card mood-${characterMood}`)}
-              aria-label="Mr.Fund's office"
+
+      {openingPanel && (
+        <div className="absolute bottom-[210px] [@media(max-height:600px)]:bottom-[160px] left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full border-2 border-[#26314a] bg-[#fff8e7] px-4 py-2.5 text-xs font-semibold shadow-[0_3px_0_#26314a]">
+          <span
+            role="status"
+            aria-live="polite"
+            className="flex items-center gap-2 whitespace-nowrap"
+          >
+            <LoaderCircle size={14} className="animate-spin motion-reduce:animate-none" />
+            {openingPanel === "guardian" ? "Opening Guardian…" : "Taking a seat…"}
+          </span>
+          <button
+            type="button"
+            aria-label={
+              openingPanel === "guardian" ? "Cancel Guardian approach" : "Cancel Chat approach"
+            }
+            onClick={() => openPanel(null)}
+            className="rounded-full px-2 py-1 text-[10px] underline underline-offset-2"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      <nav
+        aria-label="Office actions"
+        className={`absolute inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-max max-w-[calc(100%_-_24px)] items-end gap-2 rounded-[28px] border-2 border-[#26314a] bg-[#fff8e7] px-3 pb-3 pt-3 shadow-[0_7px_0_#26314a,0_18px_35px_#26314a22] sm:gap-5 sm:px-6 [@media(max-height:600px)]:bottom-[max(8px,env(safe-area-inset-bottom))] [@media(max-height:600px)]:gap-1! [@media(max-height:600px)]:px-3! [@media(max-height:600px)]:py-2 ${panel ? "[@media(max-height:600px)]:left-[calc((100%_-_var(--tool-width)_-_40px)/2)] [@media(max-height:600px)]:right-auto [@media(max-height:600px)]:-translate-x-1/2" : ""}`}
+      >
+        {dockItems.map((item) => (
+          <button
+            type="button"
+            key={item.id}
+            aria-label={item.label}
+            aria-pressed={panel === item.id || openingPanel === item.id}
+            aria-busy={openingPanel === item.id}
+            onClick={() => openPanel(panel === item.id ? null : item.id)}
+            className={`group flex w-[var(--dock-item)] flex-col items-center gap-2 [@media(max-height:600px)]:gap-1 border-0 bg-transparent p-0 transition-transform duration-200 hover:-translate-y-1 ${item.id === "voice" ? "-mt-5 [@media(max-height:600px)]:-mt-2" : ""}`}
+          >
+            <span
+              className={`relative grid size-[var(--dock-icon)] place-items-center rounded-[19px] border-2 border-[#26314a] shadow-[0_4px_0_#26314a] transition-transform group-active:translate-y-1 group-active:shadow-none ${item.color} ${item.id === "voice" ? "size-[var(--voice-icon)]! rounded-[23px]!" : ""} ${panel === item.id ? "outline-2 outline-offset-4 outline-[#ff643b]" : ""}`}
             >
-              <div className="character-heading flex items-center justify-between relative z-[2] max-[1100px]:[&_.stage-number]:text-[6px] max-[820px]:[&_.stage-number]:hidden max-[620px]:[&_.stage-number]:block max-[620px]:[&_.stage-number]:text-[6px]">
-                <Tag>
-                  <span className="status-dot inline-block w-[5px] h-[5px] bg-[#729955] rounded-full shrink-0" />
-                  MR.FUND IS IN
-                </Tag>
-                <span className="stage-number text-[8px] font-extrabold tracking-[.07em] text-[#8c3925]">
-                  EST. 2026 / YOUR CORNER
+              {item.icon}
+              {item.id === "activity" && receipts.length > 0 && (
+                <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full border border-[#26314a] bg-[#ff643b] text-[8px] font-bold text-[#26314a]">
+                  {receipts.length}
                 </span>
-              </div>
-              <h2>
-                Money talks.
-                <br />
-                <span>Let's talk back.</span>
-              </h2>
-              <span
-                className="stage-asterisk absolute right-[32px] top-[77px] text-[70px] leading-[1] text-[#ffc19e] transform-[rotate(-12deg)] pointer-events-none max-[1100px]:right-[20px] max-[1100px]:top-[80px] max-[1100px]:text-[57px] max-[620px]:top-[77px] max-[620px]:right-[24px] max-[620px]:text-[57px]"
-                aria-hidden="true"
+              )}
+            </span>
+            <span className="text-[8px] font-bold tracking-[.04em] text-[#56614e] sm:text-[10px]">
+              {item.label}
+            </span>
+          </button>
+        ))}
+      </nav>
+
+      {panel && (
+        <aside
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby="office-panel-title"
+          className="absolute bottom-[132px] right-4 top-[88px] z-20 flex w-[var(--tool-width)] flex-col overflow-hidden rounded-[24px] border-2 border-[#26314a] bg-[#fffef9] shadow-[6px_7px_0_#26314a,0_20px_70px_#26314a2b] [@media(max-height:600px)]:top-3 [@media(max-height:600px)]:bottom-3 [@media(max-height:600px)]:rounded-2xl [&_.chat-message_p]:text-[13px]! [&_.chat-message_p]:leading-[1.8]! [&_.prompt-grid_button]:text-[10px]! [&_.chat-disclaimer]:text-[8px]! [&_.chat-panel]:flex-1 [&_.chat-heading]:pt-3!"
+        >
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#e8e9df] bg-[#fff8e7] px-5 py-4 [@media(max-height:600px)]:px-4 [@media(max-height:600px)]:py-2">
+            <div>
+              <span className="text-[7px] font-extrabold tracking-[.17em] text-[#8b947b]">
+                {panelTitles[panel].label}
+              </span>
+              <h2
+                id="office-panel-title"
+                className="mt-1! font-[family-name:var(--font-display)] text-[24px] font-semibold tracking-[-.8px] [@media(max-height:600px)]:text-[19px]"
               >
-                ✳
-              </span>
-              <OfficeScene mood={characterMood} wave={wave} />
-              <div className="character-bottom absolute bottom-[24px] left-[25px] right-[25px] z-[2] flex items-center justify-between pointer-events-none max-[1100px]:left-[18px] max-[1100px]:right-[18px] max-[1100px]:bottom-[20px] max-[620px]:bottom-[20px] max-[620px]:left-[19px] max-[620px]:right-[19px]">
-                <div className="mood-chip flex items-center gap-[9px] bg-[#fff3d9] [border:1px_solid_#ca532d] rounded-[10px] p-[10px_14px] shadow-[0_4px_0_#bc482b33] max-w-[calc(100%_-_50px)] [&_b]:text-[10px] [&_b]:block [&_small]:text-[8px] [&_small]:text-[#85816e] [&_small]:block [&_small]:mt-[3px] max-[1100px]:p-[9px_10px] max-[1100px]:gap-[7px] max-[1100px]:[&_b]:text-[8px] max-[1100px]:[&_small]:text-[7px] max-[820px]:[&_small]:hidden max-[820px]:[&_b]:text-[8px] max-[820px]:p-[8px] max-[820px]:gap-[6px] max-[620px]:p-[10px_12px] max-[620px]:[&_b]:text-[9px] max-[620px]:[&_small]:block max-[620px]:[&_small]:text-[7px]">
-                  <span className="mood-face font-[family-name:var(--font-display)] [border:1px_solid_#b7b392] rounded-full w-[27px] h-[27px] flex items-center justify-center text-[#36421f] text-[18px] pb-[3px] max-[820px]:w-[23px] max-[820px]:h-[23px]">
-                    {characterMood === "thinking"
-                      ? "···"
-                      : characterMood === "concerned"
-                        ? "·_·"
-                        : "◡"}
-                  </span>
-                  <span>
-                    <b>
-                      {characterMood === "thinking"
-                        ? "Running the numbers"
-                        : characterMood === "concerned"
-                          ? "Let's take a closer look"
-                          : characterMood === "pleased"
-                            ? "Now that's a good move"
-                            : "Calm. Collected. On your side."}
-                    </b>
-                    <small>
-                      {characterMood === "thinking"
-                        ? "A little math. A clearer answer."
-                        : "Your DeFi manager, minus the jargon."}
-                    </small>
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="wave-button [border:1px_solid_#a44027] bg-[#ff8158] w-[39px] h-[39px] rounded-full flex items-center justify-center pointer-events-auto [transition:transform_.2s] [&:hover]:transform-[rotate(15deg)] [&:hover]:bg-[#ffa07c]"
-                  aria-label="Wave to Mr.Fund"
-                  onClick={() => {
-                    setWave((v) => v + 1);
-                    setNotice("Hey there. Looking sharp yourself.");
-                  }}
-                >
-                  <Hand size={20} />
-                </button>
-              </div>
-              <span className="rotate-hint absolute bottom-[87px] right-[25px] text-[7px] font-extrabold tracking-[.1em] text-[#91452b] flex items-center gap-[6px] pointer-events-none [&>span]:text-[15px] max-[820px]:text-[6px] max-[820px]:right-[18px] max-[820px]:bottom-[84px] max-[620px]:bottom-[83px] max-[620px]:right-[20px]">
-                DRAG TO LOOK AROUND <span>↔</span>
-              </span>
-            </section>
-            <section className="chat-panel h-[520px] bg-[var(--paper)] [border:1px_solid_var(--line)] rounded-[21px] p-[0_22px] flex flex-col min-w-0 min-[1500px]:h-[570px] min-[1500px]:pl-[26px] min-[1500px]:pr-[26px] max-[1100px]:p-[0_16px] max-[820px]:h-[510px] max-[620px]:h-[535px] max-[620px]:p-[0_19px] max-[620px]:rounded-[17px]">
-              <div className="chat-heading p-[20px_0_16px] flex items-center justify-between [border-bottom:1px_solid_#eae9e0] [&>div]:flex [&>div]:items-center [&>div]:gap-[10px] [&_b]:text-[12px] [&_b]:font-extrabold [&_small]:flex [&_small]:items-center [&_small]:gap-[5px] [&_small]:text-[8px] [&_small]:text-[#93958b] [&_small]:mt-[3px] [&_.status-dot]:w-[4px] [&_.status-dot]:h-[4px] min-[1500px]:pt-[24px] min-[1500px]:pb-[20px] min-[1500px]:[&_b]:text-[13px] max-[1100px]:[&_b]:text-[11px] max-[820px]:[&_small]:text-[7px] max-[820px]:[&>div]:gap-[7px] max-[820px]:[&_b]:text-[10px] max-[620px]:pt-[19px] max-[620px]:[&_b]:text-[12px] max-[620px]:[&_small]:text-[7px] max-[620px]:[&>div]:gap-[10px]">
+                {panelTitles[panel].title}
+              </h2>
+            </div>
+            <button
+              type="button"
+              ref={panelClose}
+              aria-label="Close overlay"
+              onClick={() => openPanel(null)}
+              className="grid size-8 shrink-0 place-items-center rounded-full border border-[#d6d9c9] bg-[#fffef9]"
+            >
+              <X size={17} />
+            </button>
+          </div>
+          {panel === "chat" && (
+            <section className="chat-panel flex flex-1 min-h-0 flex-col bg-[#fffef9] px-5 text-[#1c2331] sm:px-6">
+              <div className="chat-heading [@media(max-height:600px)]:hidden! p-[20px_0_16px] flex items-center justify-between [border-bottom:1px_solid_#eae9e0] [&>div]:flex [&>div]:items-center [&>div]:gap-[10px] [&_b]:text-[12px] [&_b]:font-extrabold [&_small]:flex [&_small]:items-center [&_small]:gap-[5px] [&_small]:text-[8px] [&_small]:text-[#93958b] [&_small]:mt-[3px] [&_.status-dot]:w-[4px] [&_.status-dot]:h-[4px] min-[1500px]:pt-[24px] min-[1500px]:pb-[20px] min-[1500px]:[&_b]:text-[13px] max-[1100px]:[&_b]:text-[11px] max-[820px]:[&_small]:text-[7px] max-[820px]:[&>div]:gap-[7px] max-[820px]:[&_b]:text-[10px] max-[620px]:pt-[19px] max-[620px]:[&_b]:text-[12px] max-[620px]:[&_small]:text-[7px] max-[620px]:[&>div]:gap-[10px]">
                 <div>
                   <span className="chat-avatar h-[35px] w-[35px] bg-[var(--blue)] text-white font-[family-name:var(--font-display)] text-[25px] rounded-[11px] flex items-center justify-center tracking-[-2px] pr-[3px] max-[820px]:w-[30px] max-[820px]:h-[30px] max-[820px]:text-[23px] max-[620px]:h-[34px] max-[620px]:w-[34px] max-[620px]:text-[25px]">
                     m.
@@ -1334,6 +1513,7 @@ export function Playground() {
                 }}
               >
                 <input
+                  className="text-base!"
                   aria-label="Message Mr.Fund"
                   placeholder="Ask away. Money questions welcome."
                   value={input}
@@ -1358,697 +1538,668 @@ export function Playground() {
                 You approve every move. Demo chat isn't an LLM connection.
               </div>
             </section>
-          </div>
-          <div className="lower-grid grid grid-cols-[1.15fr_1fr] gap-[18px] mt-[18px] max-[1100px]:grid-cols-[1fr_1fr] max-[1100px]:gap-[14px] max-[820px]:grid-cols-[1fr] max-[620px]:mt-[14px] max-[620px]:gap-[14px]">
-            <section className="position-card rounded-[20px] bg-[var(--ink)] text-[var(--paper)] p-[22px_25px_15px] min-w-0 max-[1100px]:p-[20px] max-[820px]:p-[22px_25px] max-[620px]:p-[20px] max-[620px]:rounded-[17px]">
-              <div className="position-heading flex justify-between items-center [&_.eyebrow]:text-[8px] [&_.eyebrow]:text-[#a2a7b0] [&>div]:flex [&>div]:items-center [&>div]:gap-[7px] [&_.tag]:text-[7px] [&_.tag]:border-0 [&_.tag]:bg-[#303b35] [&_.tag]:text-[#bfda9f] [&_.tag]:p-[5px_7px] [&_.status-dot]:w-[4px] [&_.status-dot]:h-[4px] [&_.status-dot]:bg-[#badc8e] [&_.icon-button]:text-[#b0b7ba] [&_.icon-button]:w-[24px] [&_.icon-button]:h-[24px] max-[620px]:[&_.eyebrow]:text-[7px] max-[620px]:[&_.tag]:text-[6px]">
-                <span className="eyebrow text-[9px] font-extrabold tracking-[.15em] block leading-[1.5]">
-                  01 / YOUR POSITION
+          )}
+          {panel === "voice" && <VoicePanel onSend={_ask} onNotice={setNotice} />}
+          {panel === "position" && (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              <section className="position-card rounded-[20px] bg-[#1c2331f5] shadow-[0_20px_60px_#0b102a66] text-[var(--paper)] p-[22px_25px_15px] min-w-0 max-[1100px]:p-[20px] max-[820px]:p-[22px_25px] max-[620px]:p-[20px] max-[620px]:rounded-[17px]">
+                <div className="position-heading flex justify-between items-center [&_.eyebrow]:text-[8px] [&_.eyebrow]:text-[#a2a7b0] [&>div]:flex [&>div]:items-center [&>div]:gap-[7px] [&_.tag]:text-[7px] [&_.tag]:border-0 [&_.tag]:bg-[#303b35] [&_.tag]:text-[#bfda9f] [&_.tag]:p-[5px_7px] [&_.status-dot]:w-[4px] [&_.status-dot]:h-[4px] [&_.status-dot]:bg-[#badc8e] [&_.icon-button]:text-[#b0b7ba] [&_.icon-button]:w-[24px] [&_.icon-button]:h-[24px] max-[620px]:[&_.eyebrow]:text-[7px] max-[620px]:[&_.tag]:text-[6px]">
+                  <span className="eyebrow text-[9px] font-extrabold tracking-[.15em] block leading-[1.5]">
+                    01 / YOUR POSITION
+                  </span>
+                  <div>
+                    <Tag>
+                      <span className="status-dot inline-block w-[5px] h-[5px] bg-[#729955] rounded-full shrink-0" />
+                      {dataState === "fresh" ? "SIMULATED · FRESH" : dataState.toUpperCase()}
+                    </Tag>
+                    <button
+                      type="button"
+                      className="icon-button inline-flex items-center justify-center border-0 bg-transparent w-[32px] h-[32px] rounded-full p-0 [transition:background_.18s] [&:hover]:bg-[#8080801a]"
+                      aria-label="Refresh simulated position"
+                      onClick={refresh}
+                    >
+                      <RefreshCw
+                        size={15}
+                        className={playClasses(dataState === "loading" ? "spin" : "")}
+                      />
+                    </button>
+                  </div>
+                </div>
+                {dataState === "error" ? (
+                  <div className="position-error min-h-[240px] flex items-start flex-col justify-center gap-[12px] [&_h3]:font-[family-name:var(--font-display)] [&_h3]:text-[22px] [&_h3]:font-medium [&_p]:text-[11px] [&_p]:text-[#b2b9c3]">
+                    <AlertTriangle />
+                    <h3>Can't reach NEAR right now.</h3>
+                    <p>A simulated RPC error. Try refreshing.</p>
+                    <button
+                      type="button"
+                      className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] light-button bg-[var(--cream)] text-[var(--ink)] small"
+                      onClick={refresh}
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : dataState === "empty" ? (
+                  <div className="position-error min-h-[240px] flex items-start flex-col justify-center gap-[12px] [&_h3]:font-[family-name:var(--font-display)] [&_h3]:text-[22px] [&_h3]:font-medium [&_p]:text-[11px] [&_p]:text-[#b2b9c3]">
+                    <Wallet />
+                    <h3>A little room for your next move.</h3>
+                    <p>No position in this demo state. Open one on Rhea in the live app.</p>
+                    <button
+                      type="button"
+                      className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] light-button bg-[var(--cream)] text-[var(--ink)] small"
+                      onClick={() => setModal("settings")}
+                    >
+                      Switch demo state
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div
+                      className={playClasses(
+                        `position-values ${dataState === "loading" ? "loading-state" : ""}`,
+                      )}
+                    >
+                      <div className="collateral-value">
+                        <span>
+                          Collateral value <ArrowUpRight size={13} />
+                        </span>
+                        <strong>
+                          $5,000<span>.00</span>
+                        </strong>
+                        <small>
+                          <Token />
+                          1,000 NEAR <b>· $5.00 / NEAR</b>
+                        </small>
+                      </div>
+                      <div className="debt-value [border-left:1px_solid_#414652] pl-[22px] [&_strong]:text-[28px] [&_strong]:mt-[10px] [&_strong]:tracking-[-.8px] min-[1500px]:[&_strong]:text-[33px] max-[1100px]:pl-[13px] max-[1100px]:[&_strong]:text-[25px] max-[1100px]:[&_strong]:mt-[10px] max-[820px]:[&_strong]:text-[33px] max-[620px]:[&_strong]:text-[27px] max-[620px]:[&_strong]:mt-[11px] max-[620px]:pl-[14px]">
+                        <span>Outstanding debt</span>
+                        <strong>${amount(debt)}</strong>
+                        <small>
+                          <Token usdc />
+                          {amount(debt)} USDC
+                        </small>
+                      </div>
+                    </div>
+                    <div className="health-section tabular-nums mt-[24px] [&>div:first-child]:flex [&>div:first-child]:items-center [&>div:first-child]:gap-[10px] [&>div:first-child]:flex-wrap [&>div:first-child>span]:text-[9px] [&>div:first-child>span]:text-[#aeb2b7] [&>div:first-child>span]:flex [&>div:first-child>span]:items-center [&>div:first-child>span]:gap-[5px] [&_strong]:font-[family-name:var(--font-display)] [&_strong]:text-[19px] [&_strong]:font-medium [&_strong]:text-[var(--lime)] [&_strong]:tracking-[-.5px] [&_strong.health-warning]:text-[#ffae6b] [&_small]:ml-auto [&_small]:text-[7px] [&_small]:text-[#a0a4ac] max-[1100px]:[&_small]:text-[6px] max-[820px]:[&>div:first-child>span]:text-[10px] max-[820px]:[&_small]:text-[9px] max-[620px]:mt-[24px] max-[620px]:[&>div:first-child]:gap-[7px] max-[620px]:[&>div:first-child>span]:text-[8px] max-[620px]:[&_strong]:text-[18px] max-[620px]:[&_small]:text-[6px]">
+                      <div>
+                        <span>
+                          Position health <CircleHelp size={12} />
+                        </span>
+                        <strong
+                          className={playClasses(
+                            current.health !== null &&
+                              current.health !== "no_debt" &&
+                              current.health < Number(comfort) * 100
+                              ? "health-warning"
+                              : "",
+                          )}
+                        >
+                          {healthText}
+                        </strong>
+                        <small>
+                          {dataState === "stale"
+                            ? "Data is 5 minutes old. Refresh to advise."
+                            : current.health === "no_debt"
+                              ? "No debt remaining"
+                              : "Liquidation below 100%"}
+                        </small>
+                      </div>
+                      <div
+                        className="health-bars flex gap-[4px] h-[20px] mt-[10px] relative [&_i]:flex-1 [&_i]:rounded-[2px] [&_.risk]:bg-[#bf6753] [&_.buffer]:bg-[#e0ca83] [&_.healthy]:bg-[#d2ed99] max-[620px]:gap-[3px] max-[620px]:h-[18px]"
+                        aria-hidden="true"
+                      >
+                        {Array.from({ length: 32 }, (_, value) => value).map((i) => (
+                          <i
+                            key={`health-${i}`}
+                            className={playClasses(i < 12 ? "risk" : i < 22 ? "buffer" : "healthy")}
+                          />
+                        ))}
+                        <span
+                          className="health-pointer absolute w-[3px] h-[28px] bg-[var(--paper)] top-[-4px] shadow-[0_0_0_3px_var(--ink)] rounded-[3px]"
+                          style={{
+                            left: `${current.health === null || current.health === "no_debt" ? 95 : Math.min(95, Math.max(2, (current.health - 5000) / 150))}%`,
+                          }}
+                        />
+                      </div>
+                      <div className="health-labels flex justify-between mt-[9px] text-[6px] tracking-[.07em] text-[#9ca3b0] max-[620px]:text-[5px]">
+                        <span>100% · LIQUIDATION</span>
+                        <span>{comfort}% · COMFORT LINE</span>
+                      </div>
+                    </div>
+                    <div className="position-footer [border-top:1px_solid_#3a4250] flex items-center justify-between gap-[12px] mt-[19px] pt-[13px] [&>span]:text-[7px] [&>span]:text-[#a9afb8] [&>span]:flex [&>span]:flex-col [&>span]:gap-[5px] [&_b]:text-[12px] [&_b]:font-semibold [&_b]:text-[#e6e9e1] max-[820px]:[&>span]:text-[9px] max-[820px]:[&_b]:text-[14px] max-[620px]:gap-[10px] max-[620px]:[&>span]:text-[6px] max-[620px]:[&>span]:gap-[6px] max-[620px]:[&_b]:text-[12px]">
+                      <span>
+                        Est. NEAR liquidation price{" "}
+                        <b>
+                          {current.liquidation ? `$${Number(current.liquidation).toFixed(2)}` : "—"}
+                        </b>
+                      </span>
+                      <span>
+                        Borrow APR <b>21.00%</b>
+                      </span>
+                      <span>
+                        Supply APR <b>14.01%</b>
+                      </span>
+                    </div>
+                  </>
+                )}
+                <span className="position-footnote text-[6px] block mt-[14px] text-[#898e9a] tracking-[.03em] max-[820px]:text-[7px] max-[620px]:text-[6px]">
+                  Illustrative Rhea fixture · engine-computed · wallet-held loan
                 </span>
-                <div>
-                  <Tag>
-                    <span className="status-dot inline-block w-[5px] h-[5px] bg-[#729955] rounded-full shrink-0" />
-                    {dataState === "fresh" ? "SIMULATED · FRESH" : dataState.toUpperCase()}
-                  </Tag>
+              </section>
+              <button
+                type="button"
+                onClick={() => _ask("Explain my position")}
+                className="mt-4 flex w-full items-center justify-between rounded-xl border border-[#cbd2bd] bg-[#f0f3e6] px-4 py-3 text-xs font-semibold"
+              >
+                <span className="flex items-center gap-2">
+                  <MessageCircle size={16} />
+                  Talk me through it
+                </span>
+                <ArrowUpRight size={16} />
+              </button>
+              <p className="mt-4! px-1 text-[10px] leading-relaxed text-[#91997f]">
+                Illustrative position, computed with the finance engine. These are simulated inputs,
+                not a live wallet read.
+              </p>
+            </div>
+          )}
+          {panel === "guardian" && (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {guardianContent(true)}
+              <button
+                type="button"
+                onClick={() => _ask("What are my Guardian limits?")}
+                className="mt-4 flex w-full items-center justify-between rounded-xl border border-[#cbd2bd] bg-[#f0f3e6] px-4 py-3 text-xs font-semibold"
+              >
+                Ask about my limits
+                <ArrowUpRight size={16} />
+              </button>
+            </div>
+          )}
+          {panel === "activity" && (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 [&_.activity-panel]:border-0! [&_.activity-panel]:p-0! [&_.panel-heading]:flex-col [&_.panel-heading]:items-start [&_.panel-heading_h2]:text-[25px]!">
+              {activityContent()}
+            </div>
+          )}
+        </aside>
+      )}
+      <div className="relative z-40">
+        {notice && (
+          <div
+            className="play-toast fixed bottom-[165px] left-[50%] transform-[translateX(-50%)] z-[100] flex gap-[11px] items-center bg-[var(--ink)] text-white [border:1px_solid_#434b58] rounded-[12px] p-[14px_16px] text-[11px] shadow-[0_8px_40px_#1c23313b] max-w-[calc(100vw_-_30px)] w-[max-content] [&>span]:h-[25px] [&>span]:w-[25px] [&>span]:rounded-full [&>span]:bg-[var(--lime)] [&>span]:text-[var(--ink)] [&>span]:grid [&>span]:place-items-center [&>span]:shrink-0 [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[#b6bcc5] [&_button]:ml-[10px] [&_button]:flex [&_button]:p-[3px] max-[620px]:bottom-[155px] max-[620px]:text-[10px] max-[620px]:p-[11px] max-[620px]:gap-[8px] max-[620px]:w-[calc(100vw_-_28px)] max-[620px]:leading-[1.6] max-[620px]:[&>span]:w-[22px] max-[620px]:[&>span]:h-[22px]"
+            role="status"
+          >
+            <span>
+              <Check size={16} />
+            </span>
+            {notice}
+            <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}>
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
+        {modal === "wallet" && (
+          <ModalFrame
+            eyebrow="JUST A DRESS REHEARSAL"
+            title={connected ? "Your mock wallet." : "Come on in."}
+            close={() => setModal(null)}
+          >
+            <p className="modal-copy text-[12px] leading-[1.8] text-[#7a8174] m-[20px_0]! max-[620px]:text-[11px]">
+              {connected
+                ? "Connected to a local demo identity. These tokens are simulated balances."
+                : "Try the whole experience with a mock wallet. No extension, real account, or signature needed."}
+            </p>
+            {connected ? (
+              <>
+                <div className="wallet-account flex items-center gap-[10px] p-[16px_0_24px] [&_b]:text-[12px] [&_small]:text-[10px] [&_small]:text-[#8d9581] [&_small]:block [&_small]:mt-[5px] [&_.icon-button]:ml-auto">
+                  <span className="wallet-avatar h-[40px] w-[40px] bg-[var(--lime)] grid place-items-center rounded-full font-[family-name:var(--font-display)] text-[21px]">
+                    Y
+                  </span>
+                  <div>
+                    <b>you.demo.testnet</b>
+                    <small>{amount(walletBalance)} test USDC available</small>
+                  </div>
                   <button
                     type="button"
                     className="icon-button inline-flex items-center justify-center border-0 bg-transparent w-[32px] h-[32px] rounded-full p-0 [transition:background_.18s] [&:hover]:bg-[#8080801a]"
-                    aria-label="Refresh simulated position"
-                    onClick={refresh}
+                    aria-label="Copy mock account"
+                    onClick={() => {
+                      navigator.clipboard?.writeText("you.demo.testnet");
+                      setNotice("Mock account copied.");
+                    }}
                   >
-                    <RefreshCw
-                      size={15}
-                      className={playClasses(dataState === "loading" ? "spin" : "")}
-                    />
+                    <Copy size={16} />
                   </button>
-                </div>
-              </div>
-              {dataState === "error" ? (
-                <div className="position-error min-h-[240px] flex items-start flex-col justify-center gap-[12px] [&_h3]:font-[family-name:var(--font-display)] [&_h3]:text-[22px] [&_h3]:font-medium [&_p]:text-[11px] [&_p]:text-[#b2b9c3]">
-                  <AlertTriangle />
-                  <h3>Can't reach NEAR right now.</h3>
-                  <p>A simulated RPC error. Try refreshing.</p>
-                  <button
-                    type="button"
-                    className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] light-button bg-[var(--cream)] text-[var(--ink)] small"
-                    onClick={refresh}
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : dataState === "empty" ? (
-                <div className="position-error min-h-[240px] flex items-start flex-col justify-center gap-[12px] [&_h3]:font-[family-name:var(--font-display)] [&_h3]:text-[22px] [&_h3]:font-medium [&_p]:text-[11px] [&_p]:text-[#b2b9c3]">
-                  <Wallet />
-                  <h3>A little room for your next move.</h3>
-                  <p>No position in this demo state. Open one on Rhea in the live app.</p>
-                  <button
-                    type="button"
-                    className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] light-button bg-[var(--cream)] text-[var(--ink)] small"
-                    onClick={() => setModal("settings")}
-                  >
-                    Switch demo state
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <div
-                    className={playClasses(
-                      `position-values ${dataState === "loading" ? "loading-state" : ""}`,
-                    )}
-                  >
-                    <div className="collateral-value">
-                      <span>
-                        Collateral value <ArrowUpRight size={13} />
-                      </span>
-                      <strong>
-                        $5,000<span>.00</span>
-                      </strong>
-                      <small>
-                        <Token />
-                        1,000 NEAR <b>· $5.00 / NEAR</b>
-                      </small>
-                    </div>
-                    <div className="debt-value [border-left:1px_solid_#414652] pl-[22px] [&_strong]:text-[28px] [&_strong]:mt-[10px] [&_strong]:tracking-[-.8px] min-[1500px]:[&_strong]:text-[33px] max-[1100px]:pl-[13px] max-[1100px]:[&_strong]:text-[25px] max-[1100px]:[&_strong]:mt-[10px] max-[820px]:[&_strong]:text-[33px] max-[620px]:[&_strong]:text-[27px] max-[620px]:[&_strong]:mt-[11px] max-[620px]:pl-[14px]">
-                      <span>Outstanding debt</span>
-                      <strong>${amount(debt)}</strong>
-                      <small>
-                        <Token usdc />
-                        {amount(debt)} USDC
-                      </small>
-                    </div>
-                  </div>
-                  <div className="health-section tabular-nums mt-[24px] [&>div:first-child]:flex [&>div:first-child]:items-center [&>div:first-child]:gap-[10px] [&>div:first-child]:flex-wrap [&>div:first-child>span]:text-[9px] [&>div:first-child>span]:text-[#aeb2b7] [&>div:first-child>span]:flex [&>div:first-child>span]:items-center [&>div:first-child>span]:gap-[5px] [&_strong]:font-[family-name:var(--font-display)] [&_strong]:text-[19px] [&_strong]:font-medium [&_strong]:text-[var(--lime)] [&_strong]:tracking-[-.5px] [&_strong.health-warning]:text-[#ffae6b] [&_small]:ml-auto [&_small]:text-[7px] [&_small]:text-[#a0a4ac] max-[1100px]:[&_small]:text-[6px] max-[820px]:[&>div:first-child>span]:text-[10px] max-[820px]:[&_small]:text-[9px] max-[620px]:mt-[24px] max-[620px]:[&>div:first-child]:gap-[7px] max-[620px]:[&>div:first-child>span]:text-[8px] max-[620px]:[&_strong]:text-[18px] max-[620px]:[&_small]:text-[6px]">
-                    <div>
-                      <span>
-                        Position health <CircleHelp size={12} />
-                      </span>
-                      <strong
-                        className={playClasses(
-                          current.health !== null &&
-                            current.health !== "no_debt" &&
-                            current.health < Number(comfort) * 100
-                            ? "health-warning"
-                            : "",
-                        )}
-                      >
-                        {healthText}
-                      </strong>
-                      <small>
-                        {dataState === "stale"
-                          ? "Data is 5 minutes old. Refresh to advise."
-                          : current.health === "no_debt"
-                            ? "No debt remaining"
-                            : "Liquidation below 100%"}
-                      </small>
-                    </div>
-                    <div
-                      className="health-bars flex gap-[4px] h-[20px] mt-[10px] relative [&_i]:flex-1 [&_i]:rounded-[2px] [&_.risk]:bg-[#bf6753] [&_.buffer]:bg-[#e0ca83] [&_.healthy]:bg-[#d2ed99] max-[620px]:gap-[3px] max-[620px]:h-[18px]"
-                      aria-hidden="true"
-                    >
-                      {Array.from({ length: 32 }, (_, value) => value).map((i) => (
-                        <i
-                          key={`health-${i}`}
-                          className={playClasses(i < 12 ? "risk" : i < 22 ? "buffer" : "healthy")}
-                        />
-                      ))}
-                      <span
-                        className="health-pointer absolute w-[3px] h-[28px] bg-[var(--paper)] top-[-4px] shadow-[0_0_0_3px_var(--ink)] rounded-[3px]"
-                        style={{
-                          left: `${current.health === null || current.health === "no_debt" ? 95 : Math.min(95, Math.max(2, (current.health - 5000) / 150))}%`,
-                        }}
-                      />
-                    </div>
-                    <div className="health-labels flex justify-between mt-[9px] text-[6px] tracking-[.07em] text-[#9ca3b0] max-[620px]:text-[5px]">
-                      <span>100% · LIQUIDATION</span>
-                      <span>{comfort}% · COMFORT LINE</span>
-                    </div>
-                  </div>
-                  <div className="position-footer [border-top:1px_solid_#3a4250] flex items-center justify-between gap-[12px] mt-[19px] pt-[13px] [&>span]:text-[7px] [&>span]:text-[#a9afb8] [&>span]:flex [&>span]:flex-col [&>span]:gap-[5px] [&_b]:text-[12px] [&_b]:font-semibold [&_b]:text-[#e6e9e1] max-[820px]:[&>span]:text-[9px] max-[820px]:[&_b]:text-[14px] max-[620px]:gap-[10px] max-[620px]:[&>span]:text-[6px] max-[620px]:[&>span]:gap-[6px] max-[620px]:[&_b]:text-[12px]">
-                    <span>
-                      Est. NEAR liquidation price{" "}
-                      <b>
-                        {current.liquidation ? `$${Number(current.liquidation).toFixed(2)}` : "—"}
-                      </b>
-                    </span>
-                    <span>
-                      Borrow APR <b>21.00%</b>
-                    </span>
-                    <span>
-                      Supply APR <b>14.01%</b>
-                    </span>
-                  </div>
-                </>
-              )}
-              <span className="position-footnote text-[6px] block mt-[14px] text-[#898e9a] tracking-[.03em] max-[820px]:text-[7px] max-[620px]:text-[6px]">
-                Illustrative Rhea fixture · engine-computed · wallet-held loan
-              </span>
-            </section>
-            {guardianContent()}
-          </div>
-          <section className="insight-strip flex items-center gap-[15px] bg-[#e9e8e0] [border:1px_solid_#e1e0d7] rounded-[13px] mt-[18px] p-[16px_20px] [&_p]:flex [&_p]:flex-col [&_p]:gap-[4px] [&_p_b]:text-[11px] [&_p_b]:font-bold [&_p_span]:text-[9px] [&_p_span]:text-[#85877c] [&_.text-button]:ml-auto [&_.text-button]:whitespace-nowrap max-[820px]:[&_p_span]:max-w-[310px] max-[820px]:[&_p_span]:text-[8px] max-[820px]:[&_p_span]:leading-[1.6] max-[820px]:[&_p_b]:text-[10px] max-[820px]:[&_.text-button]:text-[9px]! max-[620px]:p-[15px] max-[620px]:gap-[10px] max-[620px]:flex-wrap max-[620px]:items-start max-[620px]:rounded-[11px] max-[620px]:[&_p]:flex-1 max-[620px]:[&_p_b]:text-[10px] max-[620px]:[&_p_span]:text-[8px] max-[620px]:[&_p_span]:leading-[1.7] max-[620px]:[&_p_span]:max-w-[none] max-[620px]:[&_.text-button]:ml-[38px] max-[620px]:[&_.text-button]:text-[10px]!">
-            <div className="insight-icon h-[35px] w-[35px] rounded-full [border:1px_solid_#b5b5a6] grid place-items-center shrink-0 max-[620px]:w-[28px] max-[620px]:h-[28px] max-[620px]:[&_svg]:w-[16px]">
-              <Sparkles size={22} />
-            </div>
-            <p>
-              <b>A small move can make a big difference.</b>
-              <span>
-                Ask Mr.Fund whether your spare cash works harder earning yield or paying down debt.
-              </span>
-            </p>
-            <button
-              type="button"
-              className="text-button bg-transparent border-0 text-[10px]! font-extrabold! inline-flex items-center gap-[9px]"
-              onClick={() => _ask("Should I repay or earn yield?")}
-            >
-              Let's find out <ArrowUpRight size={17} />
-            </button>
-          </section>
-        </>
-      )}
-      {tab === "guardian" && (
-        <div className="guardian-page grid grid-cols-[1.15fr_1fr] gap-[20px] max-[1100px]:grid-cols-[1.15fr_1fr] max-[820px]:grid-cols-[1fr]">
-          {guardianContent(true)}
-          <aside className="guardian-explainer [border:1px_solid_var(--line)] rounded-[20px] bg-[var(--paper)] p-[30px] [&>.eyebrow]:text-[#959b89] [&_h2]:font-[family-name:var(--font-display)] [&_h2]:text-[34px] [&_h2]:font-medium [&_h2]:tracking-[-1.4px] [&_h2]:leading-[1.1] [&_h2]:m-[15px_0_28px] [&>div]:flex [&>div]:gap-[15px] [&>div]:m-[25px_0] [&>div>span]:w-[26px] [&>div>span]:h-[26px] [&>div>span]:bg-[#eeefe5] [&>div>span]:grid [&>div>span]:place-items-center [&>div>span]:rounded-full [&>div>span]:text-[8px] [&>div>span]:text-[#8c947c] [&>div>span]:shrink-0 [&_p]:text-[11px] [&_p]:text-[#949c87] [&_p]:leading-[1.8] [&_p_b]:block [&_p_b]:text-[var(--ink)] [&_p_b]:mb-[5px] [&>.button]:mt-[15px] [&>.button]:w-full max-[1100px]:p-[25px] max-[1100px]:[&_h2]:text-[29px] max-[820px]:p-[28px] max-[820px]:[&_h2]:text-[34px] max-[820px]:[&_p]:text-[12px] max-[620px]:p-[24px_20px] max-[620px]:[&_h2]:text-[30px] max-[620px]:[&_p]:text-[11px]">
-            <span className="eyebrow text-[9px] font-extrabold tracking-[.15em] block leading-[1.5]">
-              PERMISSION, EXPLAINED
-            </span>
-            <h2>
-              A watchful eye.
-              <br />
-              Never a blank check.
-            </h2>
-            <div>
-              <span>01</span>
-              <p>
-                <b>You set the boundaries.</b>Choose a maximum repay, a lifetime cap, a reserve
-                floor, and a health trigger.
-              </p>
-            </div>
-            <div>
-              <span>02</span>
-              <p>
-                <b>The watcher makes a request.</b>In the live design, deterministic code monitors a
-                separate Guardian-held position.
-              </p>
-            </div>
-            <div>
-              <span>03</span>
-              <p>
-                <b>The contract has the final say.</b>The demo simulates enforcement locally. It
-                does not claim deployed protection.
-              </p>
-            </div>
-            <button
-              type="button"
-              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40]"
-              onClick={() => {
-                setTab("office");
-                _ask("What are my Guardian limits?");
-              }}
-            >
-              <MessageCircle size={17} />
-              Ask Mr.Fund about it
-            </button>
-          </aside>
-          <div className="guardian-history col-[1/-1]">{activityContent()}</div>
-        </div>
-      )}
-      {tab === "activity" && activityContent()}
-      <footer className="play-footer flex items-center justify-between p-[25px_2px_7px] text-[#8b8e82] gap-[20px] [&>span]:flex [&>span]:items-center [&>span]:font-[family-name:var(--font-display)] [&>span]:text-[15px] [&>span]:tracking-[-.6px] [&>span]:text-[#4a5148] [&>span]:font-semibold [&_i]:not-italic [&_i]:text-[var(--orange)] [&_i]:ml-[3px] [&>span>span]:[font:8px_var(--font-body)] [&>span>span]:text-[#999c91] [&>span>span]:[border-left:1px_solid_#d1d2c6] [&>span>span]:ml-[14px] [&>span>span]:pl-[14px] [&>span>span]:tracking-[0] [&>div]:flex [&>div]:gap-[20px] [&>div]:items-center [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[8px] [&_button]:flex [&_button]:items-center [&_button]:gap-[4px] [&_button]:text-[#94988b] [&_a]:border-0 [&_a]:bg-transparent [&_a]:text-[8px] [&_a]:flex [&_a]:items-center [&_a]:gap-[4px] [&_a]:text-[#94988b] max-[820px]:[&>span>span]:hidden max-[620px]:items-start max-[620px]:pt-[23px] max-[620px]:gap-[10px] max-[620px]:[&>span]:text-[14px] max-[620px]:[&>div]:gap-[9px] max-[620px]:[&>div]:flex-col max-[620px]:[&>div]:items-end max-[620px]:[&_button]:text-[7px] max-[620px]:[&_a]:text-[7px]">
-        <span>
-          mr.fund <i>↗</i>
-          <span>Good company for your money.</span>
-        </span>
-        <div>
-          <button type="button" onClick={() => setModal("help")}>
-            How it works <ArrowUpRight size={12} />
-          </button>
-          <a href="https://poly.pizza/m/JFrLIKqvCH" target="_blank" rel="noreferrer">
-            3D character by Quaternius <ExternalLink size={10} />
-          </a>
-        </div>
-      </footer>
-      {latest && tab === "office" && (
-        <button
-          type="button"
-          className="recent-activity flex items-center justify-center gap-[7px] text-[9px] bg-transparent text-[#899078]! border-0 m-[10px_auto_0]"
-          onClick={() => setSelectedReceipt(latest)}
-        >
-          <span className="status-dot inline-block w-[5px] h-[5px] bg-[#729955] rounded-full shrink-0" />
-          Latest demo event: {latest.title}
-          <ArrowUpRight size={13} />
-        </button>
-      )}
-      {notice && (
-        <div
-          className="play-toast fixed bottom-[25px] left-[50%] transform-[translateX(-50%)] z-[100] flex gap-[11px] items-center bg-[var(--ink)] text-white [border:1px_solid_#434b58] rounded-[12px] p-[14px_16px] text-[11px] shadow-[0_8px_40px_#1c23313b] max-w-[calc(100vw_-_30px)] w-[max-content] [&>span]:h-[25px] [&>span]:w-[25px] [&>span]:rounded-full [&>span]:bg-[var(--lime)] [&>span]:text-[var(--ink)] [&>span]:grid [&>span]:place-items-center [&>span]:shrink-0 [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[#b6bcc5] [&_button]:ml-[10px] [&_button]:flex [&_button]:p-[3px] max-[620px]:bottom-[15px] max-[620px]:text-[10px] max-[620px]:p-[11px] max-[620px]:gap-[8px] max-[620px]:w-[calc(100vw_-_28px)] max-[620px]:leading-[1.6] max-[620px]:[&>span]:w-[22px] max-[620px]:[&>span]:h-[22px]"
-          role="status"
-        >
-          <span>
-            <Check size={16} />
-          </span>
-          {notice}
-          <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}>
-            <X size={15} />
-          </button>
-        </div>
-      )}
-
-      {modal === "wallet" && (
-        <ModalFrame
-          eyebrow="JUST A DRESS REHEARSAL"
-          title={connected ? "Your mock wallet." : "Come on in."}
-          close={() => setModal(null)}
-        >
-          <p className="modal-copy text-[12px] leading-[1.8] text-[#7a8174] m-[20px_0]! max-[620px]:text-[11px]">
-            {connected
-              ? "Connected to a local demo identity. These tokens are simulated balances."
-              : "Try the whole experience with a mock wallet. No extension, real account, or signature needed."}
-          </p>
-          {connected ? (
-            <>
-              <div className="wallet-account flex items-center gap-[10px] p-[16px_0_24px] [&_b]:text-[12px] [&_small]:text-[10px] [&_small]:text-[#8d9581] [&_small]:block [&_small]:mt-[5px] [&_.icon-button]:ml-auto">
-                <span className="wallet-avatar h-[40px] w-[40px] bg-[var(--lime)] grid place-items-center rounded-full font-[family-name:var(--font-display)] text-[21px]">
-                  Y
-                </span>
-                <div>
-                  <b>you.demo.testnet</b>
-                  <small>{amount(walletBalance)} test USDC available</small>
                 </div>
                 <button
                   type="button"
-                  className="icon-button inline-flex items-center justify-center border-0 bg-transparent w-[32px] h-[32px] rounded-full p-0 [transition:background_.18s] [&:hover]:bg-[#8080801a]"
-                  aria-label="Copy mock account"
+                  className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40] full-width w-full"
                   onClick={() => {
-                    navigator.clipboard?.writeText("you.demo.testnet");
-                    setNotice("Mock account copied.");
+                    setConnected(false);
+                    setModal(null);
+                    setNotice("Mock wallet disconnected.");
                   }}
                 >
-                  <Copy size={16} />
+                  <LogOut size={17} />
+                  Disconnect mock wallet
                 </button>
-              </div>
-              <button
-                type="button"
-                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40] full-width w-full"
-                onClick={() => {
-                  setConnected(false);
-                  setModal(null);
-                  setNotice("Mock wallet disconnected.");
-                }}
-              >
-                <LogOut size={17} />
-                Disconnect mock wallet
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="wallet-option flex gap-[13px] items-center w-full bg-[#f0f2e9] [border:1px_solid_#d7dccb] p-[17px_14px] rounded-[12px] text-left mt-[24px] [&>span]:w-[43px] [&>span]:h-[43px] [&>span]:bg-[var(--blue)] [&>span]:rounded-[11px] [&>span]:text-[#fff] [&>span]:grid [&>span]:place-items-center [&_b]:text-[13px] [&_small]:text-[9px] [&_small]:text-[#8a9480] [&_small]:block [&_small]:mt-[5px] [&>svg]:ml-auto [&:hover]:bg-[#e9eddf] [&:hover]:[border-color:#b7c79f]"
-                onClick={() => {
-                  setConnected(true);
-                  setModal(null);
-                  setWave((v) => v + 1);
-                  setNotice("Mock wallet connected. Welcome to the office.");
-                }}
-              >
-                <span>
-                  <Wallet size={24} />
-                </span>
-                <div>
-                  <b>Demo wallet</b>
-                  <small>1,000 test USDC · instant connection</small>
-                </div>
-                <ArrowUpRight size={20} />
-              </button>
-              <div className="disabled-wallets p-[25px_0_20px] text-center [&>span]:text-[9px] [&>span]:text-[#a3a896] [&>div]:flex [&>div]:justify-center [&>div]:gap-[27px] [&>div]:mt-[16px] [&>div]:text-[#a6ab9c] [&>div]:font-[family-name:var(--font-display)] [&>div]:text-[11px]">
-                <span>Real wallets arrive with the live integration</span>
-                <div>
-                  <b>METEOR</b>
-                  <b>INTEAR</b>
-                  <b>NEAR</b>
-                </div>
-              </div>
-            </>
-          )}
-          <p className="fine-print text-[9px] leading-[1.8] text-[#929987] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
-            <LockKeyhole size={12} />
-            Mr.Fund never asks for your private key.
-          </p>
-        </ModalFrame>
-      )}
-      {modal === "settings" && (
-        <ModalFrame
-          eyebrow="BEHIND THE SCENES"
-          title="Make the demo yours."
-          close={() => setModal(null)}
-        >
-          <label className="form-field flex flex-col gap-[8px] mt-[21px] min-w-0 [&>span]:text-[10px] [&>span]:font-bold [&>span]:flex [&>span]:justify-between [&>span_small]:text-[8px] [&>span_small]:font-normal [&>span_small]:text-[#9ba18f] [&_input]:p-[12px] [&_input]:bg-[#f6f7f0] [&_input]:[border:1px_solid_#dce0d2] [&_input]:rounded-[7px] [&_input]:text-[12px] [&_input]:text-[var(--ink)] [&_input]:w-full [&_input]:min-w-0 [&_select]:p-[12px] [&_select]:bg-[#f6f7f0] [&_select]:[border:1px_solid_#dce0d2] [&_select]:rounded-[7px] [&_select]:text-[12px] [&_select]:text-[var(--ink)] [&_select]:w-full [&_select]:min-w-0 [&>small]:text-[8px] [&>small]:leading-[1.5] [&>small]:text-[#8e9783] max-[620px]:[&>span]:text-[9px] max-[620px]:[&_input]:text-[11px] max-[620px]:[&_input]:p-[11px_9px] max-[620px]:[&_select]:text-[11px] max-[620px]:[&_select]:p-[11px_9px] max-[620px]:[&>small]:text-[7px]">
-            <span>Position data state</span>
-            <select
-              value={dataState}
-              onChange={(e) => {
-                setDataState(e.target.value as DataState);
-                setNow(Date.now());
-              }}
-            >
-              <option value="fresh">Fresh — ready to explore</option>
-              <option value="loading">Loading — input in flight</option>
-              <option value="stale">Stale — advice and execution blocked</option>
-              <option value="empty">Empty — no lending position</option>
-              <option value="error">Error — simulated RPC failure</option>
-            </select>
-          </label>
-          <label className="form-field flex flex-col gap-[8px] mt-[21px] min-w-0 [&>span]:text-[10px] [&>span]:font-bold [&>span]:flex [&>span]:justify-between [&>span_small]:text-[8px] [&>span_small]:font-normal [&>span_small]:text-[#9ba18f] [&_input]:p-[12px] [&_input]:bg-[#f6f7f0] [&_input]:[border:1px_solid_#dce0d2] [&_input]:rounded-[7px] [&_input]:text-[12px] [&_input]:text-[var(--ink)] [&_input]:w-full [&_input]:min-w-0 [&_select]:p-[12px] [&_select]:bg-[#f6f7f0] [&_select]:[border:1px_solid_#dce0d2] [&_select]:rounded-[7px] [&_select]:text-[12px] [&_select]:text-[var(--ink)] [&_select]:w-full [&_select]:min-w-0 [&>small]:text-[8px] [&>small]:leading-[1.5] [&>small]:text-[#8e9783] max-[620px]:[&>span]:text-[9px] max-[620px]:[&_input]:text-[11px] max-[620px]:[&_input]:p-[11px_9px] max-[620px]:[&_select]:text-[11px] max-[620px]:[&_select]:p-[11px_9px] max-[620px]:[&>small]:text-[7px]">
-            <span>Your comfort line (%)</span>
-            <input
-              type="number"
-              min="105"
-              max="1000"
-              value={comfort}
-              onChange={(e) => setComfort(e.target.value)}
-            />
-            <small>Mr.Fund becomes concerned below this line. This is not a guarantee.</small>
-          </label>
-          <label className="switch-row flex items-center justify-between m-[25px_0] [&_b]:text-[11px] [&_small]:block [&_small]:text-[9px] [&_small]:text-[#9ba38f] [&_small]:mt-[5px] [&_input]:w-[19px] [&_input]:h-[19px] [&_input]:[accent-color:var(--blue)]">
-            <span>
-              <b>Watcher online</b>
-              <small>Simulate an offline Guardian watcher</small>
-            </span>
-            <input
-              type="checkbox"
-              checked={watcherOnline}
-              onChange={(e) => setWatcherOnline(e.target.checked)}
-            />
-          </label>
-          <button
-            type="button"
-            className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40] full-width w-full"
-            onClick={reset}
-          >
-            <RefreshCw size={16} />
-            Reset all demo activity
-          </button>
-          <p className="fine-print text-[9px] leading-[1.8] text-[#929987] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
-            Settings affect this tab's demo session only. Reloading starts a fresh session.
-          </p>
-        </ModalFrame>
-      )}
-      {modal === "help" && (
-        <ModalFrame
-          eyebrow="A LITTLE CONTEXT"
-          title="Real idea. Demo office."
-          close={() => setModal(null)}
-        >
-          <div className="help-block flex gap-[14px] mt-[26px] [&_b]:text-[12px] [&_p]:text-[10px] [&_p]:text-[#8a927e] [&_p]:leading-[1.8] [&_p]:mt-[7px]">
-            <span className="help-number w-[28px] h-[28px] bg-[var(--lime)] rounded-[7px] grid place-items-center text-[10px] shrink-0">
-              01
-            </span>
-            <div>
-              <b>Talk it through.</b>
-              <p>
-                Explore position summaries, repay-versus-yield, and price-drop scenarios. Chat
-                responses are scripted; financial outputs use the existing deterministic engine on
-                illustrative inputs.
-              </p>
-            </div>
-          </div>
-          <div className="help-block flex gap-[14px] mt-[26px] [&_b]:text-[12px] [&_p]:text-[10px] [&_p]:text-[#8a927e] [&_p]:leading-[1.8] [&_p]:mt-[7px]">
-            <span className="help-number w-[28px] h-[28px] bg-[var(--lime)] rounded-[7px] grid place-items-center text-[10px] shrink-0">
-              02
-            </span>
-            <div>
-              <b>Try a move.</b>
-              <p>
-                Connect the mock wallet, adjust a repayment, and approve it. You can simulate
-                rejection, failure, or a partial batch before approval.
-              </p>
-            </div>
-          </div>
-          <div className="help-block flex gap-[14px] mt-[26px] [&_b]:text-[12px] [&_p]:text-[10px] [&_p]:text-[#8a927e] [&_p]:leading-[1.8] [&_p]:mt-[7px]">
-            <span className="help-number w-[28px] h-[28px] bg-[var(--lime)] rounded-[7px] grid place-items-center text-[10px] shrink-0">
-              03
-            </span>
-            <div>
-              <b>Set your limits.</b>
-              <p>
-                Activate a simulated Guardian, inspect its rules, run a labelled replay or
-                over-limit test, then pause, deactivate, or withdraw.
-              </p>
-            </div>
-          </div>
-          <p className="risk-note flex gap-[9px] bg-[#f1f1e7] p-[15px] rounded-[9px] text-[9px] leading-[1.8] text-[#818a74] mt-[24px]!">
-            <Shield size={18} />
-            The live product aims to reduce liquidation risk within your limits. It cannot prevent
-            liquidation. Guardian and Rhea have smart-contract risks; hackathon code is unaudited.
-          </p>
-        </ModalFrame>
-      )}
-      {modal === "setup" && (
-        <ModalFrame
-          eyebrow={setupReview ? "YOUR RULES, IN PLAIN WORDS" : "LET'S SET SOME BOUNDARIES"}
-          title={setupReview ? "Your Guardian. Your terms." : "A Guardian on your terms."}
-          close={() => {
-            setModal(null);
-            setSetupReview(false);
-          }}
-          wide
-        >
-          <div className="setup-steps flex items-center gap-[10px] mt-[24px] [&>span]:text-[9px] [&>span]:text-[#a1aa94] [&>span]:font-semibold [&>span.current]:text-[var(--blue)] [&>i]:flex-1 [&>i]:h-[1px] [&>i]:bg-[#e1e5d7] max-[620px]:[&>span]:text-[8px]">
-            <span className={playClasses(!setupReview ? "current" : "")}>01 Configure</span>
-            <i />
-            <span className={playClasses(setupReview ? "current" : "")}>02 Review</span>
-            <i />
-            <span>03 Mock approval</span>
-          </div>
-          <div className="setup-position flex items-center gap-[11px] bg-[#f1f4e9] p-[15px] [border:1px_solid_#dfe5d4] rounded-[9px] mt-[23px] [&>span]:flex-1 [&>span]:min-w-0 [&_b]:block [&_b]:text-[11px] [&_small]:block [&_small]:text-[8px] [&_small]:leading-[1.6] [&_small]:mt-[5px] [&_small]:text-[#909b82] [&_.tag]:text-[7px] [&_.tag]:text-[#839369] [&_.tag]:[border-color:#d6dfc7] max-[620px]:p-[12px] max-[620px]:gap-[8px] max-[620px]:[&_b]:text-[9px] max-[620px]:[&_small]:text-[7px] max-[620px]:[&_.tag]:hidden">
-            <Shield size={20} />
-            <span>
-              <b>Guardian-held loan · NEAR / USDC</b>
-              <small>Separate simulated position. Your wallet loan stays where it is.</small>
-            </span>
-            <Tag>G1 DEMO</Tag>
-          </div>
-          {!setupReview ? (
-            <>
-              <div className="fixed-action mt-[23px] [&_small]:text-[8px] [&_small]:tracking-[.08em] [&_small]:text-[#8b967d] [&_b]:flex [&_b]:items-center [&_b]:justify-between [&_b]:text-[11px] [&_b]:mt-[9px] [&_b]:pb-[15px] [&_b]:[border-bottom:1px_solid_var(--line)]">
-                <small>ALLOWED ACTION</small>
-                <b>
-                  Repay USDC debt from my reserve <LockKeyhole size={14} />
-                </b>
-              </div>
-              <div className="setup-form-grid grid grid-cols-[1fr_1fr] gap-x-[20px] max-[620px]:gap-x-[12px]">
-                {field("max", "Maximum per action", "USDC", "Largest single repayment.")}
-                {field("cap", "Lifetime spending cap", "USDC", "At least your per-action maximum.")}
-                {field("floor", "Reserve to keep", "USDC", "Automation never spends below this.")}
-                {field("deposit", "Reserve deposit", "USDC", "Activation fee is added on top.")}
-                {field(
-                  "trigger",
-                  "Trigger below health",
-                  "%",
-                  "Minimum 105%; liquidation line is 100%.",
-                )}
-                {field(
-                  "target",
-                  "Target health after action",
-                  "%",
-                  "Must be above your trigger.",
-                  true,
-                )}
-                {field("cooldown", "Time between actions", "min", "Minimum 5 minutes.")}
-              </div>
-              {policyValidation() && (
-                <p
-                  className="field-error flex items-start gap-[6px] text-[#af5034] text-[10px] leading-[1.7] mt-[18px]!"
-                  role="alert"
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className="wallet-option flex gap-[13px] items-center w-full bg-[#f0f2e9] [border:1px_solid_#d7dccb] p-[17px_14px] rounded-[12px] text-left mt-[24px] [&>span]:w-[43px] [&>span]:h-[43px] [&>span]:bg-[var(--blue)] [&>span]:rounded-[11px] [&>span]:text-[#fff] [&>span]:grid [&>span]:place-items-center [&_b]:text-[13px] [&_small]:text-[9px] [&_small]:text-[#8a9480] [&_small]:block [&_small]:mt-[5px] [&>svg]:ml-auto [&:hover]:bg-[#e9eddf] [&:hover]:[border-color:#b7c79f]"
+                  onClick={() => {
+                    setConnected(true);
+                    setModal(null);
+                    setWave((v) => v + 1);
+                    setNotice("Mock wallet connected. Welcome to the office.");
+                  }}
                 >
-                  <AlertTriangle size={15} />
-                  {policyValidation()}
-                </p>
-              )}
-            </>
-          ) : (
-            <div className="policy-summary pt-[20px] [&_p]:text-[13px] [&_p]:leading-[1.9] [&_p]:text-[#7b866e] [&_p]:mt-[13px] [&_b]:text-[var(--ink)] [&_b]:font-bold max-[620px]:[&_p]:text-[12px]">
-              <p>
-                When the simulated Guardian loan's health falls below <b>{policyFields.trigger}%</b>
-                , it may repay up to <b>{policyFields.max} USDC</b> per action, with at least{" "}
-                <b>{policyFields.cooldown} minutes</b> between actions.
-              </p>
-              <p>
-                It will keep at least <b>{policyFields.floor} USDC</b> in reserve and spend no more
-                than <b>{policyFields.cap} USDC</b> over this activation.{" "}
-                {policyFields.target && (
-                  <>
-                    The sizing target is <b>{policyFields.target}%</b> health.
-                  </>
-                )}
-              </p>
-              <p>
-                You deposit <b>{policyFields.deposit} USDC</b> into the demo reserve. Pause or
-                deactivate whenever you want, and withdraw unused reserve.
-              </p>
-            </div>
-          )}
-          <div className="fee-box bg-[#eff1e7] rounded-[9px] p-[15px] mt-[23px] flex flex-col gap-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:text-[10px] [&>div]:gap-[8px] [&>div>span]:flex [&>div>span]:items-center [&>div>span]:gap-[8px] [&_.tag]:text-[6px] [&_.tag]:text-[#8c977b] [&_.tag]:p-[3px_4px] [&_b]:text-[10px] [&_b]:whitespace-nowrap [&>small]:text-[8px] [&>small]:text-[#8d987f] [&>small]:leading-[1.7] max-[620px]:p-[12px] max-[620px]:[&_.tag]:text-[5px] max-[620px]:[&_.tag]:tracking-[0] max-[620px]:[&>div]:text-[8px] max-[620px]:[&_b]:text-[8px] max-[620px]:[&>small]:text-[7px]">
-            <div>
+                  <span>
+                    <Wallet size={24} />
+                  </span>
+                  <div>
+                    <b>Demo wallet</b>
+                    <small>1,000 test USDC · instant connection</small>
+                  </div>
+                  <ArrowUpRight size={20} />
+                </button>
+                <div className="disabled-wallets p-[25px_0_20px] text-center [&>span]:text-[9px] [&>span]:text-[#a3a896] [&>div]:flex [&>div]:justify-center [&>div]:gap-[27px] [&>div]:mt-[16px] [&>div]:text-[#a6ab9c] [&>div]:font-[family-name:var(--font-display)] [&>div]:text-[11px]">
+                  <span>Real wallets arrive with the live integration</span>
+                  <div>
+                    <b>METEOR</b>
+                    <b>INTEAR</b>
+                    <b>NEAR</b>
+                  </div>
+                </div>
+              </>
+            )}
+            <p className="fine-print text-[9px] leading-[1.8] text-[#929987] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
+              <LockKeyhole size={12} />
+              Mr.Fund never asks for your private key.
+            </p>
+          </ModalFrame>
+        )}
+        {modal === "settings" && (
+          <ModalFrame
+            eyebrow="BEHIND THE SCENES"
+            title="Make the demo yours."
+            close={() => setModal(null)}
+          >
+            <label className="form-field flex flex-col gap-[8px] mt-[21px] min-w-0 [&>span]:text-[10px] [&>span]:font-bold [&>span]:flex [&>span]:justify-between [&>span_small]:text-[8px] [&>span_small]:font-normal [&>span_small]:text-[#9ba18f] [&_input]:p-[12px] [&_input]:bg-[#f6f7f0] [&_input]:[border:1px_solid_#dce0d2] [&_input]:rounded-[7px] [&_input]:text-[12px] [&_input]:text-[var(--ink)] [&_input]:w-full [&_input]:min-w-0 [&_select]:p-[12px] [&_select]:bg-[#f6f7f0] [&_select]:[border:1px_solid_#dce0d2] [&_select]:rounded-[7px] [&_select]:text-[12px] [&_select]:text-[var(--ink)] [&_select]:w-full [&_select]:min-w-0 [&>small]:text-[8px] [&>small]:leading-[1.5] [&>small]:text-[#8e9783] max-[620px]:[&>span]:text-[9px] max-[620px]:[&_input]:text-[11px] max-[620px]:[&_input]:p-[11px_9px] max-[620px]:[&_select]:text-[11px] max-[620px]:[&_select]:p-[11px_9px] max-[620px]:[&>small]:text-[7px]">
+              <span>Position data state</span>
+              <select
+                value={dataState}
+                onChange={(e) => {
+                  setDataState(e.target.value as DataState);
+                  setNow(Date.now());
+                }}
+              >
+                <option value="fresh">Fresh — ready to explore</option>
+                <option value="loading">Loading — input in flight</option>
+                <option value="stale">Stale — advice and execution blocked</option>
+                <option value="empty">Empty — no lending position</option>
+                <option value="error">Error — simulated RPC failure</option>
+              </select>
+            </label>
+            <label className="form-field flex flex-col gap-[8px] mt-[21px] min-w-0 [&>span]:text-[10px] [&>span]:font-bold [&>span]:flex [&>span]:justify-between [&>span_small]:text-[8px] [&>span_small]:font-normal [&>span_small]:text-[#9ba18f] [&_input]:p-[12px] [&_input]:bg-[#f6f7f0] [&_input]:[border:1px_solid_#dce0d2] [&_input]:rounded-[7px] [&_input]:text-[12px] [&_input]:text-[var(--ink)] [&_input]:w-full [&_input]:min-w-0 [&_select]:p-[12px] [&_select]:bg-[#f6f7f0] [&_select]:[border:1px_solid_#dce0d2] [&_select]:rounded-[7px] [&_select]:text-[12px] [&_select]:text-[var(--ink)] [&_select]:w-full [&_select]:min-w-0 [&>small]:text-[8px] [&>small]:leading-[1.5] [&>small]:text-[#8e9783] max-[620px]:[&>span]:text-[9px] max-[620px]:[&_input]:text-[11px] max-[620px]:[&_input]:p-[11px_9px] max-[620px]:[&_select]:text-[11px] max-[620px]:[&_select]:p-[11px_9px] max-[620px]:[&>small]:text-[7px]">
+              <span>Your comfort line (%)</span>
+              <input
+                type="number"
+                min="105"
+                max="1000"
+                value={comfort}
+                onChange={(e) => setComfort(e.target.value)}
+              />
+              <small>Mr.Fund becomes concerned below this line. This is not a guarantee.</small>
+            </label>
+            <label className="switch-row flex items-center justify-between m-[25px_0] [&_b]:text-[11px] [&_small]:block [&_small]:text-[9px] [&_small]:text-[#9ba38f] [&_small]:mt-[5px] [&_input]:w-[19px] [&_input]:h-[19px] [&_input]:[accent-color:var(--blue)]">
               <span>
-                Activation fee <Tag>EXAMPLE PRICING</Tag>
+                <b>Watcher online</b>
+                <small>Simulate an offline Guardian watcher</small>
               </span>
-              <b>1.00 test USDC</b>
+              <input
+                type="checkbox"
+                checked={watcherOnline}
+                onChange={(e) => setWatcherOnline(e.target.checked)}
+              />
+            </label>
+            <button
+              type="button"
+              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40] full-width w-full"
+              onClick={reset}
+            >
+              <RefreshCw size={16} />
+              Reset all demo activity
+            </button>
+            <p className="fine-print text-[9px] leading-[1.8] text-[#929987] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
+              Settings affect this tab's demo session only. Reloading starts a fresh session.
+            </p>
+          </ModalFrame>
+        )}
+        {modal === "help" && (
+          <ModalFrame
+            eyebrow="A LITTLE CONTEXT"
+            title="Real idea. Demo office."
+            close={() => setModal(null)}
+          >
+            <div className="help-block flex gap-[14px] mt-[26px] [&_b]:text-[12px] [&_p]:text-[10px] [&_p]:text-[#8a927e] [&_p]:leading-[1.8] [&_p]:mt-[7px]">
+              <span className="help-number w-[28px] h-[28px] bg-[var(--lime)] rounded-[7px] grid place-items-center text-[10px] shrink-0">
+                01
+              </span>
+              <div>
+                <b>Talk it through.</b>
+                <p>
+                  Explore position summaries, repay-versus-yield, and price-drop scenarios. Chat
+                  responses are scripted; financial outputs use the existing deterministic engine on
+                  illustrative inputs.
+                </p>
+              </div>
             </div>
-            <div>
-              <span>Per-action fee</span>
-              <b>0.00 test USDC</b>
+            <div className="help-block flex gap-[14px] mt-[26px] [&_b]:text-[12px] [&_p]:text-[10px] [&_p]:text-[#8a927e] [&_p]:leading-[1.8] [&_p]:mt-[7px]">
+              <span className="help-number w-[28px] h-[28px] bg-[var(--lime)] rounded-[7px] grid place-items-center text-[10px] shrink-0">
+                02
+              </span>
+              <div>
+                <b>Try a move.</b>
+                <p>
+                  Connect the mock wallet, adjust a repayment, and approve it. You can simulate
+                  rejection, failure, or a partial batch before approval.
+                </p>
+              </div>
             </div>
-            <small>
-              Recipient: fees.demo.testnet · Demo pricing only; live pricing is undecided.
-            </small>
-          </div>
-          <p className="fine-print text-[9px] leading-[1.8] text-[#929987] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
-            This flow simulates a separate Guardian account and loan. No account is created and no
-            tokens move on-chain. Protection cannot prevent liquidation.
-          </p>
-          <div className="modal-actions flex gap-[10px] justify-end mt-[25px] [&_.button]:flex-1 [&_.button]:text-[10px]! max-[620px]:gap-[8px] max-[620px]:[&_.button]:text-[9px]! max-[620px]:[&_.button]:p-[12px_9px] max-[620px]:[&_.button]:gap-[6px]">
-            <button
-              type="button"
-              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40]"
-              onClick={setupReview ? () => setSetupReview(false) : () => setModal(null)}
-            >
-              {setupReview ? "Back to edit" : "Maybe later"}
-            </button>
-            <button
-              type="button"
-              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-white! [&:hover]:bg-[#183ac7]"
-              disabled={!!policyValidation()}
-              onClick={setupReview ? activate : () => setSetupReview(true)}
-            >
-              {setupReview ? "Approve in mock wallet" : "Review my rules"}
-              <ArrowRight size={17} />
-            </button>
-          </div>
-        </ModalFrame>
-      )}
-      {pending && (
-        <ModalFrame
-          eyebrow="MOCK WALLET · NO REAL SIGNATURE"
-          title={signing ? "Making your move…" : pending.title}
-          close={() => {
-            if (!signing) setPending(null);
-          }}
-        >
-          <p className="modal-copy text-[12px] leading-[1.8] text-[#7a8174] m-[20px_0]! max-[620px]:text-[11px]">
-            {pending.description}
-          </p>
-          <div className="approval-amount flex flex-col gap-[11px] items-center bg-[#f0f3e7] p-[27px_15px] rounded-[11px] text-center [&_small]:text-[8px] [&_small]:tracking-[.1em] [&_small]:text-[#8e9c7a] [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[25px] [&_b]:tracking-[-.7px] [&_span]:text-[9px] [&_span]:text-[#8d977f] max-[620px]:[&_b]:text-[23px]">
-            <small>YOU AUTHORIZE IN THIS DEMO</small>
-            <b>{pending.amount}</b>
-            <span>Account: you.demo.testnet</span>
-          </div>
-          <label className="form-field flex flex-col gap-[8px] mt-[21px] min-w-0 [&>span]:text-[10px] [&>span]:font-bold [&>span]:flex [&>span]:justify-between [&>span_small]:text-[8px] [&>span_small]:font-normal [&>span_small]:text-[#9ba18f] [&_input]:p-[12px] [&_input]:bg-[#f6f7f0] [&_input]:[border:1px_solid_#dce0d2] [&_input]:rounded-[7px] [&_input]:text-[12px] [&_input]:text-[var(--ink)] [&_input]:w-full [&_input]:min-w-0 [&_select]:p-[12px] [&_select]:bg-[#f6f7f0] [&_select]:[border:1px_solid_#dce0d2] [&_select]:rounded-[7px] [&_select]:text-[12px] [&_select]:text-[var(--ink)] [&_select]:w-full [&_select]:min-w-0 [&>small]:text-[8px] [&>small]:leading-[1.5] [&>small]:text-[#8e9783] max-[620px]:[&>span]:text-[9px] max-[620px]:[&_input]:text-[11px] max-[620px]:[&_input]:p-[11px_9px] max-[620px]:[&_select]:text-[11px] max-[620px]:[&_select]:p-[11px_9px] max-[620px]:[&>small]:text-[7px]">
-            <span>Demo transaction outcome</span>
-            <select
-              disabled={signing}
-              value={walletOutcome}
-              onChange={(e) => setWalletOutcome(e.target.value)}
-            >
-              <option value="success">Confirmed — apply demo action</option>
-              <option value="cancel">Wallet rejection — keep draft</option>
-              <option value="failure">Transaction failure — keep balances</option>
-              <option value="partial">Partial batch — review receipt</option>
-            </select>
-          </label>
-          <div className="modal-actions flex gap-[10px] justify-end mt-[25px] [&_.button]:flex-1 [&_.button]:text-[10px]! max-[620px]:gap-[8px] max-[620px]:[&_.button]:text-[9px]! max-[620px]:[&_.button]:p-[12px_9px] max-[620px]:[&_.button]:gap-[6px]">
-            <button
-              type="button"
-              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40]"
-              disabled={signing}
-              onClick={() => {
-                setPending(null);
-                setNotice("You cancelled. Your draft is still here.");
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-white! [&:hover]:bg-[#183ac7]"
-              disabled={signing}
-              onClick={confirmPending}
-            >
-              {signing ? (
-                <LoaderCircle className="spin animate-spin" size={17} />
-              ) : (
-                <Check size={17} />
-              )}
-              {signing ? "Simulating…" : "Approve demo action"}
-            </button>
-          </div>
-        </ModalFrame>
-      )}
-      {selectedReceipt && (
-        <ModalFrame
-          eyebrow="A RECORD, NOT A PROMISE"
-          title="Your demo receipt."
-          close={() => setSelectedReceipt(null)}
-        >
-          <div className={playClasses(`receipt-banner ${selectedReceipt.status}`)}>
-            <span>
-              {selectedReceipt.status === "confirmed" ? (
-                <BadgeCheck size={27} />
-              ) : (
-                <AlertTriangle size={27} />
-              )}
-            </span>
-            <div>
-              <b>{selectedReceipt.title}</b>
+            <div className="help-block flex gap-[14px] mt-[26px] [&_b]:text-[12px] [&_p]:text-[10px] [&_p]:text-[#8a927e] [&_p]:leading-[1.8] [&_p]:mt-[7px]">
+              <span className="help-number w-[28px] h-[28px] bg-[var(--lime)] rounded-[7px] grid place-items-center text-[10px] shrink-0">
+                03
+              </span>
+              <div>
+                <b>Set your limits.</b>
+                <p>
+                  Activate a simulated Guardian, inspect its rules, run a labelled replay or
+                  over-limit test, then pause, deactivate, or withdraw.
+                </p>
+              </div>
+            </div>
+            <p className="risk-note flex gap-[9px] bg-[#f1f1e7] p-[15px] rounded-[9px] text-[9px] leading-[1.8] text-[#818a74] mt-[24px]!">
+              <Shield size={18} />
+              The live product aims to reduce liquidation risk within your limits. It cannot prevent
+              liquidation. Guardian and Rhea have smart-contract risks; hackathon code is unaudited.
+            </p>
+            <p className="mt-5! text-[9px] leading-relaxed text-[#8b957c]">
+              Character:{" "}
+              <a
+                className="underline underline-offset-2"
+                href="https://sketchfab.com/3d-models/businessman-rigged-8933d61fcb1e46f3aead661227bb4fed"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Businessman (Rigged) by Jungle Jim
+              </a>
+              —{" "}
+              <a
+                className="underline underline-offset-2"
+                href="https://creativecommons.org/licenses/by/4.0/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                CC BY 4.0
+              </a>
+              . Adapted with a standing pose, procedural wave and scene placement.
+            </p>
+          </ModalFrame>
+        )}
+        {modal === "setup" && (
+          <ModalFrame
+            eyebrow={setupReview ? "YOUR RULES, IN PLAIN WORDS" : "LET'S SET SOME BOUNDARIES"}
+            title={setupReview ? "Your Guardian. Your terms." : "A Guardian on your terms."}
+            close={() => {
+              setModal(null);
+              setSetupReview(false);
+            }}
+            wide
+          >
+            <div className="setup-steps flex items-center gap-[10px] mt-[24px] [&>span]:text-[9px] [&>span]:text-[#a1aa94] [&>span]:font-semibold [&>span.current]:text-[var(--blue)] [&>i]:flex-1 [&>i]:h-[1px] [&>i]:bg-[#e1e5d7] max-[620px]:[&>span]:text-[8px]">
+              <span className={playClasses(!setupReview ? "current" : "")}>01 Configure</span>
+              <i />
+              <span className={playClasses(setupReview ? "current" : "")}>02 Review</span>
+              <i />
+              <span>03 Mock approval</span>
+            </div>
+            <div className="setup-position flex items-center gap-[11px] bg-[#f1f4e9] p-[15px] [border:1px_solid_#dfe5d4] rounded-[9px] mt-[23px] [&>span]:flex-1 [&>span]:min-w-0 [&_b]:block [&_b]:text-[11px] [&_small]:block [&_small]:text-[8px] [&_small]:leading-[1.6] [&_small]:mt-[5px] [&_small]:text-[#909b82] [&_.tag]:text-[7px] [&_.tag]:text-[#839369] [&_.tag]:[border-color:#d6dfc7] max-[620px]:p-[12px] max-[620px]:gap-[8px] max-[620px]:[&_b]:text-[9px] max-[620px]:[&_small]:text-[7px] max-[620px]:[&_.tag]:hidden">
+              <Shield size={20} />
+              <span>
+                <b>Guardian-held loan · NEAR / USDC</b>
+                <small>Separate simulated position. Your wallet loan stays where it is.</small>
+              </span>
+              <Tag>G1 DEMO</Tag>
+            </div>
+            {!setupReview ? (
+              <>
+                <div className="fixed-action mt-[23px] [&_small]:text-[8px] [&_small]:tracking-[.08em] [&_small]:text-[#8b967d] [&_b]:flex [&_b]:items-center [&_b]:justify-between [&_b]:text-[11px] [&_b]:mt-[9px] [&_b]:pb-[15px] [&_b]:[border-bottom:1px_solid_var(--line)]">
+                  <small>ALLOWED ACTION</small>
+                  <b>
+                    Repay USDC debt from my reserve <LockKeyhole size={14} />
+                  </b>
+                </div>
+                <div className="setup-form-grid grid grid-cols-[1fr_1fr] gap-x-[20px] max-[620px]:gap-x-[12px]">
+                  {field("max", "Maximum per action", "USDC", "Largest single repayment.")}
+                  {field(
+                    "cap",
+                    "Lifetime spending cap",
+                    "USDC",
+                    "At least your per-action maximum.",
+                  )}
+                  {field("floor", "Reserve to keep", "USDC", "Automation never spends below this.")}
+                  {field("deposit", "Reserve deposit", "USDC", "Activation fee is added on top.")}
+                  {field(
+                    "trigger",
+                    "Trigger below health",
+                    "%",
+                    "Minimum 105%; liquidation line is 100%.",
+                  )}
+                  {field(
+                    "target",
+                    "Target health after action",
+                    "%",
+                    "Must be above your trigger.",
+                    true,
+                  )}
+                  {field("cooldown", "Time between actions", "min", "Minimum 5 minutes.")}
+                </div>
+                {policyValidation() && (
+                  <p
+                    className="field-error flex items-start gap-[6px] text-[#af5034] text-[10px] leading-[1.7] mt-[18px]!"
+                    role="alert"
+                  >
+                    <AlertTriangle size={15} />
+                    {policyValidation()}
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="policy-summary pt-[20px] [&_p]:text-[13px] [&_p]:leading-[1.9] [&_p]:text-[#7b866e] [&_p]:mt-[13px] [&_b]:text-[var(--ink)] [&_b]:font-bold max-[620px]:[&_p]:text-[12px]">
+                <p>
+                  When the simulated Guardian loan's health falls below{" "}
+                  <b>{policyFields.trigger}%</b>, it may repay up to <b>{policyFields.max} USDC</b>{" "}
+                  per action, with at least <b>{policyFields.cooldown} minutes</b> between actions.
+                </p>
+                <p>
+                  It will keep at least <b>{policyFields.floor} USDC</b> in reserve and spend no
+                  more than <b>{policyFields.cap} USDC</b> over this activation.{" "}
+                  {policyFields.target && (
+                    <>
+                      The sizing target is <b>{policyFields.target}%</b> health.
+                    </>
+                  )}
+                </p>
+                <p>
+                  You deposit <b>{policyFields.deposit} USDC</b> into the demo reserve. Pause or
+                  deactivate whenever you want, and withdraw unused reserve.
+                </p>
+              </div>
+            )}
+            <div className="fee-box bg-[#eff1e7] rounded-[9px] p-[15px] mt-[23px] flex flex-col gap-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:text-[10px] [&>div]:gap-[8px] [&>div>span]:flex [&>div>span]:items-center [&>div>span]:gap-[8px] [&_.tag]:text-[6px] [&_.tag]:text-[#8c977b] [&_.tag]:p-[3px_4px] [&_b]:text-[10px] [&_b]:whitespace-nowrap [&>small]:text-[8px] [&>small]:text-[#8d987f] [&>small]:leading-[1.7] max-[620px]:p-[12px] max-[620px]:[&_.tag]:text-[5px] max-[620px]:[&_.tag]:tracking-[0] max-[620px]:[&>div]:text-[8px] max-[620px]:[&_b]:text-[8px] max-[620px]:[&>small]:text-[7px]">
+              <div>
+                <span>
+                  Activation fee <Tag>EXAMPLE PRICING</Tag>
+                </span>
+                <b>1.00 test USDC</b>
+              </div>
+              <div>
+                <span>Per-action fee</span>
+                <b>0.00 test USDC</b>
+              </div>
               <small>
-                {selectedReceipt.status.toUpperCase()} · SIMULATED · {selectedReceipt.at}
+                Recipient: fees.demo.testnet · Demo pricing only; live pricing is undecided.
               </small>
             </div>
-          </div>
-          <p className="modal-copy text-[12px] leading-[1.8] text-[#7a8174] m-[20px_0]! max-[620px]:text-[11px]">
-            {selectedReceipt.detail}
-          </p>
-          {selectedReceipt.before && (
-            <div className="receipt-health flex items-center justify-between [border:1px_solid_#dde4d0] rounded-[8px] p-[14px_12px] gap-[10px] [&>span]:text-[10px] [&>span]:text-[#8b977b] [&_b]:flex [&_b]:gap-[8px] [&_b]:items-center [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[15px] max-[620px]:p-[12px_9px] max-[620px]:[&>span]:text-[8px] max-[620px]:[&_b]:text-[13px]">
-              <span>Position health</span>
-              <b>
-                {selectedReceipt.before}
-                <ArrowRight size={18} />
-                {selectedReceipt.after}
-              </b>
+            <p className="fine-print text-[9px] leading-[1.8] text-[#929987] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
+              This flow simulates a separate Guardian account and loan. No account is created and no
+              tokens move on-chain. Protection cannot prevent liquidation.
+            </p>
+            <div className="modal-actions flex gap-[10px] justify-end mt-[25px] [&_.button]:flex-1 [&_.button]:text-[10px]! max-[620px]:gap-[8px] max-[620px]:[&_.button]:text-[9px]! max-[620px]:[&_.button]:p-[12px_9px] max-[620px]:[&_.button]:gap-[6px]">
+              <button
+                type="button"
+                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40]"
+                onClick={setupReview ? () => setSetupReview(false) : () => setModal(null)}
+              >
+                {setupReview ? "Back to edit" : "Maybe later"}
+              </button>
+              <button
+                type="button"
+                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-white! [&:hover]:bg-[#183ac7]"
+                disabled={!!policyValidation()}
+                onClick={setupReview ? activate : () => setSetupReview(true)}
+              >
+                {setupReview ? "Approve in mock wallet" : "Review my rules"}
+                <ArrowRight size={17} />
+              </button>
             </div>
-          )}
-          <div className="receipt-metadata mt-[16px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:p-[12px_0] [&>div]:[border-bottom:1px_solid_#eaede2] [&>div]:text-[10px] [&_span]:text-[#909b81] [&_b]:text-[9px] [&~.button]:mt-[22px]">
-            <div>
-              <span>Reference</span>
-              <b>DEMO-{String(selectedReceipt.id).padStart(4, "0")}</b>
-            </div>
-            <div>
-              <span>Network</span>
-              <b>Local simulation</b>
-            </div>
-            <div>
-              <span>Transaction hash</span>
-              <b>Not submitted</b>
-            </div>
-          </div>
-          <p className="fine-print text-[9px] leading-[1.8] text-[#929987] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
-            No explorer link: this is a local UI simulation. The result is computed from the updated
-            demo fixture, not observed on-chain.
-          </p>
-          <button
-            type="button"
-            className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-white! [&:hover]:bg-[#183ac7] full-width w-full"
-            onClick={() => {
-              setSelectedReceipt(null);
-              setTab("activity");
+          </ModalFrame>
+        )}
+        {pending && (
+          <ModalFrame
+            eyebrow="MOCK WALLET · NO REAL SIGNATURE"
+            title={signing ? "Making your move…" : pending.title}
+            close={() => {
+              if (!signing) setPending(null);
             }}
           >
-            View all activity <ArrowRight size={16} />
-          </button>
-        </ModalFrame>
-      )}
+            <p className="modal-copy text-[12px] leading-[1.8] text-[#7a8174] m-[20px_0]! max-[620px]:text-[11px]">
+              {pending.description}
+            </p>
+            <div className="approval-amount flex flex-col gap-[11px] items-center bg-[#f0f3e7] p-[27px_15px] rounded-[11px] text-center [&_small]:text-[8px] [&_small]:tracking-[.1em] [&_small]:text-[#8e9c7a] [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[25px] [&_b]:tracking-[-.7px] [&_span]:text-[9px] [&_span]:text-[#8d977f] max-[620px]:[&_b]:text-[23px]">
+              <small>YOU AUTHORIZE IN THIS DEMO</small>
+              <b>{pending.amount}</b>
+              <span>Account: you.demo.testnet</span>
+            </div>
+            <label className="form-field flex flex-col gap-[8px] mt-[21px] min-w-0 [&>span]:text-[10px] [&>span]:font-bold [&>span]:flex [&>span]:justify-between [&>span_small]:text-[8px] [&>span_small]:font-normal [&>span_small]:text-[#9ba18f] [&_input]:p-[12px] [&_input]:bg-[#f6f7f0] [&_input]:[border:1px_solid_#dce0d2] [&_input]:rounded-[7px] [&_input]:text-[12px] [&_input]:text-[var(--ink)] [&_input]:w-full [&_input]:min-w-0 [&_select]:p-[12px] [&_select]:bg-[#f6f7f0] [&_select]:[border:1px_solid_#dce0d2] [&_select]:rounded-[7px] [&_select]:text-[12px] [&_select]:text-[var(--ink)] [&_select]:w-full [&_select]:min-w-0 [&>small]:text-[8px] [&>small]:leading-[1.5] [&>small]:text-[#8e9783] max-[620px]:[&>span]:text-[9px] max-[620px]:[&_input]:text-[11px] max-[620px]:[&_input]:p-[11px_9px] max-[620px]:[&_select]:text-[11px] max-[620px]:[&_select]:p-[11px_9px] max-[620px]:[&>small]:text-[7px]">
+              <span>Demo transaction outcome</span>
+              <select
+                disabled={signing}
+                value={walletOutcome}
+                onChange={(e) => setWalletOutcome(e.target.value)}
+              >
+                <option value="success">Confirmed — apply demo action</option>
+                <option value="cancel">Wallet rejection — keep draft</option>
+                <option value="failure">Transaction failure — keep balances</option>
+                <option value="partial">Partial batch — review receipt</option>
+              </select>
+            </label>
+            <div className="modal-actions flex gap-[10px] justify-end mt-[25px] [&_.button]:flex-1 [&_.button]:text-[10px]! max-[620px]:gap-[8px] max-[620px]:[&_.button]:text-[9px]! max-[620px]:[&_.button]:p-[12px_9px] max-[620px]:[&_.button]:gap-[6px]">
+              <button
+                type="button"
+                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#bcc6a8] bg-transparent [&:hover]:bg-[#ffffff40]"
+                disabled={signing}
+                onClick={() => {
+                  setPending(null);
+                  setNotice("You cancelled. Your draft is still here.");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-white! [&:hover]:bg-[#183ac7]"
+                disabled={signing}
+                onClick={confirmPending}
+              >
+                {signing ? (
+                  <LoaderCircle className="spin animate-spin" size={17} />
+                ) : (
+                  <Check size={17} />
+                )}
+                {signing ? "Simulating…" : "Approve demo action"}
+              </button>
+            </div>
+          </ModalFrame>
+        )}
+        {selectedReceipt && (
+          <ModalFrame
+            eyebrow="A RECORD, NOT A PROMISE"
+            title="Your demo receipt."
+            close={() => setSelectedReceipt(null)}
+          >
+            <div className={playClasses(`receipt-banner ${selectedReceipt.status}`)}>
+              <span>
+                {selectedReceipt.status === "confirmed" ? (
+                  <BadgeCheck size={27} />
+                ) : (
+                  <AlertTriangle size={27} />
+                )}
+              </span>
+              <div>
+                <b>{selectedReceipt.title}</b>
+                <small>
+                  {selectedReceipt.status.toUpperCase()} · SIMULATED · {selectedReceipt.at}
+                </small>
+              </div>
+            </div>
+            <p className="modal-copy text-[12px] leading-[1.8] text-[#7a8174] m-[20px_0]! max-[620px]:text-[11px]">
+              {selectedReceipt.detail}
+            </p>
+            {selectedReceipt.before && (
+              <div className="receipt-health flex items-center justify-between [border:1px_solid_#dde4d0] rounded-[8px] p-[14px_12px] gap-[10px] [&>span]:text-[10px] [&>span]:text-[#8b977b] [&_b]:flex [&_b]:gap-[8px] [&_b]:items-center [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[15px] max-[620px]:p-[12px_9px] max-[620px]:[&>span]:text-[8px] max-[620px]:[&_b]:text-[13px]">
+                <span>Position health</span>
+                <b>
+                  {selectedReceipt.before}
+                  <ArrowRight size={18} />
+                  {selectedReceipt.after}
+                </b>
+              </div>
+            )}
+            <div className="receipt-metadata mt-[16px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:p-[12px_0] [&>div]:[border-bottom:1px_solid_#eaede2] [&>div]:text-[10px] [&_span]:text-[#909b81] [&_b]:text-[9px] [&~.button]:mt-[22px]">
+              <div>
+                <span>Reference</span>
+                <b>DEMO-{String(selectedReceipt.id).padStart(4, "0")}</b>
+              </div>
+              <div>
+                <span>Network</span>
+                <b>Local simulation</b>
+              </div>
+              <div>
+                <span>Transaction hash</span>
+                <b>Not submitted</b>
+              </div>
+            </div>
+            <p className="fine-print text-[9px] leading-[1.8] text-[#929987] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
+              No explorer link: this is a local UI simulation. The result is computed from the
+              updated demo fixture, not observed on-chain.
+            </p>
+            <button
+              type="button"
+              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-[0_4px_8px_#1d243214] [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-white! [&:hover]:bg-[#183ac7] full-width w-full"
+              onClick={() => {
+                setSelectedReceipt(null);
+                setTab("activity");
+              }}
+            >
+              View all activity <ArrowRight size={16} />
+            </button>
+          </ModalFrame>
+        )}
+      </div>
     </main>
   );
 }

@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-The user requested a local UI demo at `/play` on `feat/full-frontend`, with a real 3D suited character, bold solid colors, a distinctive layout, and a mock wallet. The landing route `/` remains unchanged. Nothing is deployed, committed, or pushed by this task.
+The user requested a local UI demo at `/play` on `feat/full-frontend`, with a real 3D suited character, bold solid colors, a distinctive layout, and a mock wallet. The landing route `/` remains unchanged. Changes stay local; nothing is deployed or pushed.
 
 This document describes the demo implementation, not proof of a live integration. Browser inspection is assigned to the user at their request. Production custody (D18), network (D19), pricing (D24), and model choice (D25) remain open. Three.js is the rendering choice for this demo; D26's production decision is not silently finalized.
 
@@ -27,9 +27,11 @@ Styling uses Tailwind CSS v4 utilities in JSX, with reusable utility recipes for
 
 ## Layout and screens
 
-Desktop: an ink header with office, Guardian, and Activity tabs; an editorial workspace heading; an asymmetric orange 3D stage beside the chat; a dark position card and lime Guardian card underneath. A small insight strip links back to the recommendation flow.
+The office is now the entire interface, inspired by the user's Talking Tom reference: Mr.Fund stands prominently at the centre of a furnished 3D room. There is no default dashboard or persistent chat panel. The mr.fund wordmark is raised 3D lettering on the rear wall above the vault, centred at y=4.5 after the user requested a higher placement. Bricolage Grotesque letter shapes have cream fronts, muted lime sides, bevels and cast shadows, without a box or fixed logo badge. A compact wallet HUD sits at the top right, small settings/audio/help controls sit at the side, and a tactile five-action dock anchors the bottom: Chat, Position, Voice, Guardian, Activity. The character's name/mood chip sits above the dock. Promotional speech bubbles and room labels were removed at the user's request.
 
-On narrow screens the header navigation becomes a second row and the stage, chat, position, and Guardian stack. Breakpoints: 1500, 1100, 820, and 620 px. The layout is authored for 360 px and larger; final visual inspection is the user's task.
+Each dock action opens one dismissible overlay over the same room. On desktop it is a right-hand sheet; on mobile it occupies the central area above the dock. Switching tools keeps the scene and demo state intact. Escape and the close button dismiss the sheet and return focus to the opening control. Confirmation, setup, wallet, and receipt dialogs appear above tool overlays. The room has a fixed viewport and does not turn into a scrolling dashboard on phones.
+
+Chat and position are opt-in overlays. Guardian controls, setup/review, activity history and all existing mock approval outcomes remain available. Voice has explicit microphone activation through the browser's SpeechRecognition API when available; permission, no-speech, unsupported-browser and start failures have visible recovery states. The transcript is editable and must be explicitly sent. A labelled sample transcript supports the demo without microphone access. Spoken scripted replies can be enabled with the sound control using browser speech synthesis; no live LLM or transaction authorization is implied.
 
 - **Connect:** a modal explains the mock wallet, shows available simulated USDC, supports connection, account copy, and disconnection. Real wallet providers are visibly unavailable.
 - **Main:** real GLB stage, data-derived character mood, scripted chat, suggested questions, an inline recommendation, and the position panel.
@@ -43,9 +45,23 @@ On narrow screens the header navigation becomes a second row and the stage, chat
 
 ## Character and interaction
 
-The asset is Quaternius's animated **Business Man**, distributed as Public Domain CC0 by Poly Pizza: https://poly.pizza/m/JFrLIKqvCH . It is served locally as `/play/business-man.glb`; suit, tie, shirt, and skin materials are customized at runtime. Only neutral idle and wave animations are exposed. The office props are procedural Three.js meshes authored for this demo.
+[V, 2026-11-07] At the user's request, the active character temporarily returns to **Businessman (Rigged) by Jungle Jim**, `/play/jungle-jim/businessman.glb`. It preserves the original suit and skin textures and uses the standing-pose, breathing, damped head tracking and staggered procedural wave controller. Feet remain planted; reduced motion restores the still standing pose. Its own preview is the labelled fallback. Attribution is visible in How it works and `public/play/ASSETS.md` (CC BY 4.0).
 
-A drag rotates the office within bounded angles. The wave button triggers the supplied wave clip. Loading or tool work shows Thinking. The engine determines Calm, Concerned, and Pleased using simulated position and receipt data. Failed transactions and stale/missing inputs affect mood. Model playback and decorative motion respect reduced-motion; offscreen rendering pauses. WebGL failure shows a labelled poster fallback.
+[I] The user prefers a professional character with a fun, clearly readable face; a suit and facial hair are optional. Jake's approximately 30 MB FBX loaded too slowly. Its unused controller, tests and preview are archived in ignored local scratch; the FBX is no longer present and the scene no longer requests Jake. A lighter replacement is deferred.
+
+[V, local source inspection 2026-11-07] The desk, chair and vault now load the user's GLB files; other room geometry remains procedural. Furniture normalization handles different source units and pivots. The vault's body, rather than its open door, anchors the Guardian lettering and lamp. Provenance and the chair's noncommercial license are recorded in `public/play/ASSETS.md`.
+
+Guardian entry now uses scene completion rather than a UI delay: either the dock button or vault click starts the character's walk to the safe, a reach/handle gesture and outward door opening, then reveals the Guardian overlay. Repeated requests do not restart the walk. Switching tools, closing the panel or Escape cancels the visit and returns him home. Reduced motion skips the choreography; WebGL fallback still permits the panel. The door starts closed at its actual source hinge angle (-90°), opens only during the visit, and closes on return. The floating coin was removed at the user's request; no floating ornament remains.
+
+Chat now shares the same actor timeline as Guardian. Clicking Chat or the workstation walks Mr.Fund through the aisle to the left of the desk, turns him forward, and lowers him into the executive chair using hip/knee and arm poses. A frontal camera moves in during seating, with room for the chat overlay, and the panel opens only on seating completion. The laptop screen faces the seated character. Closing Chat or changing destinations stands him up before walking away; repeated requests and stale completions cannot reopen an old panel. Reduced motion uses the seated pose immediately without walking or camera animation. All movement remains a procedural rig animation, not motion capture. Walking arms swing fore/aft using axes calibrated from the actual resting arm bones to the actor's left/right axis, opposite the matching leg; this remains aligned when the actor turns.
+
+The character retains click-to-wave and hover outline interactions. The vault, desk, chart and activity board open their matching overlays. Scene ornaments indicate simulated engine state; numeric figures stay in the HTML panels. Reduced motion disables parallax and camera glides. Offscreen rendering pauses.
+
+## Tablet and phone viewports
+
+[V, implementation and automated checks 2026-11-07] Phone portrait is detected before the playground mounts, using a coarse-pointer, width-under-768 and portrait media query. The rotation notice opens the office automatically after landscape is detected. Later portrait rotations hide and make the existing app inert, preserving the demo session; the hidden canvas stops through its visibility observer. Tablets at 768px and wider can use either orientation.
+
+Tool panels reserve `min(460px, 44vw)` on the right. Camera framing accounts for that occupied width, including tablet portrait and phone landscape. Short viewports (height at most 600px) use a compact dock, a horizontal right-side control row, a shorter header, a nearly full-height side panel and a simplified chat header. Chat input remains 16px to avoid small touch text and iOS input zoom. UI styling remains Tailwind utilities. Automated tests cover the orientation gate/session preservation and camera fit at 768×1024, 820×1180, 1024×768, 1180×820, 844×390 and 568×320; browser visual QA remains with the user.
 
 ## Honesty and boundaries
 
