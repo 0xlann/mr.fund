@@ -1,6 +1,6 @@
 use near_sdk::{
     json_types::{U128, U64},
-    near, AccountId,
+    near,
 };
 
 pub const HISTORY_LEN: usize = 50;
@@ -23,47 +23,7 @@ pub struct InFlight {
     pub started_ns: u64,
 }
 
-#[near(serializers = [json, borsh])]
-#[derive(Clone)]
-pub struct GuardianConfig {
-    pub owner_id: AccountId,
-    pub watcher_id: AccountId,
-    pub lending_id: AccountId,
-    pub oracle_id: AccountId,
-    pub debt_token_id: AccountId,
-    pub collateral_token_ids: Vec<AccountId>,
-    pub fee_recipient_id: AccountId,
-    pub activation_fee: U128,
-    pub lending_version: String,
-    pub debt_extra_decimals: u8,
-    pub collateral_extra_decimals: u8,
-    pub collateral_price_id: String,
-    pub debt_price_id: String,
-    pub max_price_age_sec: u32,
-}
-
-impl GuardianConfig {
-    pub fn validate(&self) {
-        near_sdk::require!(
-            matches!(self.lending_version.as_str(), "0.11.0" | "0.16.2"),
-            "Unsupported lending version"
-        );
-        near_sdk::require!(
-            self.debt_extra_decimals <= 38 && self.collateral_extra_decimals <= 38,
-            "Invalid extra decimals"
-        );
-        near_sdk::require!(
-            (1..=3600).contains(&self.max_price_age_sec),
-            "Invalid price age"
-        );
-        for feed in [&self.collateral_price_id, &self.debt_price_id] {
-            near_sdk::require!(
-                feed.len() == 64 && feed.bytes().all(|b| b.is_ascii_hexdigit()),
-                "Invalid feed id"
-            );
-        }
-    }
-}
+pub use guardian_types::GuardianConfig;
 
 #[near(serializers = [json, borsh])]
 #[derive(Clone, Debug, PartialEq)]

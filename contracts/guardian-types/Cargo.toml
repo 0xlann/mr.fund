@@ -1,14 +1,10 @@
 [package]
-name = "provision-spike"
-description = "Throwaway task 1.2 experiment: measured keyless Guardian provisioning strategies"
+name = "guardian-types"
+description = "Guardian config and policy types shared by the Guardian and its factory"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
-build = "build.rs"
-
-[lib]
-crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 near-sdk = "=5.30.0"

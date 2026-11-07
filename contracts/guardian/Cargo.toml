@@ -12,6 +12,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 near-sdk = "=5.30.0"
 near-sys = "=0.4.0"
+guardian-types = { path = "../guardian-types" }
 protocol-trigger = { path = "../protocol-trigger" }
 
 [dev-dependencies]

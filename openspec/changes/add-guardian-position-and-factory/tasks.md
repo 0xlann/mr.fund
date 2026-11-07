@@ -18,9 +18,12 @@
 
 ## 3. Factory lifecycle
 
-- [ ] 3.1 Implement validated child creation/deployment/init with a pending-per-owner guard and immutable config; add no access keys or upgrade method.
-- [ ] 3.2 Implement phase-bound creation/refund callbacks and publish owner mapping only after successful initialization.
-- [ ] 3.3 Test underfunding, duplicate creates, deploy/init/refund failures, callback replay and keyless failed-child reporting without a fictional full refund.
+- [x] 3.1 Implement validated child creation/deployment/init with a pending-per-owner guard and immutable config; add no access keys or upgrade method.
+  - `contracts/guardian-factory`; shared `contracts/guardian-types`. A unit test fails on any key/stake/delete action in the batch; the throwaway spike crate is deleted.
+- [x] 3.2 Implement phase-bound creation/refund callbacks and publish owner mapping only after successful initialization.
+  - `on_guardian_created` clears the pending guard first (replay fails) and writes mapping and nonce only on a successful batch; `on_refund_resolved`/`on_claim_resolved` decide sent versus claimable from the observed transfer.
+- [x] 3.3 Test underfunding, duplicate creates, deploy/init/refund failures, callback replay and keyless failed-child reporting without a fictional full refund.
+  - Sandbox, real factory: under-funded batch, existing id, out-of-range funding/gas/policy, concurrent duplicate, forged callbacks. Unit only: replay and the refund-transfer-failure (`claimable`) path. Spike only (commit 85ddd3c): an init panic reverting atomically. Keyless failed-child reporting does not apply: creation is atomic and no child survives a failure.
 
 ## 4. Sandbox proof and handoff
 

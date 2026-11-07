@@ -84,17 +84,52 @@ pub async fn lifecycle(
     source: &Value,
 ) -> Result<()> {
     let [lending, collateral, debt, oracle] = targets;
-    let guardian = worker
-        .dev_deploy(&std::fs::read(target("near/guardian/guardian.wasm"))?)
-        .await?;
-    let init = json!({"config":{"owner_id":owner.id(),"watcher_id":watcher.id(),"lending_id":lending.id(),"oracle_id":oracle.id(),"debt_token_id":debt.id(),"collateral_token_ids":[collateral.id()],"fee_recipient_id":owner.id(),"activation_fee":"0","lending_version":source["version"],"debt_extra_decimals":12,"collateral_extra_decimals":0,"collateral_price_id":"11".repeat(32),"debt_price_id":"22".repeat(32),"max_price_age_sec":60},"policy":{"max_per_action":"1000000","lifetime_cap":"10000000","reserve_floor":"100","trigger_hf_bps":12000,"target_hf_bps":null,"cooldown_sec":300,"action_fee":"0"}});
-    call(owner, &guardian, "new", init, NearToken::from_yoctonear(0)).await?;
-    guardian
-        .batch()
-        .delete_key(guardian.as_account().secret_key().public_key())
+    // Provision through the factory: the Guardian is created keyless with the
+    // template config and the owner's policy, never seeded by patching state.
+    let guardian_len = std::fs::read(target("near/guardian/guardian.wasm"))?.len() as u128;
+    let min_funding = guardian_len * 10_000_000_000_000_000_000;
+    let factory = worker
+        .root_account()?
+        .create_subaccount("f")
+        .initial_balance(NearToken::from_near(60))
         .transact()
         .await?
+        .into_result()?
+        .deploy(&std::fs::read(target(
+            "near/guardian_factory/guardian_factory.wasm",
+        ))?)
+        .await?
         .into_result()?;
+    let template = json!({"watcher_id":watcher.id(),"lending_id":lending.id(),"oracle_id":oracle.id(),"debt_token_id":debt.id(),"collateral_token_id":collateral.id(),"fee_recipient_id":owner.id(),"activation_fee":"0","lending_version":source["version"],"debt_extra_decimals":12,"collateral_extra_decimals":0,"collateral_price_id":"11".repeat(32),"debt_price_id":"22".repeat(32),"max_price_age_sec":60});
+    call(
+        factory.as_account(),
+        &factory,
+        "new",
+        json!({"template":template,"min_funding":min_funding.to_string(),"max_funding":(min_funding + 6 * 10u128.pow(24)).to_string()}),
+        NearToken::from_yoctonear(0),
+    )
+    .await?;
+    let policy = json!({"max_per_action":"1000000","lifetime_cap":"10000000","reserve_floor":"100","trigger_hf_bps":12000,"target_hf_bps":null,"cooldown_sec":300,"action_fee":"0"});
+    let created = owner
+        .call(factory.id(), "create_guardian")
+        .args_json(json!({"policy":policy}))
+        .deposit(NearToken::from_millinear(4500))
+        .gas(Gas::from_tgas(150))
+        .transact()
+        .await?;
+    assert!(created.failures().is_empty(), "{:?}", created.failures());
+    println!(
+        "gas create_guardian: {} Tgas",
+        created.total_gas_burnt.as_gas() / 1_000_000_000_000
+    );
+    let outcome: Value = created.json()?;
+    assert_eq!(outcome["outcome"], "created");
+    // A handle for views and balances only; the keyless account never signs.
+    let guardian = Contract::from_secret_key(
+        outcome["guardian_id"].as_str().unwrap().parse()?,
+        near_workspaces::types::SecretKey::from_random(near_workspaces::types::KeyType::ED25519),
+        worker,
+    );
     assert!(
         guardian.view_access_keys().await?.is_empty(),
         "I10 before use"

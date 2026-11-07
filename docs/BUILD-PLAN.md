@@ -153,11 +153,12 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Tests: health below trigger → proceeds; equal → `TriggerNotMet`; null price → `StalePrice`; expired publish time → `StalePrice`; extra asset → `UnsupportedPositionShape`; state changed between request and callback → re-checks applied.
   - Evidence [V, 2026-11-07]: exact evaluator is shared by probe and Guardian; current reads verify immutable runtime version/extra decimals/oracle/feed/freshness plus stored policy threshold. Malformed/null/stale/future/unsupported data and threshold equality reject. Both imported versions pass a deterministic owner pause during joined reads without dispatching tokens. Root300 / reads75 / trigger160 / transfer85 / resolver40 / fee10 / final10 Tgas allocations are checked per receipt, including child reservations; >2 Tgas margin is required for every Guardian receipt. These are sandbox fixtures and Simulated prices, not production token/oracle evidence.
 
-- [ ] **P2.6 Factory (G1 only).**
+- [x] **P2.6 Factory (G1 only).**
   - Owned: `contracts/guardian-factory/src/lib.rs`.
   - Decide here, with a live check: per-Guardian code deployment versus a NEAR global contract; record the storage cost measured in sandbox.
   - Tests: created account has no access keys; label collision rejected; insufficient deposit rejected with refund; disallowed token rejected; admin code change affects only new Guardians.
   - Evidence: unit and sandbox test summaries; storage cost.
+  - Evidence [V, 2026-11-07, change add-guardian-position-and-factory]: stored-code strategy chosen from a measured sandbox experiment; the factory is implemented with 9 unit tests and 4 sandbox tests (keyless child, exact floor 2.75325 NEAR for the current Guardian build, atomic failure with refund, id collision, concurrent duplicate, forged callbacks); storage and gas are recorded in [SMART-CONTRACT](technical/SMART-CONTRACT.md). The sub-tests "disallowed token" and "admin code change" above no longer apply: tokens and config are fixed by the immutable template and there is no code setter (a new Guardian build means a new factory). Not done: any public deployment (P2.8, D19/B7).
 
 - [ ] **P2.7 Sandbox integration and invariants.**
   - Owned: `contracts/tests/{guardian_flow,guardian_props}.rs`, `fixtures/encodings.json`.
