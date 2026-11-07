@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Shared syntax vectors, not live-network compatibility claims. OnlyRepay is verified for Rhea 0.16.2; testnet 0.11.0 requires the legacy Execute/Repay vector. TypeScript asserts these; complete Rust byte parity remains P2.7. Outer amounts are token atomic strings; legacy inner Repay.max_amount is Rhea internal. args_json includes key order. Gas is not part of these vectors.",
+  "note": "Shared syntax vectors asserted independently by TypeScript and Rust, not live-network compatibility claims. OnlyRepay is verified for imported Rhea 0.16.2; imported testnet 0.11.0 requires the legacy Execute/Repay vector. guardian_repay is syntax only: the current Guardian receiver does not implement it. Outer amounts are token atomic strings; legacy inner Repay.max_amount is Rhea internal. args_json includes key order. Gas is not part of these vectors.",
   "cases": [
     {
       "name": "wallet_repay_legacy",

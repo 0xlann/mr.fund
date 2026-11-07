@@ -71,6 +71,11 @@ describe("repayPayload", () => {
     expect(r.ok && JSON.stringify(r.value[0]?.actions[0]?.args)).toBe(
       vec("wallet_repay_legacy").args_json,
     );
+    expect(r.ok && r.value[0]?.receiverId).toBe(vec("wallet_repay_legacy").receiver_id);
+    expect(r.ok && r.value[0]?.actions[0]?.methodName).toBe(vec("wallet_repay_legacy").method);
+    expect(r.ok && r.value[0]?.actions[0]?.deposit).toBe(
+      BigInt(vec("wallet_repay_legacy").deposit),
+    );
   });
   it("refuses absent or unproven versions instead of guessing", () => {
     expect(build(draft(), { lendingVersion: "0.15.7" }).ok).toBe(false);

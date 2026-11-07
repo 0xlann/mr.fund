@@ -2,9 +2,9 @@
 
 ## TL;DR
 
-- **Exercised so far (read-only, 2026-11-04):** NEAR RPC view calls on testnet and mainnet (Rhea `get_version`, `get_config`, `get_assets_paged`, `get_account`, `storage_balance_bounds`, `get_all_token_pyth_infos`; `pyth-oracle.testnet` `get_price_no_older_than`); the public NEAR AI model catalog; npm, crates.io and Rust release metadata; the skills CLI install and restore. **Nothing else is exercised:** no account, key, transaction, deployment, inference call or payment exists.
-- Every integration below is **documented, not working**, until its BUILD-PLAN task records observed evidence here.
-- Founder actions: stack (D16), custody (D18), network (D19), NEAR AI key (B6), testnet accounts (B7), watcher host (B8). See [OPEN-DECISIONS](../OPEN-DECISIONS.md#blockers).
+- **Exercised:** historical public read-only RPC/catalog/tooling observations (2026-11-04), block-pinned Rhea adapter recordings, and local sandbox probe/Guardian reserve transactions (2026-11-06 onward). Sandbox uses generated local accounts and Simulated prices with imported deployed bytecode; it is not public network execution. Details and dates are recorded below and in BUILD-PLAN.
+- Integration inventory observations from 2026-11-04 are historical; later evidence sections supersede their local implementation/toolchain status. Public account creation, deployment, wallet repayment and inference calls remain unproven.
+- D16 selected Option A on 2026-11-05. Remaining founder inputs: custody (D18), network (D19), NEAR AI key (B6), testnet accounts (B7), watcher host (B8). See [OPEN-DECISIONS](../OPEN-DECISIONS.md#blockers).
 - Secrets live only in each developer's local `.env` (gitignored) or the NEAR CLI keychain. Never in docs, chat, logs or commits.
 
 ## Integration inventory
@@ -37,6 +37,10 @@
 P0.4 update [V]: seven joined reads plus private callback passed sandbox health 57000 bps and null/expired-price rejection on both imported Rhea versions. Sample read-only gas burnt: testnet 30.586/30.952 Tgas, mainnet 31.605/32.106 Tgas (at-threshold/triggered); this does not prove composed repay allocation. P0.4/D27 remain open. `fixtures/trigger-vectors.json` is hand-computed, Simulated and asserted in Rust and TypeScript.
 
 P2.1/P2.2 [V]: policy core and reserve lifecycle passed unit and sandbox tests, including keyless accounts, paid activation, deactivated withdrawal, real failed fee/withdrawal receipts and restored balances/refunds. This is not a public deployment, a factory-creation proof or chosen D24 pricing. The version-aware manual builder now uses `Repay.max_amount` on 0.11.0; its dust/overpay boundary was exercised with imported deployed bytecode. Existing historical recipe examples with strict `amount` describe only exact repayment; use `max_amount` for rounded/full repayment.
+
+## Protocol encoding and numerical evidence (2026-11-07)
+
+[V] Independent Rust assertions now cover all five `fixtures/encodings.json` syntax vectors. The same test-only encoder executes token registration, version-specific wallet dust repayment and fee transfer against the imported WASM; both versions also pass contract-owned partial/full repayment and exact borrow risk boundary checks. Modern liquidation event discount implies 8550 bps, agreeing with the engine on that vector. Legacy 0.11.0 omits discount fields, so scalar health remains unknown. Public display comparison again failed because the browser access host was unavailable. Full provenance, numerical scope and remaining gates: [PROTOCOL-EVIDENCE](PROTOCOL-EVIDENCE.md). No public write or deployment occurred.
 
 ## Environment variables (names only)
 
@@ -197,7 +201,7 @@ Each developer's agent configuration (model routing, worker limits, personal too
 
 ## Manual actions and blockers
 
-1. Founder: decide D16, D18, D19 at the Phase 0 gate (2026-11-06), with P0.2 to P0.4 evidence.
+1. Founder: decide outstanding D18/D19 from Phase 0 evidence; D16 Option A is already recorded (2026-11-05).
 2. Founder: NEAR AI key or credits (B6) before Phase 3.
 3. Founder or authorized lead: testnet accounts (B7) before P0.2.
 4. Founder: watcher host account (B8) after D16.

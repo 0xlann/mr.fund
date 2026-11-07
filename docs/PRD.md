@@ -3,11 +3,11 @@
 ## TL;DR
 
 - **One-liner [I]:** Mr.Fund is the DeFi manager you can talk to: he explains your position in plain words, shows you the smartest move, and acts only within limits you set.
-- **Status:** product scope approved by the founder on 2026-11-04 (decisions D1 to D17 in [OPEN-DECISIONS](OPEN-DECISIONS.md)). Tech stack is an **open** decision (D16). Nothing is built yet.
+- **Status:** product scope approved by the founder on 2026-11-04 (decisions D1 to D17 in [OPEN-DECISIONS](OPEN-DECISIONS.md)). D16 Option A was decided on 2026-11-05. Engine, reads, manual repay builders, agent tools and Guardian policy/reserve lifecycle have local implementation evidence in BUILD-PLAN; the full product loop and public deployment remain incomplete.
 - **What it is:** a real DeFi app with a game-like character (D2). Not a simulation, not a course, not a trading bot. One character, one lending protocol, one position, one complete real loop.
 - **P0 loop:** ask → Mr.Fund reads the real position → explains in plain words → recommendation card → Adjust or Execute now → wallet approval (or Guardian policy) → receipt → follow-up questions.
 - **Primary success condition:** a judge watches a real Rhea lending position get explained, a real repay transaction get signed and receipted, and a real Guardian contract **reject** an over-limit action, all on the demo network (D19, open).
-- **Open at the Phase 0 gate (2026-11-06):** tech stack (D16), Guardian custody model (D18) and demo network (D19). Research on 2026-11-04 found that Rhea repays only the caller's own debt, so automatic protection requires a Guardian-held loan (D18 option G1, recommended); see [OPEN-DECISIONS](OPEN-DECISIONS.md).
+- **Outstanding Phase 0 decisions:** Guardian custody model (D18) and demo network (D19); D16 is resolved. Research on 2026-11-04 found that Rhea repays only the caller's own debt, so automatic protection requires a Guardian-held loan (D18 option G1, recommended); see [OPEN-DECISIONS](OPEN-DECISIONS.md).
 - **The three rules that never bend:** the AI talks; deterministic code decides numbers; the contract decides permissions.
 
 ## Problem, users and buyer

@@ -2,6 +2,12 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-07: deployed liquidation event fields differ across Rhea versions
+
+- What happened: the sandbox health-evidence test found `old_discount: "0.0725"` on imported 0.16.2, but the same successful liquidation on 0.11.0 emitted no discount fields.
+- Root cause: the published source and the newer deployment's event shape were assumed to describe both versions. The legacy raw event carries account ids, repaid/collateral sums and position only.
+- Rule: validate event evidence against the observed version. Missing fields remain unknown; never manufacture scalar health from the very engine being compared. Preserve both versions' raw evidence and separately test deployed risk boundaries.
+
 ### 2026-11-06: a strict legacy repay amount fails when full debt rounds up
 
 - What happened: review asked for the legacy full-repay dust boundary. A sandbox debt of 10000000000000000001 internal units failed when the atomic-ceiled repayment used strict `Repay.amount`; deployed testnet bytecode panicked in pool subtraction.
