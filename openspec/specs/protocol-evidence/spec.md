@@ -42,4 +42,3 @@ Health evidence SHALL compare identical input state, record rounding/tolerance a
 
 - **WHEN** local prices are controlled fixtures
 - **THEN** results are labelled Simulated and not public network evidence
-
