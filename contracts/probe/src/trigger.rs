@@ -1,9 +1,8 @@
 //! P0.4 read-only trigger probe; no automatic repay or policy authority.
 use crate::{Probe, ProbeExt};
 use near_sdk::{
-    env, near, require,
-    serde_json::{self, json, Value},
-    AccountId, Gas, NearToken, Promise,
+    AccountId, Gas, NearToken, Promise, env, near, require,
+    serde_json::{self, Value, json},
 };
 use primitive_types::U512;
 
@@ -343,7 +342,7 @@ fn evaluate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use near_sdk::serde_json::{json, Value};
+    use near_sdk::serde_json::{Value, json};
 
     fn data() -> (Value, Value, Value, Value, Value, Value) {
         (
@@ -384,6 +383,10 @@ mod tests {
             let r = calculate(15000, |v| {
                 v[0]["collateral"][0]["balance"] = case["collateralInternal"].clone();
                 v[0]["borrowed"][0]["balance"] = case["debtInternal"].clone();
+                if let Some(multiplier) = case["collateralPriceMultiplier"].as_str() {
+                    v[4]["price"] =
+                        json!((multiplier.parse::<u128>().unwrap() * 10000).to_string());
+                }
             });
             assert_eq!(r.health_bps, case["healthBps"].as_u64(), "{}", case["name"]);
         }

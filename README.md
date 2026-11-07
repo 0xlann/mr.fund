@@ -3,7 +3,10 @@
 The DeFi manager you can talk to: he explains your position in plain words, shows you the
 smartest move, and acts only within limits you set.
 
-> Status: scaffold. Nothing is deployed and no feature works yet. Scope and progress live in
+> Status: local engine, read adapter, manual repay builders, agent tools and Guardian
+> policy/reserve lifecycle are implemented and tested. Nothing is publicly deployed;
+> chat/wallet UI, automatic Guardian settlement, factory and watcher remain incomplete.
+> Scope and progress live in
 > [docs/PRD.md](docs/PRD.md) and [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md).
 
 ## Layout
@@ -30,7 +33,8 @@ pnpm test               # vitest, all TypeScript packages
 npx vitest run packages/shared   # one package
 pnpm typecheck
 pnpm lint
-pnpm contracts:test     # cargo test in contracts/
+pnpm contracts:probe:prepare  # fresh clone: download public WASM and build local fixtures
+pnpm contracts:test     # cargo test in contracts/ (needs preparation above)
 pnpm --filter @mrfund/web dev
 ```
 

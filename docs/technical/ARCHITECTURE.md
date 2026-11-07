@@ -2,7 +2,7 @@
 
 ## TL;DR and approval
 
-- **Status: draft.** Components, trust boundaries, flows, data model and threat model are written against product decisions D1 to D15. The tech stack is **Open** (D16); the Guardian custody model is **Open** (D18, written here for the recommended G1); the demo network is **Open** (D19). This document becomes final when those three are resolved at the Phase 0 gate (BUILD-PLAN P0.8).
+- **Status: draft for unresolved custody/network.** D16 Option A was decided on 2026-11-05: Next.js App Router/Route Handlers, Rust Guardian and a separate Node watcher. Guardian custody remains **Open** (D18, written here for recommended G1), as does the demo network (D19). These diagrams include planned components; current implementation/evidence is tracked in BUILD-PLAN, not implied by arrows.
 - **Core invariant:** *the AI talks; deterministic code decides numbers; the contract decides permissions.* The LLM can read data and propose a card. It cannot build a transaction payload, sign anything, or reach the Guardian. Manual actions are signed by the user's wallet; automatic actions are requested by a deterministic watcher (no LLM in that path) and authorized only by the Guardian contract.
 - **No private keys leave the user.** The watcher holds one function-call key that can call exactly one Guardian method and attach no deposit.
 
@@ -154,9 +154,9 @@ The over-limit beat in the demo is the first branch: a request with `A > max_per
 | Reserve exhausted | Spendable < minimum repay | Guardian panel and chat warn | User tops up or deactivates | Contract and watcher tests |
 | Rhea repay refunds part | `ft_resolve_transfer` returns unused | Receipt shows used and refunded | Refund returns to reserve | Sandbox test |
 
-## Proposed stack (open, D16)
+## Selected stack and historical alternatives (D16)
 
-Nothing here is approved. Options, comparison and recommendation: [OPEN-DECISIONS D16](../OPEN-DECISIONS.md#d16-tech-stack-open). Versions are live observations from 2026-11-04, not installs.
+D16 selected Option A on 2026-11-05; Option C below is historical comparison, not an active implementation track. [OPEN-DECISIONS D16](../OPEN-DECISIONS.md#d16-tech-stack-open) records the decision. Table versions are observations from 2026-11-04; installed versions/deviations and local verification are recorded in BUILD-PLAN P0.7 and subsequent evidence.
 
 | Layer | Option A (recommended) | Option C | Version source (2026-11-04) |
 | --- | --- | --- | --- |
@@ -182,7 +182,7 @@ Character rendering candidates (D26): sprite sheets with CSS; `lottie-react` 3.1
 
 ## Codebase structure and interfaces
 
-Stack-neutral layout. Under Option A, `apps/web` hosts the chat API as Route Handlers and `apps/watcher` is a Node process; under Option C, `apps/web` is a Vite SPA and `apps/edge` holds the Worker (`fetch` plus `scheduled`) that imports `packages/agent` and `apps/watcher/src/core`.
+Selected Option A layout: `apps/web` hosts the chat API as Route Handlers under `src/app/`, and `apps/watcher` is a Node process. The Option C edge layout in the historical comparison is not implemented.
 
 ```text
 apps/
@@ -273,7 +273,7 @@ Rhea formulas implemented [V, burrowland source at `2110c70`, read 2026-11-04]:
 - `value = internal_balance × price.multiplier / 10^(price.decimals + extra_decimals)`; internal amount = token atomic amount × `10^extra_decimals`.
 - Liquidation is possible only while the discount `(B − C) / B / 2` is positive (health strictly below 100%).
 
-The engine rounds health down and debt up. These formulas are re-verified against the deployed version in P0.3 and P1.4.
+The engine rounds health down and debt up. Verification is split: shared-vector parity, actual deployed-code risk/discount behavior in local sandbox, and public display comparison. [PROTOCOL-EVIDENCE](PROTOCOL-EVIDENCE.md) records the 2026-11-07 observations and bounded source-model rounding differences. Public UI parity and the legacy deployment's scalar health remain unverified; local checks do not establish a universal 1-bp bound.
 
 ### Tool registry (`packages/agent`)
 
@@ -366,19 +366,19 @@ erDiagram
 
 | Environment | Purpose | Status |
 | --- | --- | --- |
-| Local unit tests | Engine, builders, agent checker, contract unit tests | Planned |
-| Local sandbox (`near-workspaces`) | Guardian + factory + Rhea wasm (testnet `0.11.0` and, if importable, mainnet `0.16.2`) + mock price source | Planned (P0.3, P2.7) |
+| Local unit tests | Engine, builders, agent checker, contract unit tests | Exercised; detailed results in BUILD-PLAN |
+| Local sandbox (`near-workspaces`) | Probe + imported Rhea 0.11.0/0.16.2 + test tokens/Simulated oracle; Guardian policy/reserve | Exercised; factory and automatic Guardian flow remain incomplete |
 | NEAR testnet | Phase 0 probes, Guardian deployment, demo (D19 ladder steps 1 and 2) | Planned |
 | NEAR mainnet | Read-only engine validation; deployment only if the founder approves D19 step 3 | Planned, approval-gated |
 
-Planned verification commands (planned, not run; exact commands depend on D16):
+Verification commands (actual run summaries are in BUILD-PLAN; commands alone are not evidence):
 
 - `cargo test -p guardian` (contract unit tests), `cargo test -p contract-tests` (sandbox, Linux or WSL2).
 - `cargo near build non-reproducible-wasm` for development and `cargo near build reproducible-wasm` before any deployment.
 - Package unit tests: `vitest run` in each `packages/*` (exact runner script per D16).
 - `playwright test` for UI flows with the fake wallet adapter.
 
-Observed evidence so far: research read-only RPC views only (OPEN-DECISIONS D18, D19). Nothing is deployed.
+Observed evidence includes public read-only adapter recordings, local TypeScript/Rust tests and sandbox cycles on imported deployed Rhea code with new state and Simulated prices. No public deployment or live wallet repayment is claimed. D18/D19 remain open.
 
 ## Sources
 
