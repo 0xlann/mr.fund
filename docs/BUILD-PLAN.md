@@ -146,6 +146,7 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Methods: `ft_on_transfer` `collateral` and `repay`; `owner_borrow`; `owner_withdraw_collateral`; `owner_sweep`; `owner_repay_from_reserve`.
   - Tests: sweep never touches `reserve + in_flight`; non-owner rejected; priced actions surface Rhea failures as events, not silent success.
   - Evidence: unit test summary.
+  - Partial evidence [V, 2026-11-07, change add-guardian-position-and-factory]: `owner_register`, `owner_borrow`, `owner_withdraw_collateral`, `owner_repay_from_reserve`, `owner_sweep` and the `collateral` message are implemented in `position.rs` with 21 new unit tests (49 Guardian tests pass); a keyless Guardian ran register, collateral deposit, borrow, sweep above the reserve, full manual repay and release against both imported Rhea versions with Simulated prices. Not complete: the `{"repay":{}}` receiver message is not implemented and no public-network run exists, so this stays unchecked. See [SMART-CONTRACT](technical/SMART-CONTRACT.md).
 
 - [x] **P2.5 In-contract trigger check (local preferred path; public Gate 3 remains open).**
   - Owned: `contracts/guardian/src/trigger.rs`.

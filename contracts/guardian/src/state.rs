@@ -85,6 +85,21 @@ pub enum RequestOutcome {
     Unresolved { op_id: U64 },
 }
 
+/// Owner position operations that hold the shared lock (`in_flight`). `Unresolved`
+/// is terminal: an ambiguous manual repayment has no administrative unlock.
+#[near(serializers = [borsh])]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PositionOperation {
+    Register,
+    Collateral,
+    Borrow,
+    Release,
+    ManualRepay,
+    SweepRead,
+    SweepSend,
+    Unresolved,
+}
+
 #[near(serializers = [borsh])]
 #[derive(PartialEq)]
 pub enum ReserveOperation {

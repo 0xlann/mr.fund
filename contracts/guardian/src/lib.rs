@@ -2,6 +2,7 @@
 
 mod events;
 mod policy;
+mod position;
 mod repay;
 mod reserve;
 mod state;
@@ -10,7 +11,7 @@ mod views;
 
 use near_sdk::{assert_one_yocto, env, near, require, serde_json::json, AccountId, PanicOnDefault};
 use policy::Policy;
-use state::{Attempt, GuardianConfig, InFlight, Status};
+use state::{Attempt, GuardianConfig, InFlight, PositionOperation, Status};
 use std::collections::VecDeque;
 
 #[near(contract_state)]
@@ -26,6 +27,7 @@ pub struct Guardian {
     next_op_id: u64,
     history: VecDeque<Attempt>,
     pending_reserve: Option<state::ReserveOperation>,
+    pending_position: Option<PositionOperation>,
     repay_phase: Option<state::RepayPhase>,
 }
 
@@ -53,6 +55,7 @@ impl Guardian {
             next_op_id: 0,
             history: VecDeque::new(),
             pending_reserve: None,
+            pending_position: None,
             repay_phase: None,
         }
     }

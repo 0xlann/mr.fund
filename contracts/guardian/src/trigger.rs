@@ -157,13 +157,12 @@ impl Guardian {
             self.repay_phase = None;
             return PromiseOrValue::Value(result);
         }
-        let internal = amount.checked_mul(10u128.pow(u32::from(self.config.debt_extra_decimals)));
-        if self.config.lending_version == "0.11.0" && internal.is_none() {
+        let Some(msg) = self.repay_message(amount) else {
             let result = self.reject_repay(op_id, amount, RejectReason::ArithmeticOverflow);
             self.in_flight = None;
             self.repay_phase = None;
             return PromiseOrValue::Value(result);
-        }
+        };
         let fee = self.in_flight.as_ref().unwrap().fee;
         self.reserve = self
             .reserve
@@ -171,11 +170,6 @@ impl Guardian {
             .unwrap();
         self.last_action_started_ns = env::block_timestamp();
         self.repay_phase = Some(RepayPhase::Repaying);
-        let msg = if self.config.lending_version == "0.16.2" {
-            "\"OnlyRepay\"".to_owned()
-        } else {
-            json!({"Execute":{"actions":[{"Repay":{"token_id":self.config.debt_token_id,"max_amount":internal.unwrap().to_string()}}]}}).to_string()
-        };
         events::emit(
             "repay_started",
             json!({"op_id":U64(op_id),"requested":U128(amount),"fee_reserved":U128(fee)}),

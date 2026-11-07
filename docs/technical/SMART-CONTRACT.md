@@ -124,8 +124,8 @@ Check order matters: authentication first, then state, then arguments, then exte
 | --- | --- | --- | --- | --- |
 | `{"activate":{}}` | owner, status `Created` | debt token | `amount ≥ activation_fee + policy.reserve_floor + policy.max_per_action + policy.action_fee`; forward `activation_fee` to fee recipient; book the rest as reserve; status → `Active`; event `activated` | 0, or full amount if rejected |
 | `{"reserve":{}}` | owner | debt token | Book as reserve; event `reserve_deposited` | 0 |
-| `{"collateral":{}}` | owner | an allowed collateral token | `ft_transfer_call(lending_id, amount, "{\"Execute\":{\"actions\":[{\"IncreaseCollateral\":{\"token_id\":…,\"amount\":null,\"max_amount\":null}}]}}")` with 1 yocto from Guardian balance [exact message shape proven in P0.3] | Amount Rhea returns as unused |
-| `{"repay":{}}` | owner | debt token | `ft_transfer_call(lending_id, amount, "\"OnlyRepay\"")`; excess becomes Guardian supplied balance, sweepable by owner | Amount Rhea returns |
+| `{"collateral":{}}` | owner | the configured collateral token | `ft_transfer_call(lending_id, amount, {"Execute":{"actions":[{"IncreaseCollateral":{"token_id":…}}]}})` with 1 yocto from the Guardian balance (the form proven in P0.3; no `amount`/`max_amount` fields). Takes the shared lock until `on_collateral_resolved` | Amount Rhea did not use; the full amount when the result is missing, malformed, oversized or above the amount (the outer resolver refunds at most what the Guardian still holds) |
+| `{"repay":{}}` (not implemented; owner repays from the reserve with `owner_repay_from_reserve`) | owner | debt token | `ft_transfer_call(lending_id, amount, "\"OnlyRepay\"")`; excess becomes Guardian supplied balance, sweepable by owner | Amount Rhea returns |
 | anything else, or any other sender or token | — | — | Reject | Full amount |
 
 ### Guardian: automatic action
@@ -151,6 +151,7 @@ Check order matters: authentication first, then state, then arguments, then exte
 
 | Method | Deposit | Effect | Notes |
 | --- | --- | --- | --- |
+| `owner_register(target_id, storage_deposit: U128)` | 1 yocto | `storage_deposit(registration_only)` on `lending_id`, the debt token or the collateral token, paid from the Guardian's own NEAR | Any other target is refused; the deposit must be positive |
 | `owner_borrow(amount: U128)` | 1 yocto | `lending.execute_with_pyth([Borrow(debt, amount), Withdraw(debt, amount)])` with 1 yocto; tokens arrive at the Guardian; callback event `owner_borrowed` | Needs fresh prices (Rhea) |
 | `owner_withdraw_collateral(amount: U128)` | 1 yocto | `execute_with_pyth([DecreaseCollateral, Withdraw])` for the collateral token | Needs prices while debt remains |
 | `owner_sweep(token_id: AccountId)` | 1 yocto | `ft_balance_of(self)` then transfer to owner everything above `reserve + in_flight.amount` (debt token) or the full balance (other tokens) | Borrowed tokens and Rhea refunds leave this way |
@@ -161,6 +162,17 @@ Check order matters: authentication first, then state, then arguments, then exte
 | `pause()`, `resume()`, `deactivate()` | 1 yocto | Status transitions above; events | `deactivate` is terminal for automation |
 
 The 1 yocto deposit on owner methods forces a full-access-key (wallet) confirmation; a function-call key can never call them.
+
+P2.4 implementation [V, local sandbox and unit tests, 2026-11-07]: `contracts/guardian/src/position.rs` adds `owner_register`, `owner_borrow`, `owner_withdraw_collateral`, `owner_repay_from_reserve`, `owner_sweep` and the `collateral` receiver message. Amounts into Rhea actions are token atomic units times `10^extra_decimals`; overflow and zero panic before any state change. The manual repay uses the same version-specific message builder as the automatic path (`repay_message`).
+
+- **Permission boundary:** the stored owner plus exactly 1 yocto for every method; fixed targets (configured lending contract and the two configured tokens); callbacks are `#[private]` and bound to the operation id and kind. The watcher cannot call any of them.
+- **Lock:** each operation sets the shared `in_flight` plus a `pending_position` kind. `request_repay`, reserve deposits, withdrawals and every other position method are refused until the callback releases it. An ambiguous manual-repay result sets the terminal `Unresolved` kind: the reserve debit stays, nothing is restored and there is no administrative unlock, the same rule as the automatic path.
+- **Invariants:** I4 (reserve leaves only through the fixed repay message, to the fee recipient, or to the owner), I5, I9 and the reserve-exclusion rule. Manual repay debits the reserve before the transfer and restores only `amount − used` for an explicitly observed used amount in `[0, amount]`. It adds nothing to `spent_total` and charges no fee: the lifetime cap and floor bound the automatic path, not the owner.
+- **Sweep:** reads `ft_balance_of(self)` under the lock, then transfers the balance above `reserve + in-flight amount + in-flight fee` for the debt token, or the whole balance for any other token. The amount is computed when the reply arrives, not from a value read before the lock. A missing, malformed or oversized reply sends nothing and releases the lock.
+- **Negative tests:** foreign and watcher callers, missing or extra yocto, every method while locked (including `Unresolved`), unsupported registration targets, zero and overflowing amounts, wrong sender/token/message for the collateral deposit, forged or replayed callbacks, callbacks for the wrong kind or phase, ambiguous repay results, reserve changed during the balance read, committed in-flight amounts, and a mutation check that removing the reserve exclusion fails three tests.
+- **Does not guarantee:** that Rhea accepted an action beyond the immediate promise result (the sandbox reads positions and token balances back instead), that a price is fresh enough for Rhea to accept a borrow or release, or any liquidation protection.
+
+Measured in the sandbox against the imported deployed Rhea code, total gas burnt including detached receipts, Tgas (0.11.0 / 0.16.2): `owner_register` 8, 6, 6; collateral deposit 18 / 19; `owner_borrow` 23 / 25; `owner_sweep` 10 (6 when empty); `owner_repay_from_reserve` 14; `owner_withdraw_collateral` 20 / 21. Prices are Simulated fixtures. The budgets in code (240 Tgas for a Rhea `execute_with_pyth`, 100 Tgas for the collateral transfer, 85 Tgas for the repay transfer) are conservative reservations, not measurements of public-network cost.
 
 ### Guardian: views
 

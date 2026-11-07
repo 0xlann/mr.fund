@@ -9,9 +9,12 @@
 
 ## 2. Owner position operations
 
-- [ ] 2.1 Write failing owner+1-yocto/foreign-watcher/private-callback tests and reserve/in-flight sweep-race vectors.
-- [ ] 2.2 Implement configured-token registration/collateral funding and owner borrow/release with fixed Rhea targets and complete receipt/post-state assertions.
-- [ ] 2.3 Implement fee-free owner manual reserve repay with refund settlement, plus sweep that excludes all committed reserve/in-flight/fee obligations under the shared lock.
+- [x] 2.1 Write failing owner+1-yocto/foreign-watcher/private-callback tests and reserve/in-flight sweep-race vectors.
+  - `contracts/guardian/src/position_tests.rs`, written first and seen failing to compile against the missing implementation; 21 tests incl. reserve-changed-during-read and committed in-flight vectors. A mutation (sweep ignoring the reserve) fails three of them.
+- [x] 2.2 Implement configured-token registration/collateral funding and owner borrow/release with fixed Rhea targets and complete receipt/post-state assertions.
+  - `position.rs`; sandbox `position_flow::lifecycle` reads back Rhea position and token balances after every step on imported 0.11.0 and 0.16.2 (Simulated prices). The `{"repay":{}}` receiver message of P2.4 is outside this change's tasks and not implemented.
+- [x] 2.3 Implement fee-free owner manual reserve repay with refund settlement, plus sweep that excludes all committed reserve/in-flight/fee obligations under the shared lock.
+  - Partial and zero refunds and ambiguous results are covered by unit tests; the real-Rhea run exercises exact and full repayment only, not a deployed-Rhea surplus refund.
 
 ## 3. Factory lifecycle
 
