@@ -46,3 +46,7 @@ Original font/license sources:
 ### Raised wall lettering
 
 `src/play/assets/wordmark.typeface.json` is a glyph subset derived from the existing Bricolage Grotesque variable font at weight 800, renamed Mr Fund Wordmark, under the same SIL OFL 1.1 license above. `scripts/build-wordmark-font.py` regenerates it using fontTools in an isolated Python environment (build-time only). Three.js TextGeometry extrudes and bevels the outlines at runtime; no new font download or runtime package is required.
+
+## Window garden scenery
+
+`window-garden.webp` was generated with the built-in imagegen tool on 2026-11-07 for this project, then resized and encoded as WebP (768 × 1024, 253,514 bytes). The complete generation prompt is preserved in `window-garden.prompt.txt`. It depicts a sunlit garden with trees and sky, without a baked-in window or interior. The runtime centres and crops it to the window opening without stretching; the existing frame and blinds remain actual 3D geometry.

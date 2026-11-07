@@ -40,7 +40,7 @@ describe("Guardian approach choreography", () => {
     for (let i = 0; i < 100; i++) expect(journey.update(0.05, null, false)).toBeNull();
     expect(journey.frame.phase).toBe("idle");
     expect(journey.frame.x).toBeCloseTo(0);
-    expect(journey.frame.z).toBeCloseTo(0.7);
+    expect(journey.frame.z).toBeCloseTo(1.6);
     expect(journey.frame.door).toBe(0);
     let completions = 0;
     for (let i = 0; i < 100; i++) if (journey.update(0.05, 2, false) === 2) completions++;

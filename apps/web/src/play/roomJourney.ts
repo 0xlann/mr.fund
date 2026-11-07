@@ -2,8 +2,8 @@ const ease = (value: number) => {
   const t = Math.max(0, Math.min(1, value));
   return t * t * (3 - 2 * t);
 };
-const HOME = { x: 0, z: 0.7 };
-const VAULT = { x: -3.05, z: 0.35 };
+const HOME = { x: 0, z: 1.6 };
+const VAULT = { x: -2.45, z: 0.35 };
 const CHAIR = { x: 3.45, z: -2.15 };
 type Point = { x: number; z: number };
 export type RoomVisit = { id: number; panel: "guardian" | "chat" };
@@ -150,7 +150,7 @@ export function createRoomJourney() {
       } else if (frame.phase === "opening") {
         frame.reach = ease(age / 0.4) * (1 - ease((age - 0.95) / 0.5));
         frame.door = ease((age - 0.45) / 0.75);
-        const faceVault = Math.atan2(-4.3 - VAULT.x, -0.9 - VAULT.z);
+        const faceVault = Math.atan2(-3.7 - VAULT.x, -0.4 - VAULT.z);
         frame.yaw =
           startYaw +
           Math.atan2(Math.sin(faceVault - startYaw), Math.cos(faceVault - startYaw)) *

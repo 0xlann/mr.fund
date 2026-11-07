@@ -14,7 +14,6 @@ import {
   ChevronDown,
   CircleHelp,
   Copy,
-  Hand,
   History,
   LoaderCircle,
   LockKeyhole,
@@ -1154,38 +1153,6 @@ export function Playground() {
         </button>
       </aside>
 
-      <div
-        className={`pointer-events-none absolute inset-x-0 bottom-[144px] z-10 flex flex-col items-center px-4 [@media(max-height:600px)]:bottom-[112px] ${panel ? "right-[calc(var(--tool-width)_+_40px)]" : ""}`}
-      >
-        <div className="pointer-events-auto flex items-center gap-2 rounded-full border-2 border-[#26314a] bg-[#fff8e7] py-1.5 pl-2 pr-3 shadow-[0_3px_0_#26314a]">
-          <span className="grid size-7 place-items-center rounded-full bg-[#dbf884] text-[#35472d]">
-            {thinking ? (
-              <LoaderCircle size={14} className="animate-spin" />
-            ) : (
-              <span className="text-lg leading-none">◡</span>
-            )}
-          </span>
-          <span className="text-[10px] font-bold">
-            {characterMood === "thinking"
-              ? "Thinking it through…"
-              : characterMood === "concerned"
-                ? "Let's take a closer look."
-                : characterMood === "pleased"
-                  ? "That's a good move."
-                  : "Mr.Fund"}
-          </span>
-          <span className="mx-1 h-3 w-px bg-[#d3d8c7]" />
-          <button
-            type="button"
-            aria-label="Wave to Mr.Fund"
-            onClick={() => setWave((v) => v + 1)}
-            className="border-0 bg-transparent text-[#64744c]"
-          >
-            <Hand size={15} />
-          </button>
-        </div>
-      </div>
-
       {openingPanel && (
         <div className="absolute bottom-[210px] [@media(max-height:600px)]:bottom-[160px] left-1/2 z-30 flex -translate-x-1/2 items-center gap-3 rounded-full border-2 border-[#26314a] bg-[#fff8e7] px-4 py-2.5 text-xs font-semibold shadow-[0_3px_0_#26314a]">
           <span
@@ -1211,7 +1178,7 @@ export function Playground() {
 
       <nav
         aria-label="Office actions"
-        className={`absolute inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-max max-w-[calc(100%_-_24px)] items-end gap-2 rounded-[28px] border-2 border-[#26314a] bg-[#fff8e7] px-3 pb-3 pt-3 shadow-[0_7px_0_#26314a,0_18px_35px_#26314a22] sm:gap-5 sm:px-6 [@media(max-height:600px)]:bottom-[max(8px,env(safe-area-inset-bottom))] [@media(max-height:600px)]:gap-1! [@media(max-height:600px)]:px-3! [@media(max-height:600px)]:py-2 ${panel ? "[@media(max-height:600px)]:left-[calc((100%_-_var(--tool-width)_-_40px)/2)] [@media(max-height:600px)]:right-auto [@media(max-height:600px)]:-translate-x-1/2" : ""}`}
+        className={`absolute inset-x-0 bottom-[max(16px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-max max-w-[calc(100%_-_24px)] items-end gap-2 px-3 pb-3 pt-3 sm:gap-5 sm:px-6 [@media(max-height:600px)]:bottom-[max(8px,env(safe-area-inset-bottom))] [@media(max-height:600px)]:gap-1! [@media(max-height:600px)]:px-3! [@media(max-height:600px)]:py-2 ${panel ? "[@media(max-height:600px)]:left-[calc((100%_-_var(--tool-width)_-_40px)/2)] [@media(max-height:600px)]:right-auto [@media(max-height:600px)]:-translate-x-1/2" : ""}`}
       >
         {dockItems.map((item) => (
           <button

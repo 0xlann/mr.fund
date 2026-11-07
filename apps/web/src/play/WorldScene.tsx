@@ -45,8 +45,8 @@ type WorldProps = {
 // Camera stations; officeFraming reserves the visible tool panel width at every breakpoint.
 const STATIONS: Record<Station, { pos: Vec; target: Vec }> = {
   chat: { pos: [3.45, 2.8, 3.0], target: [3.45, 2.35, -2.15] },
-  office: { pos: [0, 2.8, 10.5], target: [0, 2.1, 0.2] },
-  guardian: { pos: [-1.6, 3, 6], target: [-3.9, 1.9, -1.1] },
+  office: { pos: [0.4, 2.65, 7.8], target: [0.1, 2.25, 0.5] },
+  guardian: { pos: [-1.1, 2.8, 5.3], target: [-3.35, 1.9, -0.8] },
   activity: { pos: [3.4, 2.9, 4.8], target: [4.8, 2.7, -3.4] },
 };
 const LAMP: Record<GuardianLamp, { color: string; level: number }> = {
@@ -237,11 +237,16 @@ export function WorldScene(props: WorldProps) {
     }
 
     // Room shell
-    box(18, 0.4, 11, floorMat, 0, -0.2, 0.5, 0.02);
-    box(18, 7.5, 0.3, mat("#244d57", 0.85), 0, 3.75, -3.75, 0.02);
-    box(0.3, 7.5, 11, mat("#284bdf", 0.7), -9, 3.75, 0.5, 0.02);
-    box(0.3, 7.5, 11, mat("#284bdf", 0.7), 9, 3.75, 0.5, 0.02);
-    box(18, 0.25, 0.3, cream, 0, 0.12, -3.5, 0.02);
+    box(12, 0.4, 11, floorMat, 0, -0.2, 0.5, 0.02);
+    const wallMaterial = mat("#244d57", 0.85);
+    box(12, 7.5, 0.3, wallMaterial, 0, 3.75, -3.75, 0.02);
+    // Left wall surrounds a tall side window, leaving the opening clear.
+    box(0.3, 0.65, 11, wallMaterial, -6, 0.325, 0.5, 0.02);
+    box(0.3, 2.15, 11, wallMaterial, -6, 6.425, 0.5, 0.02);
+    box(0.3, 4.7, 5.4, wallMaterial, -6, 3, 3.3, 0.02);
+    box(0.3, 4.7, 2, wallMaterial, -6, 3, -4, 0.02);
+    box(0.3, 7.5, 11, wallMaterial, 6, 3.75, 0.5, 0.02);
+    box(12, 0.25, 0.3, cream, 0, 0.12, -3.5, 0.02);
     const rug = cylinder(2.7, 2.7, 0.05, blue, 0.2, 0.03, 0.4);
     rug.scale.z = 0.7;
     const rugInner = cylinder(2.2, 2.2, 0.06, mat("#3a5ef0", 0.8), 0.2, 0.04, 0.4);
@@ -249,25 +254,25 @@ export function WorldScene(props: WorldProps) {
 
     // Wide wooden boards and lower wall panels give the room a tangible scale.
     const boardColors = ["#c89673", "#d09e7d", "#c28e69", "#d8a887"];
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < 15; i++) {
       box(
-        0.79,
+        0.78,
         0.025,
         11,
         mat(boardColors[i % boardColors.length] ?? "#c89673", 0.95),
-        -8.6 + i * 0.82,
+        -5.6 + i * 0.8,
         0.015,
         0.5,
         0.005,
       );
     }
-    box(18, 1.05, 0.06, mat("#f4d8b6", 0.9), 0, 0.58, -3.55, 0.01);
-    box(18, 0.08, 0.12, cream, 0, 1.14, -3.48, 0.01);
-    for (let x = -8; x < 9; x += 1.5) box(0.055, 0.9, 0.045, cream, x, 0.59, -3.49, 0.005);
+    box(12, 1.05, 0.06, mat("#f4d8b6", 0.9), 0, 0.58, -3.55, 0.01);
+    box(12, 0.08, 0.12, cream, 0, 1.14, -3.48, 0.01);
+    for (let x = -5.6; x < 6; x += 1.4) box(0.055, 0.9, 0.045, cream, x, 0.59, -3.49, 0.005);
     // A few personal objects make this an office, not an empty showroom.
     const shelfWood = mat("#bf764e", 0.8);
-    for (let level = 0; level < 3; level++) {
-      box(1.7, 0.12, 0.48, shelfWood, -7.0, 2.15 + level * 0.8, -3.2, 0.025);
+    for (let level = 0; level < 2; level++) {
+      box(2.1, 0.12, 0.48, shelfWood, -4.15, 3.2 + level * 0.8, -3.2, 0.025);
       for (let book = 0; book < 5; book++) {
         const bookMaterial = [blue, lime, cream, orange, ink][book % 5] ?? blue;
         box(
@@ -275,25 +280,67 @@ export function WorldScene(props: WorldProps) {
           0.38 + (book % 3) * 0.08,
           0.28,
           bookMaterial,
-          -7.6 + book * 0.25,
-          2.4 + level * 0.8,
+          -4.9 + book * 0.28,
+          3.45 + level * 0.8,
           -3.2,
           0.015,
         );
       }
     }
-    // Window with a skyline
-    const winX = -1.4;
-    const winY = 3.7;
-    box(2.8, 2.0, 0.08, mat("#78bdcd", 0.85), winX, winY, -3.58, 0.01);
-    [0.9, 1.4, 0.7, 1.1, 1.6, 0.8].forEach((height, i) => {
-      box(0.36, height, 0.06, ink, winX - 1.15 + i * 0.46, winY - 1 + height / 2, -3.52, 0.01);
+    // The side window gives the front view a visible left-hand room corner.
+    const sideWindow = new THREE.Group();
+    sideWindow.position.set(-5.82, 3, -1.2);
+    sideWindow.rotation.y = Math.PI / 2;
+    world.add(sideWindow);
+    const glass = box(3.6, 4.7, 0.06, mat("#78bdcd", 0.85), 0, 0, 0, 0.01, sideWindow);
+    glass.castShadow = false;
+    new THREE.TextureLoader().load(
+      "/play/window-garden.webp",
+      (texture) => {
+        if (disposed) {
+          texture.dispose();
+          return;
+        }
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        const image = texture.image as HTMLImageElement;
+        const sourceAspect = image.width / image.height;
+        const windowAspect = 3.6 / 4.7;
+        if (sourceAspect > windowAspect) {
+          texture.repeat.x = windowAspect / sourceAspect;
+          texture.offset.x = (1 - texture.repeat.x) / 2;
+        } else {
+          texture.repeat.y = sourceAspect / windowAspect;
+          texture.offset.y = (1 - texture.repeat.y) / 2;
+        }
+        const scenery = new THREE.Mesh(
+          new THREE.PlaneGeometry(3.6, 4.7),
+          new THREE.MeshBasicMaterial({ map: texture, toneMapped: false }),
+        );
+        scenery.position.z = 0.045;
+        sideWindow.add(scenery);
+      },
+      undefined,
+      () => {
+        if (!disposed) setAssetError("Couldn't load the garden view. Reload to retry.");
+      },
+    );
+    for (const x of [-1.84, 1.84]) box(0.13, 4.85, 0.18, cream, x, 0, 0.09, 0.015, sideWindow);
+    for (const y of [-2.4, 2.4]) box(3.8, 0.13, 0.2, cream, 0, y, 0.09, 0.015, sideWindow);
+    box(0.09, 4.7, 0.16, cream, 0, 0, 0.1, 0.01, sideWindow);
+    box(3.6, 0.09, 0.16, cream, 0, -0.25, 0.1, 0.01, sideWindow);
+    for (let i = 0; i < 5; i++)
+      box(3.7, 0.09, 0.28, shelfWood, 0, 2.18 - i * 0.15, 0.2, 0.015, sideWindow);
+
+    // Framed financial artwork sits behind the character rather than another rear window.
+    const artX = -0.9;
+    const artY = 3.7;
+    box(2.8, 2.0, 0.08, mat("#78bdcd", 0.85), artX, artY, -3.58, 0.01);
+    [0.65, 1.2, 0.9, 1.45, 1.7, 1.1].forEach((height, i) => {
+      box(0.32, height, 0.06, ink, artX - 1.12 + i * 0.45, artY - 1 + height / 2, -3.52, 0.01);
     });
-    box(2.9, 0.12, 0.16, cream, winX, winY + 1.06, -3.52, 0.02);
-    box(2.9, 0.12, 0.16, cream, winX, winY - 1.06, -3.52, 0.02);
-    box(0.12, 2.2, 0.16, cream, winX - 1.45, winY, -3.52, 0.02);
-    box(0.12, 2.2, 0.16, cream, winX + 1.45, winY, -3.52, 0.02);
-    box(0.08, 2.0, 0.1, cream, winX, winY, -3.5, 0.01);
+    for (const y of [artY - 1.06, artY + 1.06]) box(2.96, 0.12, 0.16, cream, artX, y, -3.52, 0.02);
+    for (const x of [artX - 1.45, artX + 1.45]) box(0.12, 2.2, 0.16, cream, x, artY, -3.52, 0.02);
 
     // Raised lettering above the vault, using the same display font as the UI.
     const wordmarkFont = new FontLoader().parse(wordmarkTypeface);
@@ -323,8 +370,8 @@ export function WorldScene(props: WorldProps) {
     const letterScale = 2.8 / (letterBounds.max.x - letterBounds.min.x);
     lettering.scale.setScalar(letterScale);
     lettering.position.set(
-      -4.6 - letterCenter.x * letterScale,
-      4.5 - letterCenter.y * letterScale,
+      -4.0 - letterCenter.x * letterScale,
+      5.2 - letterCenter.y * letterScale,
       -3.57,
     );
     lettering.userData.pointerPassthrough = true;
@@ -418,18 +465,20 @@ export function WorldScene(props: WorldProps) {
     }
     const vault = new THREE.Group();
     let safeDoorMotion: ReturnType<typeof createSafeDoorMotion> | null = null;
-    vault.position.set(-4.6, 0.05, -2.15);
+    vault.position.set(-4.0, 0.05, -1.65);
+    vault.rotation.y = 0.2;
     vault.userData.panel = "guardian";
     world.add(vault);
     const lampMat = mat("#6b7280", 0.4, 0, "#6b7280", 0.15);
     const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.085, 20, 14), lampMat);
     lamp.visible = false;
     add(lamp, vault);
+    const safeHeight = 2.4;
     loadFurniture(
       "/brankas/simple_safe.glb",
       "safe",
       vault,
-      2.9,
+      safeHeight,
       [0, 0, 0],
       0,
       (fit) => {
@@ -438,11 +487,12 @@ export function WorldScene(props: WorldProps) {
           "GUARDIAN",
           "#dbf884",
           Math.min(1.68, fit.width * 0.7),
-          [0, 2.73, fit.depth / 2 + 0.012],
+          [0, safeHeight - 0.17, fit.depth / 2 + 0.012],
           vault,
           "guardian",
         );
-        lamp.position.set(fit.width / 2 - 0.17, 2.74, fit.depth / 2 + 0.04);
+        lamp.position.set(fit.width / 2 - 0.17, safeHeight - 0.16, fit.depth / 2 + 0.04);
+        lamp.scale.setScalar(safeHeight / 2.9);
         lamp.visible = true;
       },
       "Object_5",
@@ -489,15 +539,15 @@ export function WorldScene(props: WorldProps) {
     add(handle, deskGroup);
 
     // Plant and coin stack
-    cylinder(0.34, 0.26, 0.55, ink, -2.9, 0.28, -2.6);
-    const stem = cylinder(0.025, 0.025, 1.3, lime, -2.9, 1.2, -2.6);
+    cylinder(0.34, 0.26, 0.55, ink, -2.1, 0.28, -2.6);
+    const stem = cylinder(0.025, 0.025, 1.3, lime, -2.1, 1.2, -2.6);
     stem.rotation.z = 0.1;
     for (let i = 0; i < 7; i++) {
       const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 10), lime);
       const sign = i % 2 ? -1 : 1;
       leaf.scale.set(1.3, 0.38, 0.65);
       leaf.rotation.z = sign * 0.5;
-      leaf.position.set(-2.9 + sign * 0.2, 0.95 + i * 0.14, -2.6);
+      leaf.position.set(-2.1 + sign * 0.2, 0.95 + i * 0.14, -2.6);
       add(leaf);
     }
     for (let i = 0; i < 4; i++) cylinder(0.25, 0.25, 0.1, gold, 1.0, 0.1 + i * 0.11, 1.5);
@@ -563,7 +613,7 @@ export function WorldScene(props: WorldProps) {
         character.scale.setScalar(scale);
         baseY = 0.05 - bounds.min.y * scale;
         characterCenterX = (-(bounds.min.x + bounds.max.x) * scale) / 2;
-        character.position.set(characterCenterX, baseY, 0.7);
+        character.position.set(characterCenterX, baseY, 1.6);
         world.add(character);
         character.updateMatrixWorld(true);
         const hip = character.getObjectByName("Hips");
