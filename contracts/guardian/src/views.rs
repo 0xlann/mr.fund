@@ -14,6 +14,7 @@ pub struct InFlightView {
     pub amount: U128,
     pub fee: U128,
     pub started_ns: U64,
+    pub repay_phase: Option<crate::state::RepayPhase>,
 }
 #[near(serializers = [json])]
 pub struct StatusView {
@@ -40,6 +41,9 @@ pub struct ReserveView {
 
 #[near]
 impl Guardian {
+    pub fn get_config(&self) -> crate::state::GuardianConfig {
+        self.config.clone()
+    }
     pub fn get_status(&self) -> StatusView {
         let c = &self.config;
         StatusView {
@@ -56,6 +60,7 @@ impl Guardian {
                 amount: U128(f.amount),
                 fee: U128(f.fee),
                 started_ns: U64(f.started_ns),
+                repay_phase: self.repay_phase.clone(),
             }),
             last_action_started_ns: U64(self.last_action_started_ns),
         }

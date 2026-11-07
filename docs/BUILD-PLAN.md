@@ -58,7 +58,7 @@ Purpose: kill or reshape early. Each gate has a pass condition, a fail condition
   - **Pass:** on-chain health equals the reference within 1 basis point; null or stale prices are rejected; the gas used by the full check is recorded and fits within one transaction's gas limit with margin for the repay call.
   - **Fail:** D27 fallback: no in-contract trigger check, per-action fee set to 0, disclosure updated in PRD and SMART-CONTRACT.
   - Evidence (partial, 2026-11-06): implemented owner-gated `probe_check_trigger` with seven joined reads and a private operation-bound callback, checking oracle id, mapped feeds and age against lending config. Checked U512 arithmetic matches four shared TypeScript/Rust vectors (`fixtures/trigger-vectors.json`) with zero bps difference. Both imported deployed Rhea versions passed sandbox health 57000 bps, strict threshold, null/expired-price rejection and mismatched freshness config. Read-only gas burnt: testnet 30.586/30.952 Tgas, mainnet 31.605/32.106 Tgas (at-threshold/triggered). Gas JSON is generated under `contracts/target/probes/trigger-gas-*.json`.
-  - Still open before ticking / D27 stays open: read-only burn is **not** proof of composed check → repay → settlement gas allocation. An independent review caught this distinction; the assertion now describes only a 100 Tgas read-only budget. Prove the composed flow in P2.5/P2.7. This probe rejects derivative `extra_call` positions, has no repay authority, and was not deployed publicly (B7).
+  - Composed local evidence added [V, 2026-11-07]: both imported versions pass check → repay → resolver → fee callback at an asserted 300 Tgas root allocation; Guardian callbacks retain >31 Tgas trigger and >17 Tgas settlement margin. Actual Guardian success, fee failure, cooldown, accepted surplus and pause-during-read scenarios pass. Partial/full refund accounting has separately labeled controlled-receiver evidence. See [GUARDIAN-SETTLEMENT](technical/GUARDIAN-SETTLEMENT.md). Gate 3 / D27 public feasibility remains open until the selected network's actual token/oracle is tested; D18/D19/B7 remain open. No public deployment or watcher-only fallback was selected.
 
 - [ ] **P0.5 Accounts and funding** (B7). Testnet accounts per INTEGRATIONS recipe 1 exist; balances recorded. Evidence: account ids (never keys) in INTEGRATIONS.
 
@@ -134,12 +134,12 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Evidence [V, 2026-11-06]: Guardian unit suite now has 15 passing tests, including minimum activation boundary, wrong token/sender refunds, deferred reserve booking, fee failure, repeated activation, in-flight rejection and deactivated withdrawal with failed-transfer restoration. Sandbox with the standard NEP-141 fixture verifies paid activation, reserve/token balance agreement, unauthorized withdrawal rejection, pause/resume/deactivate, then successful withdrawal. Real receipt failures (unregistered fee recipient and unregistered owner token wallet) prove full activation refund / reserve restoration and cleared locks. Runs use only local accounts and Simulated test tokens; D24 pricing remains open. A pending reserve-operation marker binds private callbacks to op id and kind. Deposits while pending return the full amount to prevent concurrent accounting changes. Owner withdrawal also works before activation so a preactivation topup cannot be trapped (I9). No automatic repay exists yet.
   - Final verification [V, 2026-11-06]: `pnpm contracts:probe:prepare` built all three WASM artifacts and downloaded unchanged Rhea binaries at testnet block 276446382 / mainnet block 223272972. `pnpm contracts:test` passed 36 tests (15 Guardian, 17 probe, 3 integration, 1 existing factory scaffold). `pnpm test` passed 455 tests with 1 opt-in live test skipped; typecheck, Biome and Clippy with `-D warnings` passed. Sandbox tests explicitly delete generated deployment keys and verify empty access-key lists before exercising the probe and successful Guardian flow. This is local keylessness evidence, not the pending factory-creation or live deployment proof.
 
-- [ ] **P2.3 Policy-gated `request_repay` and settlement.**
-  - Owned: `contracts/guardian/src/{request,settle}.rs`.
-  - Boundary: watcher or owner only; checks in the order of SMART-CONTRACT steps 1 to 8; single in-flight lock; repay only `debt_token → lending` with `"OnlyRepay"`. Invariants I1 to I8.
+- [x] **P2.3 Policy-gated `request_repay` and settlement (local implementation).**
+  - Owned: `contracts/guardian/src/{repay,trigger}.rs`.
+  - Boundary: watcher or owner only, zero deposit; checks in the order of SMART-CONTRACT steps 1 to 8; shared in-flight lock before reads through fee callback; fixed `debt_token → lending` and verified version-specific encoding. Invariants I1 to I8.
   - Tests (unit, mocked promise results): each rejection reason at its exact boundary (max, max + 1; floor, floor − 1; cap, cap + 1; cooldown second before and at); second request while in flight → `InFlight`; settlement with full use, partial refund, failed promise; fee charged only when used > 0; fee never breaches floor.
   - Does not guarantee: that Rhea accepts the repay (integration in P2.7).
-  - Evidence: unit test summary.
+  - Evidence [V, 2026-11-07]: 28 Guardian unit tests cover permissions, every rejection, exact floor/cap/max/cooldown boundaries, checked overflow, shared reserve locks, malformed/oversized/failed results, callback replay, partial/full refunds, failed fees and last-50 history. Ambiguous repayment results remain visibly Unresolved and locked; no assumed refund or administrative recovery. Imported-WASM sandbox confirms actual Guardian accepted spend, failed fee restoration, cooldown and supplied surplus on both versions. Controlled receiver tests prove partial/full-refund accounting separately from Rhea semantics. See [GUARDIAN-SETTLEMENT](technical/GUARDIAN-SETTLEMENT.md).
 
 - [ ] **P2.4 Owner position methods (G1 only).**
   - Owned: `contracts/guardian/src/position.rs`.
@@ -147,10 +147,10 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Tests: sweep never touches `reserve + in_flight`; non-owner rejected; priced actions surface Rhea failures as events, not silent success.
   - Evidence: unit test summary.
 
-- [ ] **P2.5 In-contract trigger check (if Gate 3 passed; else D27 fallback).**
+- [x] **P2.5 In-contract trigger check (local preferred path; public Gate 3 remains open).**
   - Owned: `contracts/guardian/src/trigger.rs`.
   - Tests: health below trigger → proceeds; equal → `TriggerNotMet`; null price → `StalePrice`; expired publish time → `StalePrice`; extra asset → `UnsupportedPositionShape`; state changed between request and callback → re-checks applied.
-  - Evidence: unit test summary; gas from P2.7.
+  - Evidence [V, 2026-11-07]: exact evaluator is shared by probe and Guardian; current reads verify immutable runtime version/extra decimals/oracle/feed/freshness plus stored policy threshold. Malformed/null/stale/future/unsupported data and threshold equality reject. Both imported versions pass a deterministic owner pause during joined reads without dispatching tokens. Root300 / reads75 / trigger160 / transfer85 / resolver40 / fee10 / final10 Tgas allocations are checked per receipt, including child reservations; >2 Tgas margin is required for every Guardian receipt. These are sandbox fixtures and Simulated prices, not production token/oracle evidence.
 
 - [ ] **P2.6 Factory (G1 only).**
   - Owned: `contracts/guardian-factory/src/lib.rs`.

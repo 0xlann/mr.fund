@@ -1,6 +1,9 @@
-use anyhow::{Context, Result, bail};
-use near_workspaces::{Account, Contract, types::NearToken};
-use serde_json::{Value, json};
+use anyhow::{bail, Context, Result};
+use near_workspaces::{
+    types::{Gas, NearToken},
+    Account, Contract,
+};
+use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 mod support;
@@ -172,10 +175,483 @@ async fn encoded_call(signer: &Account, request: encodings::Call) -> Result<Valu
     Ok(result.json().unwrap_or(Value::Null))
 }
 
+async fn composed_probe_checks(
+    worker: &near_workspaces::Worker<near_workspaces::network::Sandbox>,
+    owner: &Account,
+    unregistered: &Account,
+    targets: [&Contract; 4],
+    source: &Value,
+) -> Result<()> {
+    let [lending, collateral, debt, oracle] = targets;
+    let probe = worker
+        .dev_deploy(&std::fs::read(target("near/probe/probe.wasm"))?)
+        .await?;
+    call(owner,&probe,"new",json!({"owner_id":owner.id(),"lending_id":lending.id(),"collateral_token_id":collateral.id(),"debt_token_id":debt.id(),"debt_extra_decimals":12,"collateral_extra_decimals":0}),NearToken::from_yoctonear(0)).await?;
+    for contract in [lending, collateral, debt] {
+        call(
+            owner,
+            &probe,
+            "probe_register",
+            json!({"target_id":contract.id(),"storage_deposit":"1000000000000000000000000"}),
+            NearToken::from_yoctonear(1),
+        )
+        .await?;
+    }
+    encoded_call(
+        owner,
+        encodings::transfer_call(
+            collateral.id().as_str(),
+            probe.id().as_str(),
+            20_000_000,
+            "",
+        )?,
+    )
+    .await?;
+    call(
+        owner,
+        &probe,
+        "probe_supply_collateral",
+        json!({"amount":"20000000"}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    call(
+        owner,
+        &probe,
+        "probe_borrow",
+        json!({"amount":"5000000"}),
+        NearToken::from_yoctonear(1),
+    )
+    .await?;
+    let network = source["network"].as_str().unwrap();
+    for scenario in ["success", "refund", "transfer_failure", "fee_failure"] {
+        if scenario == "success" || scenario == "fee_failure" {
+            encoded_call(
+                owner,
+                encodings::transfer_call(debt.id().as_str(), probe.id().as_str(), 100, "")?,
+            )
+            .await?;
+        }
+        let before = balance(debt, probe.as_account()).await?;
+        let debt_before: u128 = position(lending, probe.as_account()).await?["borrowed"][0]
+            ["balance"]
+            .as_str()
+            .unwrap()
+            .parse()?;
+        let amount = if scenario == "transfer_failure" {
+            100_000_000u128
+        } else {
+            1_000_000
+        };
+        let config = json!({"oracle_id":oracle.id(),"collateral_price_id":"11".repeat(32),"debt_price_id":"22".repeat(32),"max_price_age_sec":60,"threshold_bps":1000000,"legacy_oracle":network=="testnet"});
+        let result=owner.call(probe.id(),"probe_compose_repay").args_json(json!({"config":config,"amount":amount.to_string(),"fee":"100","fee_recipient_id":if scenario=="fee_failure"{unregistered.id()}else{owner.id()},"lending_version":source["version"],"repay_msg_override":if scenario=="refund"{Some("invalid-rhea-message")}else{None}})).deposit(NearToken::from_yoctonear(1)).gas(Gas::from_tgas(300)).transact().await?;
+        let output: Value = result.clone().json()?;
+        let used = if scenario == "success" || scenario == "fee_failure" {
+            1_000_000u128
+        } else {
+            0
+        };
+        let fee = if scenario == "success" { 100u128 } else { 0 };
+        assert_eq!(
+            output["used"],
+            used.to_string(),
+            "{network}/{scenario}: {output}"
+        );
+        assert_eq!(output["fee_charged"], fee.to_string());
+        assert_eq!(
+            output["status"],
+            match scenario {
+                "success" => "settled",
+                "refund" => "refunded",
+                "transfer_failure" => "transfer_failed",
+                _ => "fee_failed",
+            }
+        );
+        assert_eq!(
+            balance(debt, probe.as_account()).await?,
+            before - used - fee
+        );
+        assert_eq!(
+            position(lending, probe.as_account()).await?["borrowed"][0]["balance"],
+            (debt_before - used * 10u128.pow(12)).to_string()
+        );
+        if scenario == "success" {
+            assert!(result.failures().is_empty(), "{:?}", result.failures());
+        } else {
+            assert!(!result.failures().is_empty());
+        }
+        let raw=outcome_recordings::rpc(worker,"EXPERIMENTAL_tx_status",json!({"tx_hash":result.outcome().transaction_hash.to_string(),"sender_account_id":owner.id(),"wait_until":"FINAL"})).await?;
+        assert_eq!(
+            raw["transaction"]["actions"][0]["FunctionCall"]["gas"],
+            300_000_000_000_000u64
+        );
+        let receipts = raw["receipts"]
+            .as_array()
+            .context("Missing gas receipt details")?;
+        let allocated: std::collections::BTreeMap<String, u64> = receipts
+            .iter()
+            .filter_map(|r| {
+                let fc = &r["receipt"]["Action"]["actions"][0]["FunctionCall"];
+                Some((r["receipt_id"].as_str()?.to_owned(), fc["gas"].as_u64()?))
+            })
+            .collect();
+        let mut report = Vec::new();
+        let mut failed_methods = Vec::new();
+        for outcome in raw["receipts_outcome"].as_array().unwrap() {
+            let id = outcome["id"].as_str().unwrap();
+            let Some(&budget) = allocated.get(id) else {
+                continue;
+            };
+            let receipt = receipts.iter().find(|r| r["receipt_id"] == id).unwrap();
+            let method = receipt["receipt"]["Action"]["actions"][0]["FunctionCall"]["method_name"]
+                .as_str()
+                .unwrap();
+            let burnt = outcome["outcome"]["gas_burnt"].as_u64().unwrap();
+            let status = &outcome["outcome"]["status"];
+            if status.get("Failure").is_some() {
+                let error = status.to_string().to_lowercase();
+                assert!(
+                    !error.contains("gasexceeded")
+                        && !error.contains("gaslimitexceeded")
+                        && !error.contains("exceeded the prepaid gas"),
+                    "Unexpected gas failure: {status}"
+                );
+                failed_methods.push(method.to_owned());
+            }
+            let children: u64 = outcome["outcome"]["receipt_ids"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter_map(|id| allocated.get(id.as_str()?))
+                .sum();
+            let margin = budget
+                .checked_sub(burnt + children)
+                .context("Child reservations exceed receipt allocation")?;
+            if receipt["receiver_id"] == probe.id().as_str() {
+                assert!(
+                    margin >= 2_000_000_000_000,
+                    "Insufficient continuation margin in {network}/{scenario}/{method}: {margin}"
+                );
+            }
+            report.push(json!({"id":id,"receiver_id":receipt["receiver_id"],"status":status,"method":method,"allocated":budget,"burnt":burnt,"child_reserved":children,"margin":margin}));
+        }
+        let expected_failures: Vec<String> = match scenario {
+            "success" => vec![],
+            "refund" => vec!["ft_on_transfer".into()],
+            "transfer_failure" => vec!["ft_transfer_call".into()],
+            _ => vec!["ft_transfer".into()],
+        };
+        assert_eq!(
+            failed_methods, expected_failures,
+            "{network}/{scenario}: unexpected failed receipt"
+        );
+        assert!(report.iter().any(|r| r["method"] == "on_composed_repay"));
+        if used > 0 {
+            assert!(report.iter().any(|r| r["method"] == "on_composed_fee"));
+        }
+        std::fs::write(
+            target(&format!("probes/composed-gas-{network}-{scenario}.json")),
+            serde_json::to_vec_pretty(
+                &json!({"kind":"sandbox","prices":"Simulated","sourceWasm":source,"rootGas":300_000_000_000_000u64,"scenario":scenario,"result":output,"receipts":report}),
+            )?,
+        )?;
+        println!(
+            "Composed {network}/{scenario}: burnt {} gas, {output}",
+            result.total_gas_burnt.as_gas()
+        );
+    }
+    Ok(())
+}
+
 fn target(path: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../target")
         .join(path)
+}
+
+/// Sandbox seeding only: provision a position with the throwaway probe, then
+/// replace its code/STATE with a freshly initialized Guardian. No production
+/// provisioning, migration or upgrade entrypoint is added by this experiment.
+async fn guardian_imported_checks(
+    worker: &near_workspaces::Worker<near_workspaces::network::Sandbox>,
+    owner: &Account,
+    watcher: &Account,
+    targets: [&Contract; 4],
+    source: &Value,
+) -> Result<()> {
+    let [lending, collateral, debt, oracle] = targets;
+    let guardian_wasm = std::fs::read(target("near/guardian/guardian.wasm"))?;
+    for scenario in ["success", "fee_failure", "pause_race"] {
+        let fee_failure = scenario == "fee_failure";
+        let pause_race = scenario == "pause_race";
+        let account = worker
+            .dev_deploy(&std::fs::read(target("near/probe/probe.wasm"))?)
+            .await?;
+        call(owner,&account,"new",json!({"owner_id":owner.id(),"lending_id":lending.id(),"collateral_token_id":collateral.id(),"debt_token_id":debt.id(),"debt_extra_decimals":12,"collateral_extra_decimals":0}),NearToken::from_yoctonear(0)).await?;
+        for contract in [lending, collateral, debt] {
+            call(
+                owner,
+                &account,
+                "probe_register",
+                json!({"target_id":contract.id(),"storage_deposit":"1000000000000000000000000"}),
+                NearToken::from_yoctonear(1),
+            )
+            .await?;
+        }
+        encoded_call(
+            owner,
+            encodings::transfer_call(
+                collateral.id().as_str(),
+                account.id().as_str(),
+                20_000_000,
+                "",
+            )?,
+        )
+        .await?;
+        call(
+            owner,
+            &account,
+            "probe_supply_collateral",
+            json!({"amount":"20000000"}),
+            NearToken::from_yoctonear(1),
+        )
+        .await?;
+        call(
+            owner,
+            &account,
+            "probe_borrow",
+            json!({"amount":"5000000"}),
+            NearToken::from_yoctonear(1),
+        )
+        .await?;
+        let seed = worker.dev_deploy(&guardian_wasm).await?;
+        let init = json!({"config":{"owner_id":if pause_race{oracle.id()}else{owner.id()},"watcher_id":watcher.id(),"lending_id":lending.id(),"oracle_id":oracle.id(),"debt_token_id":debt.id(),"collateral_token_ids":[collateral.id()],"fee_recipient_id":if fee_failure{watcher.id()}else{owner.id()},"activation_fee":"0","lending_version":source["version"],"debt_extra_decimals":12,"collateral_extra_decimals":0,"collateral_price_id":"11".repeat(32),"debt_price_id":"22".repeat(32),"max_price_age_sec":60},"policy":{"max_per_action":"1000000","lifetime_cap":"10000000","reserve_floor":"100","trigger_hf_bps":1000000,"target_hf_bps":null,"cooldown_sec":300,"action_fee":"100"}});
+        call(owner, &seed, "new", init, NearToken::from_yoctonear(0)).await?;
+        let states = seed.view_state().await?;
+        worker
+            .patch(account.id())
+            .code(&guardian_wasm)
+            .state(
+                b"STATE",
+                states
+                    .get(b"STATE".as_slice())
+                    .context("Guardian state missing")?,
+            )
+            .transact()
+            .await?;
+        account
+            .batch()
+            .delete_key(account.as_account().secret_key().public_key())
+            .transact()
+            .await?
+            .into_result()?;
+        assert!(account.view_access_keys().await?.is_empty());
+        if pause_race {
+            call(
+                owner,
+                debt,
+                "storage_deposit",
+                json!({"account_id":oracle.id()}),
+                NearToken::from_near(1),
+            )
+            .await?;
+            call(
+                owner,
+                debt,
+                "mint",
+                json!({"account_id":oracle.id(),"amount":"2000000"}),
+                NearToken::from_yoctonear(0),
+            )
+            .await?;
+            call(owner,oracle,"send_fixture_tokens",json!({"token":debt.id(),"receiver":account.id(),"amount":"2000000","msg":"{\"activate\":{}}"}),NearToken::from_yoctonear(0)).await?;
+            call(
+                owner,
+                oracle,
+                "set_pause_target",
+                json!({"target":account.id()}),
+                NearToken::from_yoctonear(0),
+            )
+            .await?;
+        } else {
+            encoded_call(
+                owner,
+                encodings::transfer_call(
+                    debt.id().as_str(),
+                    account.id().as_str(),
+                    2_000_000,
+                    "{\"activate\":{}}",
+                )?,
+            )
+            .await?;
+        }
+        let before = balance(debt, account.as_account()).await?;
+        let debt_before: u128 = position(lending, account.as_account()).await?["borrowed"][0]
+            ["balance"]
+            .as_str()
+            .unwrap()
+            .parse()?;
+        let outcome = watcher
+            .call(account.id(), "request_repay")
+            .args_json(json!({"amount":"1000000"}))
+            .gas(Gas::from_tgas(300))
+            .transact()
+            .await?;
+        let output: Value = outcome.clone().json()?;
+        if pause_race {
+            assert_eq!(output["outcome"], "rejected");
+            assert_eq!(output["reason"], "not_active");
+            assert_eq!(balance(debt, account.as_account()).await?, before);
+            assert_eq!(
+                position(lending, account.as_account()).await?["borrowed"][0]["balance"],
+                debt_before.to_string()
+            );
+            let status: Value = account.view("get_status").await?.json()?;
+            assert_eq!(status["status"], "paused");
+            assert!(status["in_flight"].is_null());
+            assert!(outcome.failures().is_empty(), "{:?}", outcome.failures());
+            assert!(outcome
+                .logs()
+                .iter()
+                .any(|log| log.contains("repay_requested")));
+            assert!(!outcome
+                .logs()
+                .iter()
+                .any(|log| log.contains("repay_started")));
+            call(
+                owner,
+                oracle,
+                "set_pause_target",
+                json!({"target":null}),
+                NearToken::from_yoctonear(0),
+            )
+            .await?;
+            println!(
+                "Guardian {}: pause during joined reads prevented dispatch",
+                source["version"]
+            );
+            continue;
+        }
+        let fee = if fee_failure { 0u128 } else { 100 };
+        assert_eq!(output["outcome"], "executed");
+        assert_eq!(output["used"], "1000000");
+        assert_eq!(output["fee"], fee.to_string());
+        assert_eq!(
+            balance(debt, account.as_account()).await?,
+            before - 1_000_000 - fee
+        );
+        assert_eq!(
+            position(lending, account.as_account()).await?["borrowed"][0]["balance"],
+            (debt_before - 1_000_000 * 10u128.pow(12)).to_string()
+        );
+        let reserve: Value = account.view("get_reserve").await?.json()?;
+        assert_eq!(reserve["reserve"], (1_000_000 - fee).to_string());
+        assert_eq!(reserve["spent_total"], (1_000_000 + fee).to_string());
+        let status: Value = account.view("get_status").await?.json()?;
+        assert!(status["in_flight"].is_null());
+        let history: Value = account
+            .view("get_history")
+            .args_json(json!({"from":0,"limit":50}))
+            .await?
+            .json()?;
+        assert_eq!(history.as_array().unwrap().len(), 1);
+        assert_eq!(history[0]["used"], "1000000");
+        assert_eq!(history[0]["fee"], fee.to_string());
+        let raw=outcome_recordings::rpc(worker,"EXPERIMENTAL_tx_status",json!({"tx_hash":outcome.outcome().transaction_hash.to_string(),"sender_account_id":watcher.id(),"wait_until":"FINAL"})).await?;
+        assert_eq!(
+            raw["transaction"]["actions"][0]["FunctionCall"]["gas"],
+            300_000_000_000_000u64
+        );
+        let receipts = raw["receipts"].as_array().unwrap();
+        let allocated: std::collections::BTreeMap<_, _> = receipts
+            .iter()
+            .filter_map(|r| {
+                Some((
+                    r["receipt_id"].as_str()?,
+                    r["receipt"]["Action"]["actions"][0]["FunctionCall"]["gas"].as_u64()?,
+                ))
+            })
+            .collect();
+        for o in raw["receipts_outcome"].as_array().unwrap() {
+            let id = o["id"].as_str().unwrap();
+            let Some(&budget) = allocated.get(id) else {
+                continue;
+            };
+            let r = receipts.iter().find(|r| r["receipt_id"] == id).unwrap();
+            if r["receiver_id"] == account.id().as_str() {
+                let children: u64 = o["outcome"]["receipt_ids"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter_map(|id| allocated.get(id.as_str()?))
+                    .sum();
+                assert!(budget
+                    .checked_sub(o["outcome"]["gas_burnt"].as_u64().unwrap() + children)
+                    .is_some_and(|margin| margin >= 2_000_000_000_000));
+                assert!(o["outcome"]["status"].get("Failure").is_none());
+            }
+        }
+        assert_eq!(outcome.failures().len(), usize::from(fee_failure));
+        std::fs::write(
+            target(&format!(
+                "probes/guardian-gas-{}-{}.json",
+                source["network"].as_str().unwrap(),
+                if fee_failure {
+                    "fee_failure"
+                } else {
+                    "success"
+                }
+            )),
+            serde_json::to_vec_pretty(
+                &json!({"kind":"sandbox","position_setup":"sandbox code/state seeding","prices":"Simulated","sourceWasm":source,"result":output,"raw":raw}),
+            )?,
+        )?;
+        // A second request at the same policy bounds is rejected by cooldown, without spending.
+        let rejected: Value = watcher
+            .call(account.id(), "request_repay")
+            .args_json(json!({"amount":"1"}))
+            .gas(Gas::from_tgas(300))
+            .transact()
+            .await?
+            .json()?;
+        assert_eq!(rejected["reason"], "cooldown");
+        if !fee_failure {
+            worker.fast_forward(1000).await?;
+            call(owner,&account,"set_policy",json!({"policy":{"max_per_action":"5000000","lifetime_cap":"10000000","reserve_floor":"100","trigger_hf_bps":1000000,"target_hf_bps":null,"cooldown_sec":300,"action_fee":"100"}}),NearToken::from_yoctonear(1)).await?;
+            encoded_call(
+                owner,
+                encodings::transfer_call(
+                    debt.id().as_str(),
+                    account.id().as_str(),
+                    5_000_000,
+                    "{\"reserve\":{}}",
+                )?,
+            )
+            .await?;
+            let overpay: Value = watcher
+                .call(account.id(), "request_repay")
+                .args_json(json!({"amount":"5000000"}))
+                .gas(Gas::from_tgas(300))
+                .transact()
+                .await?
+                .json()?;
+            assert_eq!(overpay["used"], "5000000");
+            let p = position(lending, account.as_account()).await?;
+            assert_eq!(p["borrowed"], json!([]));
+            assert_eq!(p["supplied"][0]["balance"], "1000000000000000000");
+            let reserve: Value = account.view("get_reserve").await?.json()?;
+            assert_eq!(reserve["spent_total"], "6000200");
+            println!(
+                "Guardian {}: accepted overpay counted as spend; surplus separately supplied",
+                source["version"]
+            );
+        }
+        println!(
+            "Guardian {} fee_failure={fee_failure}: {output}, {} gas burnt",
+            source["version"],
+            outcome.total_gas_burnt.as_gas()
+        );
+    }
+    Ok(())
 }
 
 fn verify_wasm(wasm: &[u8], metadata: &Value) -> Result<()> {
@@ -546,7 +1022,8 @@ async fn guardian_reserve_flow(
     let guardian = worker
         .dev_deploy(&std::fs::read(target("near/guardian/guardian.wasm"))?)
         .await?;
-    let init = json!({"config":{"owner_id":owner.id(),"watcher_id":watcher.id(),"lending_id":lending.id(),"oracle_id":oracle.id(),"debt_token_id":debt.id(),"collateral_token_ids":[collateral.id()],"fee_recipient_id":owner.id(),"activation_fee":"1000"},"policy":{"max_per_action":"1000","lifetime_cap":"10000","reserve_floor":"100","trigger_hf_bps":12000,"target_hf_bps":15000,"cooldown_sec":300,"action_fee":"1"}});
+    let version: String = lending.view("get_version").await?.json()?;
+    let init = json!({"config":{"owner_id":owner.id(),"watcher_id":watcher.id(),"lending_id":lending.id(),"oracle_id":oracle.id(),"debt_token_id":debt.id(),"collateral_token_ids":[collateral.id()],"fee_recipient_id":owner.id(),"activation_fee":"1000","lending_version":version,"debt_extra_decimals":12,"collateral_extra_decimals":0,"collateral_price_id":"11".repeat(32),"debt_price_id":"22".repeat(32),"max_price_age_sec":60},"policy":{"max_per_action":"1000","lifetime_cap":"10000","reserve_floor":"100","trigger_hf_bps":12000,"target_hf_bps":15000,"cooldown_sec":300,"action_fee":"1"}});
     call(
         owner,
         &guardian,
@@ -1054,6 +1531,22 @@ async fn cycle(network: &str) -> Result<()> {
         &worker, &owner, &attacker, &lending, &debt, &oracle, &metadata,
     )
     .await?;
+    composed_probe_checks(
+        &worker,
+        &owner,
+        &attacker,
+        [&lending, &collateral, &debt, &oracle],
+        &metadata,
+    )
+    .await?;
+    guardian_imported_checks(
+        &worker,
+        &owner,
+        &attacker,
+        [&lending, &collateral, &debt, &oracle],
+        &metadata,
+    )
+    .await?;
     println!(
         "P0.3 {network} WASM {version}: full contract-owned cycle, owner isolation and cross-account repay isolation passed; P2.2 Guardian activation and deactivated reserve withdrawal passed; prices Simulated; source block {}",
         metadata["blockHeight"]
@@ -1064,6 +1557,109 @@ async fn cycle(network: &str) -> Result<()> {
 #[tokio::test]
 async fn probe_testnet_wasm_cycle() -> Result<()> {
     cycle("testnet").await
+}
+
+#[tokio::test]
+async fn guardian_controlled_refund_fixtures() -> Result<()> {
+    // Controlled receiver proves accounting, not deployed Rhea repayment semantics.
+    let worker = near_workspaces::sandbox().await?;
+    let owner = worker.dev_create_account().await?;
+    let fixture_wasm = std::fs::read(target("near/probe_fixtures/probe_fixtures.wasm"))?;
+    for version in ["0.11.0", "0.16.2"] {
+        for refund_percent in [50, 100] {
+            let debt = worker.dev_deploy(&fixture_wasm).await?;
+            let lending = worker.dev_deploy(&fixture_wasm).await?;
+            let guardian = worker
+                .dev_deploy(&std::fs::read(target("near/guardian/guardian.wasm"))?)
+                .await?;
+            for fixture in [&debt, &lending] {
+                call(
+                    &owner,
+                    fixture,
+                    "new",
+                    json!({"owner_id":owner.id()}),
+                    NearToken::from_yoctonear(0),
+                )
+                .await?;
+            }
+            call(&owner,&lending,"set_guardian_fixture",json!({"config":{"guardian":guardian.id(),"debt":debt.id(),"collateral":"collateral.test.near","version":version,"refund_percent":refund_percent}}),NearToken::from_yoctonear(0)).await?;
+            for (feed, price) in [
+                ("11".repeat(32), "500000000"),
+                ("22".repeat(32), "100000000"),
+            ] {
+                call(
+                    &owner,
+                    &lending,
+                    "set_price",
+                    json!({"price_id":feed,"price":price}),
+                    NearToken::from_yoctonear(0),
+                )
+                .await?;
+            }
+            let init = json!({"config":{"owner_id":owner.id(),"watcher_id":owner.id(),"lending_id":lending.id(),"oracle_id":lending.id(),"debt_token_id":debt.id(),"collateral_token_ids":["collateral.test.near"],"fee_recipient_id":owner.id(),"activation_fee":"0","lending_version":version,"debt_extra_decimals":0,"collateral_extra_decimals":0,"collateral_price_id":"11".repeat(32),"debt_price_id":"22".repeat(32),"max_price_age_sec":60},"policy":{"max_per_action":"100","lifetime_cap":"1000","reserve_floor":"20","trigger_hf_bps":12000,"target_hf_bps":15000,"cooldown_sec":300,"action_fee":"1"}});
+            call(&owner, &guardian, "new", init, NearToken::from_yoctonear(0)).await?;
+            for account in [owner.id(), guardian.id(), lending.id()] {
+                call(
+                    &owner,
+                    &debt,
+                    "storage_deposit",
+                    json!({"account_id":account}),
+                    NearToken::from_near(1),
+                )
+                .await?;
+            }
+            call(
+                &owner,
+                &debt,
+                "mint",
+                json!({"account_id":owner.id(),"amount":"121"}),
+                NearToken::from_yoctonear(0),
+            )
+            .await?;
+            encoded_call(
+                &owner,
+                encodings::transfer_call(
+                    debt.id().as_str(),
+                    guardian.id().as_str(),
+                    121,
+                    "{\"activate\":{}}",
+                )?,
+            )
+            .await?;
+            let result = owner
+                .call(guardian.id(), "request_repay")
+                .args_json(json!({"amount":"100"}))
+                .gas(Gas::from_tgas(300))
+                .transact()
+                .await?;
+            assert!(result.failures().is_empty(), "{:?}", result.failures());
+            let output: Value = result.json()?;
+            let used = 100 - refund_percent;
+            let fee = u128::from(used > 0);
+            assert_eq!(
+                output["outcome"],
+                if used > 0 { "executed" } else { "failed" }
+            );
+            let reserve: Value = guardian.view("get_reserve").await?.json()?;
+            assert_eq!(reserve["reserve"], (121 - used - fee).to_string());
+            assert_eq!(reserve["spent_total"], (used + fee).to_string());
+            assert_eq!(
+                balance(&debt, guardian.as_account()).await?,
+                121 - used - fee
+            );
+            let history: Value = guardian
+                .view("get_history")
+                .args_json(json!({"from":0,"limit":50}))
+                .await?
+                .json()?;
+            assert_eq!(history[0]["used"], used.to_string());
+            assert_eq!(history[0]["fee"], fee.to_string());
+            let status: Value = guardian.view("get_status").await?.json()?;
+            assert!(status["in_flight"].is_null());
+            println!("Controlled Guardian {version} refund={refund_percent}%: {output}");
+        }
+    }
+    Ok(())
 }
 
 #[tokio::test]
