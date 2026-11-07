@@ -34,6 +34,55 @@ pub struct GuardianConfig {
     pub collateral_token_ids: Vec<AccountId>,
     pub fee_recipient_id: AccountId,
     pub activation_fee: U128,
+    pub lending_version: String,
+    pub debt_extra_decimals: u8,
+    pub collateral_extra_decimals: u8,
+    pub collateral_price_id: String,
+    pub debt_price_id: String,
+    pub max_price_age_sec: u32,
+}
+
+impl GuardianConfig {
+    pub fn validate(&self) {
+        near_sdk::require!(
+            matches!(self.lending_version.as_str(), "0.11.0" | "0.16.2"),
+            "Unsupported lending version"
+        );
+        near_sdk::require!(
+            self.debt_extra_decimals <= 38 && self.collateral_extra_decimals <= 38,
+            "Invalid extra decimals"
+        );
+        near_sdk::require!(
+            (1..=3600).contains(&self.max_price_age_sec),
+            "Invalid price age"
+        );
+        for feed in [&self.collateral_price_id, &self.debt_price_id] {
+            near_sdk::require!(
+                feed.len() == 64 && feed.bytes().all(|b| b.is_ascii_hexdigit()),
+                "Invalid feed id"
+            );
+        }
+    }
+}
+
+#[near(serializers = [json, borsh])]
+#[derive(Clone, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RepayPhase {
+    Reading,
+    Repaying,
+    Fee { used: U128 },
+    Unresolved,
+}
+
+#[near(serializers=[json])]
+#[derive(Clone, Debug)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum RequestOutcome {
+    Rejected { op_id: U64, reason: RejectReason },
+    Executed { op_id: U64, used: U128, fee: U128 },
+    Failed { op_id: U64 },
+    Unresolved { op_id: U64 },
 }
 
 #[near(serializers = [borsh])]
@@ -51,10 +100,11 @@ pub enum Outcome {
     Started,
     Settled,
     Failed,
+    Unresolved,
 }
 
 #[near(serializers = [json, borsh])]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RejectReason {
     NotActive,
@@ -67,6 +117,9 @@ pub enum RejectReason {
     TriggerNotMet,
     StalePrice,
     UnsupportedPositionShape,
+    InvalidConfig,
+    BadResponse,
+    ArithmeticOverflow,
 }
 
 #[near(serializers = [json, borsh])]

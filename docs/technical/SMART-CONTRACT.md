@@ -13,7 +13,7 @@ This is the interface contract among the Guardian implementation, its clients (w
 
 P2.1 implementation [V, 2026-11-06]: `new(config: GuardianConfig, policy: Policy)` groups immutable ids internally and initializes `created`. Enums serialize snake_case to match shared TypeScript; amounts, op ids and nanosecond times are decimal strings. `set_policy` also requires `lifetime_cap >= spent_total`, preserving I3 across updates. History `from` indexes the retained ring and `limit` clamps to 50. P2.2 below adds the token receiver and reserve lifecycle; automatic repay, upgrade and access-key methods are absent. Keyless factory creation remains separate evidence.
 
-P0.4 read-only evidence [V, 2026-11-06]: joined position/config/feed/price reads reproduce shared engine vectors exactly, with null/expired/future prices rejected and derivative `extra_call` positions unsupported. The probe threshold is owner-supplied; a Guardian must bind it to policy. Read-only gas burnt was 30.586–32.106 Tgas in sandbox with imported deployed code and Simulated prices. **Composed trigger + repay + settlement gas allocation is unproven**, so D27 remains open. This probe does not claim liquidation protection or a live trigger.
+P0.4 read-only evidence [V, 2026-11-06]: joined position/config/feed/price reads reproduce shared engine vectors exactly, with null/expired/future prices rejected and derivative `extra_call` positions unsupported. Read-only gas burnt was 30.586–32.106 Tgas. Composed prototype evidence [V, 2026-11-07]: both imported 0.11.0 and 0.16.2 execute reads → repayment → resolver → fee callback with a 300 Tgas root allocation, including full-refund, token-failure and fee-failure paths. These use sandbox tokens and Simulated prices; they do not establish production token/oracle gas performance, liquidation protection or public deployment readiness. See [settlement evidence](GUARDIAN-SETTLEMENT.md). D18/D19/B7 remain open; no watcher-only D27 fallback has been selected.
 
 Units: token amounts are `U128` atomic units of that token (JSON decimal strings). Health and thresholds are basis points, `u32`, where 10000 = 100%. Time is nanoseconds from `env::block_timestamp()` stored as `u64`; durations in policy are seconds.
 
@@ -52,14 +52,19 @@ pub struct Policy {
 
 pub struct InFlight { op_id: u64, amount: u128, fee: u128, started_ns: u64 }
 pub struct Attempt { op_id: u64, at_ns: u64, requested: U128, outcome: Outcome, reason: Option<RejectReason>, used: U128, fee: U128 }
-pub enum Outcome { Rejected, Started, Settled, Failed }
+pub enum Outcome { Rejected, Started, Settled, Failed, Unresolved }
 pub enum RejectReason {
     NotActive, InFlight, Cooldown, ZeroAmount, AboveMaxPerAction, AboveLifetimeCap,
     BelowReserveFloor, TriggerNotMet, StalePrice, UnsupportedPositionShape,
+    InvalidConfig, BadResponse, ArithmeticOverflow,
 }
 ```
 
 Constants: `MIN_TRIGGER_HF_BPS = 10500`, `MIN_COOLDOWN_SEC = 300`, `HISTORY_LEN = 50`. These are lead proposals [I] (D28) and are measured against gas in P2.7.
+
+Settlement ABI additions (local rebuild required): immutable `GuardianConfig` additionally requires `lending_version: String` (exactly `0.11.0` or `0.16.2`), `debt_extra_decimals: u8`, `collateral_extra_decimals: u8` (both ≤38), `collateral_price_id: String`, `debt_price_id: String` (64 hex characters), and `max_price_age_sec: u32` (1–3600). `get_config()` exposes this snapshot. Runtime reads must match version, both asset extra-decimal values, oracle id, feed ids and Rhea's freshness limit before dispatch. Unknown/mismatched configuration refuses without retry. Client/factory builders must supply verified configuration rather than model-selected targets.
+
+`get_status().in_flight.repay_phase` is `null` for reserve operations, `"reading"`, `"repaying"`, `{"fee":{"used":"…"}}`, or `"unresolved"`. The same `in_flight` lock spans reads, repayment and fee settlement. Unresolved operations intentionally block deposits, withdrawals, policy updates and subsequent repayments. There is no timeout unlock, balance overwrite, administrative recovery or upgrade entrypoint; recovery is not implemented because a provable reconciliation boundary has not been established.
 
 ### State machine
 
@@ -130,12 +135,12 @@ Check order matters: authentication first, then state, then arguments, then exte
 6. `amount ≤ max_per_action`, else `Rejected(AboveMaxPerAction)`. **This is the demo's over-limit rejection.**
 7. `spent_total + amount + action_fee ≤ lifetime_cap`, else `Rejected(AboveLifetimeCap)`.
 8. `reserve − amount − action_fee ≥ reserve_floor` (checked subtraction), else `Rejected(BelowReserveFloor)`.
-9. D27 preferred path: promise `lending.get_account(self)` and `lending.get_assets([collateral, debt])` and `lending.get_token_pyth_info` (cached at activation) and `oracle.get_price_no_older_than(price_id, age = lending pyth_price_valid_duration_sec)` per asset, then callback `on_trigger_checked(op_id, amount)`. The callback re-runs checks 2 to 8 (state may have changed), rejects `StalePrice` on any null price, `UnsupportedPositionShape` if the account holds anything other than the one collateral and one debt token, `TriggerNotMet` if the computed health ≥ `trigger_hf_bps`. Under the D27 fallback this step is skipped and `action_fee` must be 0.
-10. Lock: `in_flight = Some({op_id, amount, fee: action_fee})`, `reserve -= amount`, `last_action_started_ns = now`; event `repay_started`.
-11. `ft_transfer_call(lending_id, amount, "\"OnlyRepay\"")` on `debt_token_id` with 1 yocto and fixed gas, then callback `on_repay_resolved(op_id)`.
-12. `on_repay_resolved`: read the `ft_transfer_call` result as the used amount (the token's `ft_resolve_transfer` has already refunded the unused part to the Guardian). `reserve += amount − used`. If `used > 0` and `fee > 0`: `reserve -= fee`, `ft_transfer(fee_recipient_id, fee)`. `spent_total += used + fee_charged`. Clear `in_flight`. Event `repay_settled {op_id, used, refunded, fee}`. On promise failure: `reserve += amount` (tokens never left, or were refunded), clear `in_flight`, event `repay_failed`. Rejections in step 9 also clear any partial state and record history.
+9. Lock **before** asynchronous reads, allocate an op id and record a Started attempt (`repay_requested`). Read the account, two assets, two feed mappings, two prices, lending config and version on each request. Legacy uses `get_price(price_identifier)`; modern uses `get_price_no_older_than(price_id, age)`. Private `on_trigger_checked(op_id)` verifies the Reading phase, rechecks status/cooldown/bounds, verifies runtime config and evaluates the stored policy's strict threshold with current timestamp. Pause/deactivation prevents dispatch. Invalid reads reject and release the read lock without spending. There is no watcher-only fallback implemented.
+10. At dispatch reserve **amount plus fee**, set the Repaying phase and `last_action_started_ns = now`, emit `repay_started`. A failed or refunded dispatch still starts cooldown.
+11. Call the fixed debt token's `ft_transfer_call` with 1 yocto, 85 Tgas, and the version-specific message: modern `"OnlyRepay"`; legacy `Execute → Repay.max_amount` in checked internal units. Attach `on_repay_resolved(op_id)` with 40 Tgas and zero unused-gas weight.
+12. A validated decimal-string used amount within `[0, amount]` restores `amount − used` and adds **accepted token spend** to `spent_total`. Full refund restores the reserved fee, records Failed and unlocks with no charge. Positive use and nonzero fee schedule a 10 Tgas transfer plus 10 Tgas `on_repay_fee_resolved(op_id)`; keep the lock through this terminal callback. An explicit failed fee transfer restores the fee; successful fee increases cumulative spend. Malformed, oversized, missing, impossible or failed repayment resolver results enter Unresolved with **no assumed refund** and retain the lock. A failed outer promise does not prove tokens returned. Terminal history/events carry `used`, refunded amount and actual fee; accepted surplus supplied at Rhea is counted as spend rather than claimed debt reduction.
 
-`RequestOutcome = Rejected { reason } | Executed { op_id, used, fee } | Failed { op_id }`.
+`RequestOutcome` uses an internal `outcome` tag: `{"outcome":"rejected","op_id":"…","reason":"…"}`, `{"outcome":"executed","op_id":"…","used":"…","fee":"…"}`, `{"outcome":"failed","op_id":"…"}` or `{"outcome":"unresolved","op_id":"…"}`. U128/U64 values are decimal strings. History retains at most 50 attempts, updating an existing started attempt when still retained; NEP-297 events preserve full operation correlation. Additional events: `repay_requested`, `repay_fee_failed`, `repay_unresolved`.
 
 ### Guardian: owner methods
 

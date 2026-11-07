@@ -9,6 +9,8 @@ Non-goals: selecting custody, public account creation, network deployment or col
 
 ## Decisions
 
+Settlement ABI dependency: provisioning must populate immutable verified `lending_version`, debt/collateral extra decimals, feed ids and freshness seconds from trusted network configuration, matching docs/technical/SMART-CONTRACT.md. All position/sweep methods must honor the shared Reading/Repaying/Fee/Unresolved lock; unresolved has no administrative unlock. Local settlement tests seed positions through sandbox code/state patching only and are not a production provisioning implementation.
+
 - STOP before implementation until founder records D18 G1/G3. G2 invalidates this change and requires a replacement scope; artifact completeness is not permission to proceed.
 - Once gated, add explicit collateral funding/registration and owner-only borrow, release, manual reserve repay and sweep. Every owner mutation requires predecessor owner plus 1 yocto; callbacks match operation and fixed destinations. Watcher cannot route funds, borrow or sweep.
 - Protect reserve/in-flight/fee commitments from sweep, including async balance-read races. Reuse a shared operation lock with settlement and reserve operations; manual repay is fee-free but still reconciles refunds and accepted surplus. Borrowed tokens are distinct from reserve accounting.

@@ -9,6 +9,8 @@ Non-goals: UI, signer, indexer/database or claiming complete historical transact
 
 ## Decisions
 
+Settlement ABI dependency: `complete-guardian-request-settlement` adds immutable verified lending version, both asset extra decimals, both feed ids and freshness seconds to `GuardianConfig`, `get_config()`, op phase in `in_flight`, tagged RequestOutcome and Unresolved history. Use the concrete ABI in docs/technical/SMART-CONTRACT.md; unresolved means spending remains locked, and `used` means accepted token spend, including supplied surplus. Do not invent a recovery control or accept model-selected configuration.
+
 - Reuse the structural RPC view interface through dependency injection without importing rhea internals; pin all Guardian views to one final block. Validate every field, bound u128 and timestamps, and distinguish not-found, malformed and unavailable results.
 - Expose status/policy/reserve/history with block/read provenance. Keep nanoseconds bigint until checked conversion, mapping to engine GuardianState explicitly. History limit <= 50; fetch the bounded retained ring in the backend and apply sinceMs there. State history truncation rather than claiming all-time totals.
 - Make dispatch awaitable and migrate every caller/test and provider adapter consistently. Existing synchronous runners remain usable behind the awaitable wrapper; no union requiring callers to guess Promise behavior.

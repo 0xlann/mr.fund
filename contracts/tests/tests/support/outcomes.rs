@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::{collections::BTreeSet, path::PathBuf, time::Duration};
 
-async fn rpc(worker: &Worker<Sandbox>, method: &str, params: Value) -> Result<Value> {
+pub async fn rpc(worker: &Worker<Sandbox>, method: &str, params: Value) -> Result<Value> {
     let body: Value = reqwest::Client::new()
         .post(worker.rpc_addr())
         .timeout(Duration::from_secs(15))
