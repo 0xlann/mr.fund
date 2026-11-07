@@ -27,6 +27,9 @@
 
 ## 4. Sandbox proof and handoff
 
-- [ ] 4.1 Prove empty child key list/I10 and complete owner collateral → borrow → repay → release lifecycle using imported Rhea versions and Simulated prices.
-- [ ] 4.2 Run Rust unit/sandbox suites and Clippy; record storage/gas/failure-phase costs and update SMART-CONTRACT/P2.4/P2.6/P2.7 evidence.
-- [ ] 4.3 Publish final ABI for add-guardian-client-and-tools; keep public creation/deployment behind D19/B7 and explicit account/funding authorization.
+- [x] 4.1 Prove empty child key list/I10 and complete owner collateral → borrow → repay → release lifecycle using imported Rhea versions and Simulated prices.
+  - `position_flow::lifecycle` on a factory-created Guardian, imported 0.11.0 and 0.16.2; the key list is empty before and after. Not shown: a surplus refund from deployed Rhea on manual repay, or a price-driven trigger.
+- [x] 4.2 Run Rust unit/sandbox suites and Clippy; record storage/gas/failure-phase costs and update SMART-CONTRACT/P2.4/P2.6/P2.7 evidence.
+  - 86 contract tests pass and `cargo clippy --all-targets -- -D warnings` is clean. Costs, failure phases and the measured registration costs are in SMART-CONTRACT; P2.6 is checked, P2.4 and P2.7 stay open with their remaining gaps stated.
+- [x] 4.3 Publish final ABI for add-guardian-client-and-tools; keep public creation/deployment behind D19/B7 and explicit account/funding authorization.
+  - SMART-CONTRACT "Final ABI for the client". Nothing was created or deployed on a public network. The remaining `add-guardian-client-and-tools` tasks 3.x are unblocked for the client but were not touched here.

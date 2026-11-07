@@ -282,5 +282,27 @@ Refund ABI: the callback `on_guardian_created(owner_id, guardian_id, deposit)` r
 - **Not exercised end to end:** an init failure inside the child is unreachable with a validated template and policy (the spike showed it reverts atomically); the refund-transfer-failure path (`claimable`, `claim_refund`) is covered by unit tests only, because an owner cannot be made to disappear between the batch and the refund in the sandbox.
 - **Does not guarantee:** that a refund covers gas, that a Guardian can be recovered or upgraded after creation, or that its NEAR can be taken back (the keyless account has no NEAR withdrawal).
 
+Usable funding [V for the parts, I for the sum]: registration is cheap because the counterparty refunds the excess of a registration-only deposit. Measured on both imported Rhea versions, the net cost to the Guardian was 0.1 NEAR for the lending contract and 0.00125 NEAR for each token. Adding the 2.75325 NEAR creation floor and about 0.034 NEAR of growth headroom for a full 50-entry history (computed from the 67-byte attempt record [I]) gives about 2.89 NEAR for a Guardian that is registered and can run its whole history. A Guardian holding only that cannot also absorb a later policy change that grows state much, so P2.8 sets the factory's `min_funding` and `max_funding` from this figure (a reasonable choice is a minimum of 2.9 NEAR and a maximum near 3.5 NEAR [I]); they are init parameters, not code.
+
+### Final ABI for the client (task 4.3)
+
+All amounts are decimal-string `U128`; account ids are strings. The client builds unsigned payloads only; nothing here is signed by the agent.
+
+**Factory** (`contracts/guardian-factory`, standard `mrfund_guardian_factory` 1.0.0)
+
+| Call | Deposit | Notes |
+| --- | --- | --- |
+| `create_guardian({policy})` | NEAR in `[min_funding, max_funding]` | The signer becomes the owner; at least 145 Tgas attached (48 Tgas used across receipts). Result is `{"outcome":"created","guardian_id","owner_id"}` or `{"outcome":"failed","phase":"create_batch","refund":"sent"\|"claimable","amount"}`. Out-of-range funding, too little gas, an invalid policy and a creation already in flight fail the transaction and the deposit returns at once |
+| `claim_refund()` | exactly 1 yocto | Only when an automatic refund transfer failed (`unclaimed > 0`) |
+| views | none | `get_guardian(owner_id)`, `get_owner(guardian_id)`, `get_next_guardian_id(owner_id)` (the id the next successful creation will use), `get_template()`, `get_limits()`, `get_unclaimed(owner_id)`, `is_pending(owner_id)`, `get_code_hash()` (JSON byte array), `get_code_len()` |
+
+Events: `guardian_creation_started`, `guardian_created`, `guardian_creation_failed`, `refund_sent`, `refund_claimable`, `refund_claimed`. The client must show a created Guardian only after `guardian_created` or a `created` outcome, never after the transaction hash alone.
+
+**Guardian owner position methods** (owner account and exactly 1 yocto; the watcher key cannot call them): `owner_register({target_id, storage_deposit})` with target the lending contract or either configured token; `owner_borrow({amount})` and `owner_withdraw_collateral({amount})` need at least 260 Tgas attached; `owner_repay_from_reserve({amount})` needs at least 115 Tgas; `owner_sweep({token_id})`. Collateral is deposited with the collateral token's `ft_transfer_call(receiver_id: <guardian>, amount, msg: "{\"collateral\":{}}")`, which the Guardian refunds when less than 140 Tgas reaches it.
+
+Events (standard `mrfund_guardian` 1.0.0): `position_operation_succeeded`/`position_operation_failed` (`operation` is `register`, `borrow` or `release`; the result is immediate-only), `collateral_deposit_resolved`, `manual_repay_settled`, `manual_repay_unresolved`, `swept`, `sweep_failed`, `sweep_skipped`.
+
+Gaps the client must surface: `get_status.in_flight` carries amount and fee but not the operation kind, so an unresolved manual repay shows as an in-flight lock with no `repay_phase`; the client must say "locked, outcome unknown" and never imply it can be cleared. The change does not add a view for this and does not change `get_status`. Public creation and deployment stay behind D19, B7 and explicit account and funding authorization.
+
 **Not deployed.** No account, transaction, gas figure or storage cost exists yet. When P2.8 runs, record here: network, factory and Guardian account ids, code hash, deploy and init transaction hashes, block heights, compiler and `cargo-near` versions, measured gas per method (`request_repay` both paths, `on_repay_resolved`, `owner_borrow`) and storage NEAR locked per Guardian.
 

@@ -174,6 +174,7 @@ pub async fn lifecycle(
         (collateral.id(), "10000000000000000000000"),
         (debt.id(), "10000000000000000000000"),
     ] {
+        let before = guardian.view_account().await?.balance.as_yoctonear();
         let outcome = owner_call(
             owner,
             &guardian,
@@ -182,6 +183,13 @@ pub async fn lifecycle(
         )
         .await?;
         assert!(logged(&outcome, "position_operation_succeeded"));
+        // Rhea and the tokens refund the excess of a registration-only deposit, so
+        // the net cost is the counterparty's real storage minimum, not `deposit`.
+        let after = guardian.view_account().await?.balance.as_yoctonear();
+        println!(
+            "registration {target_id}: offered {deposit}, net cost {} yocto",
+            before.saturating_sub(after)
+        );
         idle(&guardian).await?;
     }
     assert!(!position(lending, guardian.as_account()).await?.is_null());
