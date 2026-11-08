@@ -28,4 +28,12 @@ The live 3D character is Microsoft Rocketbox Business Male 01, served from `/pla
 
 ## Design references
 
-[Lusion](https://www.awwwards.com/sites/lusion), [Unseen Studio](https://www.awwwards.com/sites/unseen-studio), and user-supplied HeyElsa screenshots informed motion, card composition and the phone demonstration. No website source code, imagery or copy was extracted from them.
+[Lusion](https://www.awwwards.com/sites/lusion), [Unseen Studio](https://www.awwwards.com/sites/unseen-studio), and user-supplied HeyElsa screenshots informed motion, card composition and the phone demonstration. [Paper Tiger](https://www.awwwards.com/sites/paper-tiger) and [Pangram Pangram by Locomotive](https://locomotive.ca/en/work/pangram-pangram-foundry) informed the later type/image hierarchy and editorial composition. No website source code, imagery or copy was extracted from them.
+
+## Editorial type
+
+`instrument-serif-italic.ttf` (71,592 bytes) is Instrument Serif Italic from [Google Fonts’ official repository](https://github.com/google/fonts/tree/main/ofl/instrumentserif), downloaded 2026-11-08. It is served locally with `next/font/local`. The original SIL Open Font License and copyright notice are retained in `instrument-serif-OFL.txt`. The font is unmodified.
+
+## User-finalized video hero
+
+The user-provided `../video/gemini_generated_video_92f34b13.mp4` and `../video/hero-poster.webp` are the final hero's local background media. Their original generation process was not independently verified. The live phone character remains the existing Rocketbox model; chat/navbar avatars use `mr-fund-avatar.png` above.

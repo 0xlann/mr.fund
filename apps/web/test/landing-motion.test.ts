@@ -63,6 +63,42 @@ describe("landing motion controls", () => {
     expect(answer.textContent?.startsWith(partial)).toBe(true);
     expect(answer.textContent?.length).toBeGreaterThan(partial.length);
   });
+  it("switches demo topics through thinking and starts each answer from its first character", async () => {
+    const stories = conversation(landingFigures());
+    render(createElement(ConversationPreview, { figures: landingFigures() }));
+    await advance(600);
+    fireEvent.click(screen.getByRole("button", { name: "Market dip" }));
+    expect(screen.getByText(stories[2].question)).toBeTruthy();
+    expect(screen.getByRole("status", { name: "Mr.Fund is thinking" })).toBeTruthy();
+    await advance(1900);
+    expect(screen.queryByTestId("hero-answer")).toBeNull();
+    await advance(100);
+    await advance(200);
+    const partial = screen.getByTestId("hero-answer").textContent ?? "";
+    expect(stories[2].answer.startsWith(partial)).toBe(true);
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.length).toBeLessThan(20);
+    fireEvent.click(screen.getByRole("button", { name: "My position" }));
+    await advance(2000);
+    await advance(200);
+    const restarted = screen.getByTestId("hero-answer").textContent ?? "";
+    expect(stories[0].answer.startsWith(restarted)).toBe(true);
+    expect(restarted.length).toBeLessThan(20);
+  });
+  it("restarts progressive text when the automatic loop advances", async () => {
+    const stories = conversation(landingFigures());
+    render(createElement(ConversationPreview, { figures: landingFigures() }));
+    await advance(Math.ceil(stories[0].answer.length / 2) * 40);
+    await advance(3400);
+    await advance(1000);
+    await advance(2000);
+    await advance(200);
+    expect(screen.getByText(stories[1].question)).toBeTruthy();
+    const partial = screen.getByTestId("hero-answer").textContent ?? "";
+    expect(stories[1].answer.startsWith(partial)).toBe(true);
+    expect(partial.length).toBeGreaterThan(0);
+    expect(partial.length).toBeLessThan(20);
+  });
   it("keeps a standing 3D character in the phone with chat only", async () => {
     render(createElement(PhonePreview, { figures: landingFigures() }));
     expect(screen.getByTestId("live-character")).toBeTruthy();

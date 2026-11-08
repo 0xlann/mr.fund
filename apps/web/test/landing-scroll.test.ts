@@ -7,9 +7,13 @@ afterEach(() => {
   document.body.innerHTML = "";
   vi.unstubAllGlobals();
 });
-it.each([false, true])(
-  "initializes GSAP/Lenis and releases scroll resources (desktop: %s)",
-  (desktop) => {
+it.each([
+  { desktop: false, heroHeight: 650 },
+  { desktop: true, heroHeight: 770 },
+  { desktop: true, heroHeight: 620 },
+])(
+  "restores native flow after scroll motion (desktop: $desktop, hero: $heroHeight)",
+  ({ desktop, heroHeight }) => {
     vi.stubGlobal(
       "matchMedia",
       vi.fn((query: string) => ({
@@ -34,16 +38,22 @@ it.each([false, true])(
       },
     );
     vi.stubGlobal("scrollTo", vi.fn());
-    document.body.innerHTML = `<div id="landing"><div data-hero><span data-hero-word>Money</span><h1 data-hero-title></h1><p data-hero-intro></p><div data-hero-orbit></div><div data-hero-pin><div data-hero-visual><div data-hero-window></div><div data-hero-chat></div></div></div></div><div data-reveal>Visible content</div><article data-feature-card><div data-feature-art></div></article><div data-stack-pin><div data-stack-card></div><div data-stack-card></div><div data-stack-card></div></div><div data-phone-stage></div><div data-curtain></div><div data-float></div><div id="progress"></div></div>`;
+    document.body.innerHTML = `<div id="landing"><div data-hero><span data-hero-word>Money</span><h1 data-hero-title></h1><p data-hero-intro></p><div data-hero-orbit></div><div data-hero-pin><div data-hero-visual><div data-hero-window></div><div data-hero-chat></div></div></div></div><div data-reveal>Visible content</div><span data-rule></span><div data-hero-seal>m.</div><article data-feature-card><div data-feature-art></div></article><div data-stack-pin><div data-stack-card></div><div data-stack-card></div><div data-stack-card></div></div><div data-phone-stage></div><div data-curtain></div><div data-float></div><div id="progress"></div></div>`;
     const root = document.getElementById("landing"),
       progress = document.getElementById("progress");
     if (!root) throw new Error("Missing fixture");
+    const heroPin = root.querySelector<HTMLElement>("[data-hero-pin]");
+    if (!heroPin) throw new Error("Missing hero");
+    Object.defineProperty(heroPin, "offsetHeight", { value: heroHeight });
     const before = ScrollTrigger.getAll().length;
     const dispose = mountLandingMotion(root, progress);
     expect(ScrollTrigger.getAll().length).toBeGreaterThan(before);
     expect(document.documentElement.classList.contains("lenis")).toBe(true);
     expect(root.querySelector<HTMLElement>("[data-hero-word]")?.style.transform).not.toBe("");
     if (desktop) expect(root.querySelector(".pin-spacer")).not.toBeNull();
+    expect(heroPin.parentElement?.classList.contains("pin-spacer")).toBe(
+      desktop && heroHeight + 128 <= window.innerHeight,
+    );
     dispose();
     expect(root.querySelector(".pin-spacer")).toBeNull();
     expect(ScrollTrigger.getAll().length).toBe(before);

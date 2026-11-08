@@ -2,7 +2,6 @@
 
 import { ArrowUpRight, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import { ChatBrandAvatar, chatBubbleClass } from "../play/chatAppearance";
 import type { SpeechCue } from "../play/speechVisemes";
@@ -33,6 +32,7 @@ export function ConversationPreview({ figures }: { figures: LandingFigures }) {
   const cue = useRef<SpeechCue>({ id: 0, text: story.answer, charIndex: null });
   useEffect(() => {
     cue.current = { id: index, text: story.answer, charIndex: null };
+    characterProgress.current = 0;
   }, [index, story.answer]);
   useEffect(() => {
     if (!active || (phase === "hold" && audioSpeaking)) return;
@@ -60,7 +60,7 @@ export function ConversationPreview({ figures }: { figures: LandingFigures }) {
             setPhase("question");
           }
         },
-        phase === "hold" ? 3400 : phase === "thinking" ? 1600 : 1000,
+        phase === "hold" ? 3400 : phase === "thinking" ? 2000 : 1000,
       );
     return () => clearTimeout(timer);
     // Character ticks stay inside this component; they never recreate the renderer or restart a phase timer.
@@ -108,6 +108,16 @@ export function ConversationPreview({ figures }: { figures: LandingFigures }) {
       setAudioSpeaking(false);
     };
   }, [voiceActive, story.answer]);
+  const selectStory = (next: number) => {
+    characterProgress.current = 0;
+    setCharacters(0);
+    setPhase("thinking");
+    setIndex(
+      (current) =>
+        current +
+        ((next - (current % stories.length) + stories.length) % stories.length || stories.length),
+    );
+  };
   const speaking = active && (phase === "answer" || audioSpeaking);
   const text = reduced ? story.answer : story.answer.slice(0, characters);
   const answerVisible = reduced || phase === "answer" || phase === "hold";
@@ -116,20 +126,20 @@ export function ConversationPreview({ figures }: { figures: LandingFigures }) {
       ref={host}
       id="experience"
       data-hero-visual
-      className="relative mx-auto w-full max-w-[1120px] scroll-mt-24 pb-8 pt-0 lg:pb-6"
+      className="relative mx-auto w-full scroll-mt-24 pb-4 sm:pb-0"
     >
       <div
         data-hero-window
-        className="relative mx-auto h-[580px] w-full overflow-hidden rounded-[32px] bg-[#c9dbcb] bg-[url(/landing/grain-light.svg)] sm:h-[620px]"
+        className="relative mx-auto h-[460px] w-full overflow-hidden rounded-[180px_180px_12px_12px] bg-[#899a86] bg-[url(/landing/grain-light.svg)] sm:h-[690px] lg:rounded-[260px_260px_12px_12px]"
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-6 rounded-[24px] border border-solid border-[#203327]/15"
+          className="pointer-events-none absolute inset-x-6 bottom-6 top-6 rounded-[240px_240px_6px_6px] border border-solid border-[#e8ecdc]/25"
         />
         <div
           aria-hidden="true"
           data-orbit
-          className="absolute left-1/2 top-10 size-[260px] -translate-x-1/2 rounded-full border border-dashed border-[#203327]/15"
+          className="absolute left-1/2 top-10 size-[310px] -translate-x-1/2 rounded-full border border-dashed border-[#203327]/15"
         >
           <span className="absolute left-8 top-8 size-3 rounded-full bg-[#f5edda]" />
         </div>
@@ -140,30 +150,17 @@ export function ConversationPreview({ figures }: { figures: LandingFigures }) {
           cue={cue}
           wave={Math.floor(index / 3)}
         />
-        <div className="absolute right-5 top-8 flex items-center gap-1.5 rounded-full bg-[#edf0df] px-3 py-2 text-sm font-bold uppercase tracking-[.12em] text-[#344b3a]">
+        <div className="absolute bottom-5 left-5 flex items-center gap-1.5 text-sm font-medium text-[#e7ecdf]">
           <span className="size-1.5 rounded-full bg-[#607c56]" />
           Demo
         </div>
       </div>
       <div
         data-float
-        className="absolute -left-1 top-20 flex items-center gap-2 rounded-full border border-solid border-[#475349] bg-[#202923] px-3 py-2.5 sm:-left-5"
-      >
-        <Image
-          src="/play/tokens/near.svg"
-          alt=""
-          width={20}
-          height={20}
-          className="size-4 invert"
-        />
-        <span className="text-sm text-[#c4d2c7]">Built around NEAR</span>
-      </div>
-      <div
-        data-float
-        className="absolute -right-1 top-[38%] flex items-center gap-2 rounded-2xl bg-[#eee7d8] px-3 py-3 text-[#203327] sm:-right-3"
+        className="absolute -right-2 top-[19%] flex -rotate-6 items-center gap-3 rounded-[4px] bg-[#eee7d8] px-4 py-3 text-[#203327] sm:-right-3"
       >
         <span className="text-sm leading-tight">
-          Position
+          Demo position
           <br />
           health
         </span>
@@ -173,7 +170,7 @@ export function ConversationPreview({ figures }: { figures: LandingFigures }) {
       </div>
       <div
         data-hero-chat
-        className="absolute inset-x-0 bottom-7 rounded-[24px] border border-solid border-[#38443b] bg-[#121415] bg-[url(/play/chat-texture.svg)] p-4 sm:bottom-12 sm:left-auto sm:right-8 sm:w-[440px] sm:p-5"
+        className="relative z-10 mx-3 -mt-20 rounded-[20px_20px_4px_20px] border border-solid border-[#465449] bg-[#121415] bg-[url(/play/chat-texture.svg)] p-4 sm:absolute sm:bottom-12 sm:left-auto sm:right-5 sm:mx-0 sm:mt-0 sm:w-[360px] sm:p-5 lg:-right-5 lg:w-[370px]"
       >
         <div className="mb-4 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -247,6 +244,20 @@ export function ConversationPreview({ figures }: { figures: LandingFigures }) {
             </span>
           )}
         </div>
+        <fieldset className="m-0 mt-4 grid min-w-0 grid-cols-3 gap-1 border-0 border-t border-solid border-[#364139] px-0 pb-0 pt-3">
+          <legend className="sr-only">Choose a demo conversation</legend>
+          {["My position", "Repay or supply?", "Market dip"].map((topic, topicIndex) => (
+            <button
+              key={topic}
+              type="button"
+              aria-pressed={index % stories.length === topicIndex}
+              onClick={() => selectStory(topicIndex)}
+              className={`min-h-11 rounded-[8px] border-0 px-2 py-2 text-sm leading-tight transition-colors focus-visible:outline-2 focus-visible:outline-[#d3e5d7] ${index % stories.length === topicIndex ? "bg-[#d3e5d7] text-[#203327]" : "bg-transparent text-[#b1c0b5] hover:bg-[#263029]"}`}
+            >
+              {topic}
+            </button>
+          ))}
+        </fieldset>
         <div className="mt-3 flex items-center justify-between gap-3">
           <span className="text-sm text-[#8b9b8f]">Simulated</span>
           <a

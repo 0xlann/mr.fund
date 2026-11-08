@@ -7,7 +7,7 @@ export function ScrollJourney({ f }: { f: LandingFigures }) {
     <div data-stack-pin className="relative space-y-5">
       <article
         data-stack-card
-        className="relative grid min-h-[480px] items-center gap-6 overflow-hidden rounded-[32px] border border-solid border-[#bfcbb1] bg-[#e3e8d8] bg-[url(/landing/grain-light.svg)] p-7 md:grid-cols-2 md:p-12 lg:min-h-[540px]"
+        className="relative grid min-h-[480px] items-center gap-6 overflow-hidden rounded-[16px] border border-solid border-[#bfcbb1] bg-[#e3e8d8] bg-[url(/landing/grain-light.svg)] p-7 md:grid-cols-2 md:p-12 lg:min-h-[540px]"
       >
         <div>
           <p className="m-0 text-sm font-medium tracking-[.08em] text-[#657b58]">01 / UNDERSTAND</p>
@@ -38,7 +38,7 @@ export function ScrollJourney({ f }: { f: LandingFigures }) {
       </article>
       <article
         data-stack-card
-        className="relative grid min-h-[480px] items-center gap-6 overflow-hidden rounded-[32px] border border-solid border-[#cabd9f] bg-[#eee5cf] bg-[url(/landing/grain-light.svg)] p-7 md:grid-cols-2 md:p-12 lg:min-h-[540px]"
+        className="relative grid min-h-[480px] items-center gap-6 overflow-hidden rounded-[16px] border border-solid border-[#cabd9f] bg-[#eee5cf] bg-[url(/landing/grain-light.svg)] p-7 md:grid-cols-2 md:p-12 lg:min-h-[540px]"
       >
         <div>
           <p className="m-0 text-sm font-medium tracking-[.08em] text-[#7d7059]">02 / COMPARE</p>
@@ -69,7 +69,7 @@ export function ScrollJourney({ f }: { f: LandingFigures }) {
       </article>
       <article
         data-stack-card
-        className="relative grid min-h-[480px] items-center gap-6 overflow-hidden rounded-[32px] border border-solid border-[#405440] bg-[#203327] bg-[url(/landing/grain-dark.svg)] p-7 text-[#e6eddf] md:grid-cols-2 md:p-12 lg:min-h-[540px]"
+        className="relative grid min-h-[480px] items-center gap-6 overflow-hidden rounded-[16px] border border-solid border-[#405440] bg-[#203327] bg-[url(/landing/grain-dark.svg)] p-7 text-[#e6eddf] md:grid-cols-2 md:p-12 lg:min-h-[540px]"
       >
         <div>
           <p className="m-0 flex items-center gap-2 text-sm font-medium tracking-[.08em] text-[#b1c4a8]">

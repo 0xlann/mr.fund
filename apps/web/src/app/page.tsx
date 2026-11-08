@@ -17,6 +17,14 @@ const displayFont = localFont({
   display: "swap",
 });
 
+const editorialFont = localFont({
+  src: "../../public/landing/instrument-serif-italic.ttf",
+  weight: "400",
+  style: "italic",
+  variable: "--font-editorial",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Mr.Fund · The DeFi manager you can talk to",
   description:
@@ -25,7 +33,7 @@ export const metadata: Metadata = {
 
 export default function Home() {
   return (
-    <div className={`${bodyFont.variable} ${displayFont.variable}`}>
+    <div className={`${bodyFont.variable} ${displayFont.variable} ${editorialFont.variable}`}>
       <Landing />
     </div>
   );

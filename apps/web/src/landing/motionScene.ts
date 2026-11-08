@@ -33,12 +33,6 @@ export function mountLandingMotion(root: HTMLElement, progress: HTMLElement | nu
         { y: 24, autoAlpha: 0 },
         { y: 0, autoAlpha: 1, duration: 0.75, stagger: 0.08 },
         0.45,
-      )
-      .fromTo(
-        "[data-hero-visual]",
-        { y: 100, scale: 0.9, autoAlpha: 0 },
-        { y: 0, scale: 1, autoAlpha: 1, duration: 1.2, clearProps: "transform,opacity,visibility" },
-        0.4,
       );
     for (const el of root.querySelectorAll<HTMLElement>("[data-reveal]")) {
       gsap.fromTo(
@@ -54,6 +48,25 @@ export function mountLandingMotion(root: HTMLElement, progress: HTMLElement | nu
         },
       );
     }
+    for (const rule of root.querySelectorAll<HTMLElement>("[data-rule]"))
+      gsap.fromTo(
+        rule,
+        { scaleX: 0 },
+        {
+          scaleX: 1,
+          duration: 1.2,
+          ease: "power3.out",
+          scrollTrigger: { trigger: rule, start: "top 92%", once: true },
+        },
+      );
+    const seal = root.querySelector("[data-hero-seal]");
+    if (seal)
+      gsap.to(seal, {
+        rotation: 10,
+        y: -24,
+        ease: "none",
+        scrollTrigger: { trigger: seal, start: "top 30%", end: "+=600", scrub: 0.8 },
+      });
     const cards = Array.from(root.querySelectorAll<HTMLElement>("[data-feature-card]"));
     for (const [index, card] of cards.entries()) {
       gsap.fromTo(
@@ -149,28 +162,31 @@ export function mountLandingMotion(root: HTMLElement, progress: HTMLElement | nu
             ease: "none",
             scrollTrigger: { trigger: hero, start: "top top", end: "center top", scrub: 0.7 },
           });
-          gsap.to("[data-hero-orbit]", {
-            rotation: 70,
-            scale: 1.25,
-            ease: "none",
-            scrollTrigger: { trigger: hero, start: "top top", end: "bottom top", scrub: 1 },
-          });
+          const orbit = root.querySelector("[data-hero-orbit]");
+          if (orbit)
+            gsap.to(orbit, {
+              rotation: 70,
+              scale: 1.25,
+              ease: "none",
+              scrollTrigger: { trigger: hero, start: "top top", end: "bottom top", scrub: 1 },
+            });
         }
         if (large && visual && heroWindow) {
+          const canPin = visual.offsetHeight + 128 <= window.innerHeight;
           const timeline = gsap.timeline({
             scrollTrigger: {
               trigger: visual,
-              start: "top 104px",
+              start: canPin ? "top 104px" : "top 25%",
               end: "+=360",
-              pin: true,
+              pin: canPin,
               scrub: 0.8,
               anticipatePin: 1,
               invalidateOnRefresh: true,
             },
           });
           timeline
-            .to(heroWindow, { scale: 1.035, borderRadius: 8, duration: 1, ease: "none" }, 0)
-            .fromTo("[data-hero-chat]", { x: 45 }, { x: -12, duration: 1, ease: "none" }, 0);
+            .to(heroWindow, { scale: 1.025, duration: 1, ease: "none" }, 0)
+            .fromTo("[data-hero-chat]", { y: 20 }, { y: -12, duration: 1, ease: "none" }, 0);
         }
         const pin = root.querySelector<HTMLElement>("[data-stack-pin]");
         if (pin) {
