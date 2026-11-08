@@ -242,11 +242,12 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Remaining (box stays open): NEAR Connect/wallet submission and cancellation handling, UI integration and public wallet execution on the D19 network. The parser consumes an ordered known-hash plan; unsubmitted/cancelled wallet steps remain wallet-integration work. No mainnet write or liquidation-protection claim is introduced.
 
 - [ ] **P4.3a Dual browser login (D31, user-approved 2026-11-08).**
-  - Owned: `apps/web/src/wallet/`, `/connect` and minimal root-provider wiring; OpenSpec `add-dual-near-auth`.
+  - Owned now: `apps/web/src/wallet/` adapters and framework-independent controller; OpenSpec `add-dual-near-auth`. User explicitly deferred UI on 2026-11-08: no `/connect`, React provider/root wiring or DESIGN work in this slice.
   - Behavior: NEAR Auth hosted social/passkey login and NEAR Connect ecosystem wallets, explicit network/account selection, passive restoration and logout. No signing, account creation/funding, account linking, local session keys or server authentication.
   - Acceptance: both real adapters wired; stale async results cannot revive logged-out accounts; selections stay within current provider accounts; recoverable configuration/login states; actual browser smoke with separate human passkey/wallet completion evidence.
   - External gates: D19 remains open; mainnet Auth requires approved client credentials; public login/funding/signing are not inferred from controlled adapter tests.
-  - Evidence: pending implementation; no real login or transaction claimed.
+  - Local module evidence [V, 2026-11-08]: explicit public config, validated provider accounts, hosted identity-to-Ed25519 mapping, ecosystem adapter and one-active-account controller implemented. Two competing-operation regressions failed before correction; ten session tests passed afterward. Direct synthetic-provider smoke selected Bob, blocked concurrent reconnect during logout, then reconnected Alice. Public testnet MPC derivation with a synthetic subject completed in 775 ms; not credential login, account creation/funding or signing. Independent hosted-boundary review found no blockers; lifecycle review found two races and confirmed both closed after correction.
+  - Remaining (box stays open): frontend context/connection screen and real app/provider/passkey/wallet proof are deferred by user instruction. The current app UI remains unchanged. Synthetic provider tests and a public derived address do not satisfy complete browser login or P4.5.
 
 - [ ] **P4.4 Main screen, chat, card and receipt UI** (F1, F2, F4, F5).
   - First step: write `docs/DESIGN.md` from the founder's references (D23), including character rendering choice (D26).

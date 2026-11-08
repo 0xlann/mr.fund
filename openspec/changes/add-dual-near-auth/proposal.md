@@ -5,7 +5,7 @@ The user approved dual login on 2026-11-08: NEAR Auth for hosted social/passkey 
 ## What Changes
 
 - Add a browser-only login module with NEAR Auth and NEAR Connect adapters, passive restoration, explicit account selection and logout.
-- Expose a shared React context and a minimal `/connect` surface for the frontend team; leave the consultation/office UI unchanged.
+- Defer the shared React context and `/connect` surface: the user explicitly stopped all UI-related work on 2026-11-08. Deliver adapters and the framework-independent account controller only; the existing app UI stays unchanged.
 - Derive the NEAR Auth Ed25519 implicit address from the authenticated identity using the deployed MPC public-key view; distinguish an address from a funded/created account.
 - Configure network/RPC explicitly; require an approved client id for mainnet Auth. No email/password/passkey material or private key enters Mr.Fund.
 - Commit independently verified units of 50–350 added/deleted lines, including tests/docs/lockfile changes, as requested by the user.
@@ -22,4 +22,4 @@ None. The public-read chat endpoint remains unauthenticated; a browser session i
 
 ## Impact
 
-`apps/web/src/wallet/`, `apps/web/src/app/connect/`, root provider wiring, pinned browser dependencies, public environment documentation and P4.3 evidence. No Rust changes, account creation/funding, arbitrary transfers, transaction submission, local signing keys, backend sessions, account linking or durable chat storage. Manual execution and public money-flow evidence remain separate P4.3/P4.5 work.
+`apps/web/src/wallet/`, pinned browser dependencies, public environment documentation and P4.3 evidence. No React/root wiring or screen changes in the current authorized slice. No Rust changes, account creation/funding, arbitrary transfers, transaction submission, local signing keys, backend sessions, account linking or durable chat storage. Frontend integration and manual/public money-flow evidence remain separate P4.3/P4.5 work.

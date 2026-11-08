@@ -184,6 +184,8 @@ Live testnet and mainnet `get_assets_paged_detailed` return decimal strings `sup
 
 The user approved implementing `add-dual-near-auth` on a new branch from merged `dev`. Offer NEAR Auth hosted login and NEAR Connect wallets, preserving one explicitly selected network/account. Passkey/fingerprint availability belongs to the hosted tenant/device; login does not remove transaction approvals or change Guardian permissions. Mainnet Auth needs approved client credentials; D19 remains open. Named Auth account provisioning, funding, transaction submission and server authentication are outside this login slice.
 
+Execution scope update [V, user instruction, 2026-11-08]: stop all UI-related work for now. Finish the NEAR Auth/NEAR Connect adapters, account controller and non-UI verification only. React context/root wiring, `/connect`, DESIGN and app-level real-login proof are deferred to frontend integration; dual-login product intent is unchanged. The existing app UI must remain unchanged.
+
 The user also superseded D17's historical lack of a commit-size rule for subsequent work: **50–350 added/deleted lines per coherent commit**, including tests/docs/generated changes. No automatic merge is authorized.
 
 ## BLOCKERS

@@ -7,8 +7,8 @@ context: |
   D30 preserves protocol APR end to end. Money uses bigint/u128; Rhea internal
   units differ from token atomic units. AI explains, engine computes, contract authorizes.
   Agent never signs; watcher never imports agent. No database required in P0.
-  Earlier changes exclude frontend/UI; D31 now authorizes the minimal dual-login
-  module and /connect surface only, without redesigning the consultation UI.
+  D31 authorizes dual-login adapters and framework-independent session logic only.
+  User deferred all UI-related work on 2026-11-08: no React wiring or /connect screen.
   D18 G1 Guardian-held loan is decided.
   D19 remains open. D27 has composed sandbox proof, not public token/oracle proof.
   Sandbox prices are Simulated, never live evidence. GLM 5.3 Flash is the user's

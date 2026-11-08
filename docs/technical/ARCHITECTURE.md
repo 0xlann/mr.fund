@@ -59,6 +59,21 @@ flowchart LR
 | Rhea lending | Token transfers and `execute` | Position changes | Positions | External; behavior proven in Phase 0 |
 | Oracle | View calls | Prices with publish time | Prices | External; freshness enforced by consumers |
 
+### Dual-login implementation boundary (D31)
+
+[V, local, 2026-11-08] `apps/web/src/wallet/` implements explicit configuration, account validation, hosted identity-to-public-address derivation, NEAR Auth/NEAR Connect adapters and a framework-independent session controller. Per the user's later instruction, all UI-related integration is deferred: no React provider, root wiring, connection page or DESIGN work ships in this slice.
+
+- `createWalletSession(network, adapters, storage?)` exposes `getSnapshot`, `subscribe`, `restore`, `login`, `selectAccount`, `logout` and `dispose`. Its state contains lifecycle status, nullable selected session and a sanitized error.
+- The session contains method, network, accountId, validated account candidates and `contextKey`. Future frontend state must partition/reset by that key; it does not prove account ownership to a server.
+- Provider state, not browser hints, establishes account context. A restored method/account hint cannot add accounts absent from the provider.
+- Interactive login and sign-out are exclusive. Competing operations reject until they settle; do not queue popups and lose the user's gesture. Passive SDK events during login cannot supersede its final account read.
+- Generation guards discard obsolete passive/disposed results. They are not a substitute for exclusion: the connector's delayed sign-out mutates global provider state before returning.
+- Hosted Auth delegates identity validation to the official Auth0 browser SDK and uses the published network tenant/identity path to read the deployed MPC Ed25519 public key. An implicit address is neither a funded account nor evidence of transaction permission.
+- No signing method, raw token, private key or backend authorization credential crosses the interface. Guardian permissions, manual wallet approval and public-read chat behavior are unchanged.
+
+Observed module tests, the public MPC probe and remaining real-login gates are recorded in [INTEGRATIONS](INTEGRATIONS.md#dual-login-module-handoff-d31). React context and app-level login proof remain unchecked in `add-dual-near-auth`.
+
+
 ## Data flow
 
 ### Flow 1: ask and explain (F1, F2, F3)

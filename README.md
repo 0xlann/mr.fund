@@ -40,6 +40,10 @@ pnpm --filter @mrfund/web dev
 
 Copy `.env.example` to `.env` and fill it locally. Never commit `.env`.
 
+## Browser login modules
+
+NEAR Auth and NEAR Connect adapters plus an account-session controller are implemented in `apps/web/src/wallet/`. **UI integration is deferred by the user's instruction:** there is no connection screen or React provider yet. Module tests and a public MPC key read do not establish successful human login, funding or signing. Interfaces, public configuration and remaining proof: [dual-login handoff](docs/technical/INTEGRATIONS.md#dual-login-module-handoff-d31).
+
 ## Chat API
 
 The backend-only `POST /api/chat` streams progress, guarded text, unsigned cards and a terminal summary. Configure the server's `NEARAI_*` and network/Rhea environment variables before starting the web app; root `.env` values must be explicitly injected into the `apps/web` process. Missing pricing disables action proposals rather than inventing zero fees.
