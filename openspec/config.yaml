@@ -7,8 +7,10 @@ context: |
   D30 preserves protocol APR end to end. Money uses bigint/u128; Rhea internal
   units differ from token atomic units. AI explains, engine computes, contract authorizes.
   Agent never signs; watcher never imports agent. No database required in P0.
-  Current work excludes frontend/UI. D18 custody and D19 network remain open;
-  D27 needs composed gas proof. Sandbox prices are Simulated, never live evidence.
+  Current work excludes frontend/UI. D18 G1 Guardian-held loan is decided;
+  D19 remains open. D27 has composed sandbox proof, not public token/oracle proof.
+  Sandbox prices are Simulated, never live evidence. GLM 5.3 Flash is the user's
+  initial chat model; runtime/evaluation evidence is recorded in D25 and CHAT-API.
   Follow existing Result/validation conventions and pinned dependency versions.
 rules:
   proposal:
