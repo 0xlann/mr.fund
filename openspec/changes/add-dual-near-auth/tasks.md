@@ -1,0 +1,27 @@
+## 1. Contract and dependencies
+
+- [x] 1.1 Record user-approved D31 dual-login scope and reconcile PRD/architecture/P4.3; keep D19, public wallet proof and backend authentication separate. Strict OpenSpec validation passed (2026-11-08); no runtime evidence is implied by this specification commit.
+- [ ] 1.2 Add pinned browser dependencies and public configuration/types. Write config rejection tests first, observe failure, implement `readWalletConfig`, then prove no silent network or mainnet-client fallback. Commit the complete valid manifest/lockfile with its behavior/docs within 50–350 changed lines.
+
+## 2. Independent login adapters
+
+- [ ] 2.1 Write failing key-resolution tests for wrong chain, malformed RPC/key, wrong curve/length and exact known Ed25519 implicit address. Implement `resolveAuthAccount` using the existing RPC client and pinned base58 codec; run the focused suite and public read-only smoke. No account creation/signing.
+- [ ] 2.2 Write failing hosted-login lifecycle tests. Implement `createNearAuthAdapter`: Auth0 memory-cache client, SDK session restore, popup login, sanitized cancellation/errors, canonical subject/path and logout. No email-based identity or raw token exposure.
+- [ ] 2.3 Write failing connector lifecycle tests. Implement `createNearConnectAdapter`: one connector on configured network, no access-key request, passive restore, validated accounts, sign-out and detachable account-change events. Prove SDK callbacks cannot establish arbitrary account selection.
+
+## 3. Shared account lifecycle
+
+- [ ] 3.1 Write failing controller tests for stored-hint forgery, multiple-account selection, unavailable selection and disconnect. Implement `createWalletSession` over the adapters with one active method/network/account and account-scoped context key.
+- [ ] 3.2 Write failing delayed login/restore/logout and external account-change tests; implement generation invalidation so superseded results/events never revive the prior account. Test failed remote logout without claiming the provider session ended.
+- [ ] 3.3 Wire a browser-only `WalletProvider`/`useWalletSession` into root layout; load adapters only on the client and preserve server secret separation. Restore only the explicitly selected provider; no unsolicited prompts.
+
+## 4. Reachable UI and proof
+
+- [ ] 4.1 Add a minimal `/connect` page with both choices, account selection/full address/network, loading/error/config states, cancellation recovery and logout. Link from the placeholder home without redesigning the team's UI. Record scoped interaction rules in DESIGN.
+- [ ] 4.2 Exercise actual Next UI and real provider entry surfaces without login credentials or transactions; verify keyboard, 360 px, visible focus and reduced motion. Controlled adapter smoke is explicitly synthetic, never real login proof.
+- [ ] 4.3 Run affected tests after each coherent unit, one final workspace test/typecheck/lint/build and strict OpenSpec validation. Independent review checks stale sessions, wrong accounts, OAuth callback recovery and key/token handling. Fix evidence-backed findings in separate small commits.
+- [ ] 4.4 Record exact observed evidence and external gates in docs and these checkboxes. Human biometric/real-wallet completion and mainnet approved client remain owner prerequisites if unavailable; do not fabricate successful login or mark public money-flow tasks complete.
+
+## Commit contract
+
+Every commit contains one behavior, its relevant tests/docs and 50–350 added/deleted lines (including generated files). Parent integrates worker changes and commits only verified paths. Dependencies/interfaces precede consumers; no empty scaffolds, temporary artifacts or secrets are committed. No merge/push unless the user authorizes it for this branch.

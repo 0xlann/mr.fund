@@ -241,6 +241,13 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Fixtures: twelve actual raw sandbox RPC recordings with source WASM hash/version, recording time, receiver-fixture WASM hash, receipt action payloads, block headers and before/after Rhea account views. Partial refund is from a labelled sandbox-only NEP-141 receiver, not a Rhea behavior claim. Recorded surplus is separately checked against actual debt/supplied deltas. No public writes or signing keys were used outside generated local sandbox accounts. API, bounds and reproduction: [REPAY-OUTCOMES](technical/REPAY-OUTCOMES.md).
   - Remaining (box stays open): NEAR Connect/wallet submission and cancellation handling, UI integration and public wallet execution on the D19 network. The parser consumes an ordered known-hash plan; unsubmitted/cancelled wallet steps remain wallet-integration work. No mainnet write or liquidation-protection claim is introduced.
 
+- [ ] **P4.3a Dual browser login (D31, user-approved 2026-11-08).**
+  - Owned: `apps/web/src/wallet/`, `/connect` and minimal root-provider wiring; OpenSpec `add-dual-near-auth`.
+  - Behavior: NEAR Auth hosted social/passkey login and NEAR Connect ecosystem wallets, explicit network/account selection, passive restoration and logout. No signing, account creation/funding, account linking, local session keys or server authentication.
+  - Acceptance: both real adapters wired; stale async results cannot revive logged-out accounts; selections stay within current provider accounts; recoverable configuration/login states; actual browser smoke with separate human passkey/wallet completion evidence.
+  - External gates: D19 remains open; mainnet Auth requires approved client credentials; public login/funding/signing are not inferred from controlled adapter tests.
+  - Evidence: pending implementation; no real login or transaction claimed.
+
 - [ ] **P4.4 Main screen, chat, card and receipt UI** (F1, F2, F4, F5).
   - First step: write `docs/DESIGN.md` from the founder's references (D23), including character rendering choice (D26).
   - Owned: `apps/web/src/{screens,components}/*`.

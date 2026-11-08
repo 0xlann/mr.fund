@@ -51,6 +51,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 | D28 | Default comfort line and trigger | lead | Lead proposal | P1.5 | Comfort line health 150%, trigger default 120%, user-editable |
 | D29 | Watcher hosting | founder (account, cost) | Open, follows D16 | P5.3 | Options in D16 hosting table |
 | D30 | Protocol rate convention | user | Decided 2026-11-06 | P1.4 | Use Rhea APR fields end to end; rename shared types, engine and tools; no implicit APY conversion |
+| D31 | Dual browser login | user | Decided 2026-11-08 | P4.3 login slice | NEAR Auth hosted social/passkey onboarding plus NEAR Connect ecosystem wallets; no account linking, session keys or new spending authority |
 
 ### D16. Tech stack (Open)
 
@@ -178,6 +179,12 @@ Follows D16: Option A needs an always-on Node host (Railway or Fly.io; Render's 
 ### D30. Protocol rate convention (Decided 2026-11-06)
 
 Live testnet and mainnet `get_assets_paged_detailed` return decimal strings `supply_apr` and `borrow_apr`, contradicting the APY-only shared types. The user explicitly chose APR end to end during P1.4. Interfaces now use `supplyAprBps`, `borrowAprBps` and `yieldAprBps`, without old-name aliases. Supply floors and borrow ceils to integer basis points using exact arithmetic. Preserve the protocol's naming without claiming an APR/APY conversion or exact future compounded returns. This supersedes APY assumptions in historical test evidence.
+
+### D31. Dual browser login (Decided 2026-11-08)
+
+The user approved implementing `add-dual-near-auth` on a new branch from merged `dev`. Offer NEAR Auth hosted login and NEAR Connect wallets, preserving one explicitly selected network/account. Passkey/fingerprint availability belongs to the hosted tenant/device; login does not remove transaction approvals or change Guardian permissions. Mainnet Auth needs approved client credentials; D19 remains open. Named Auth account provisioning, funding, transaction submission and server authentication are outside this login slice.
+
+The user also superseded D17's historical lack of a commit-size rule for subsequent work: **50–350 added/deleted lines per coherent commit**, including tests/docs/generated changes. No automatic merge is authorized.
 
 ## BLOCKERS
 

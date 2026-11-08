@@ -12,7 +12,7 @@
 flowchart LR
   subgraph Browser["User device (untrusted UI, trusted wallet)"]
     UI[Web app: character, chat, position panel, cards, Guardian form]
-    W[Wallet via NEAR Connect]
+    W[NEAR Auth or NEAR Connect account context]
   end
   subgraph Server["Mr.Fund server (holds LLM key)"]
     API[Chat API]
@@ -48,6 +48,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | Web app | User input, wallet session, API responses | Rendered chat, cards, forms; transaction requests to the wallet | Chat transcript and receipts in browser storage | Untrusted for authority; displays only engine numbers |
 | Wallet (NEAR Connect) | Transactions built by the engine | Signatures, transaction outcomes | User keys | Trusted by the user; Mr.Fund never sees keys |
+| Dual-login module (D31) | Hosted Auth0 identity or NEAR Connect wallet accounts | Network-qualified selected account; no signer exposed in this slice | Provider-managed login state; network-scoped method/account hint only | Browser state is not server authentication or Guardian authority |
 | Chat API | Message, account id, locale | Streamed assistant reply, card drafts, character state | None durable (stateless per request) | Holds the LLM key; rate-limited |
 | Agent | Conversation, tool registry | Tool calls, final text, card drafts | None | LLM output is untrusted text |
 | Finance engine | Snapshots, policies, parameters | Numbers with inputs and assumptions; typed errors | None (pure) | Source of truth for every number |
@@ -205,6 +206,8 @@ scripts/                  Phase 0 probes and demo operator scripts
 ```
 
 Import rules: `engine` imports only `shared`. `rhea` and `guardian-client` import `shared` and the RPC client. `agent` imports `engine`, `rhea`, `guardian-client` and `shared`, and never a signer. The watcher imports `engine`, `rhea`, `guardian-client` and its own signer; it never imports `agent`. Transaction builders exist only in `rhea` and `guardian-client`.
+
+The D31 login slice lives in `apps/web/src/wallet/` and `/connect`, outside agent/server/watcher imports. Auth0's official browser SDK performs NEAR Auth login; the MPC public-key view maps its authenticated subject to an implicit address without creating or funding it. NEAR Connect supplies ecosystem accounts. The shared context exposes no signing API. Mainnet Auth approval, real login proof and wallet transaction submission have separate evidence gates in `add-dual-near-auth`; see its design for exact path/configuration and upstream SDK compatibility findings.
 
 ### Core types (TypeScript, `packages/shared`)
 
