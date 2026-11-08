@@ -104,21 +104,21 @@ export function VoicePanel({
             disabled={listening}
             aria-pressed={language === item.id}
             onClick={() => setLanguage(item.id)}
-            className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${language === item.id ? "border-[#26314a] bg-[#26314a] text-[#fff8e7]" : "border-[#344552] bg-transparent text-[#a8b8c4]"}`}
+            className={`rounded-full border px-3 py-2 text-[10px] font-semibold ${language === item.id ? "border-[#313334] bg-[#313334] text-[#fff8e7]" : "border-[#313334] bg-transparent text-[#a2a4a5]"}`}
           >
             {item.label}
           </button>
         ))}
       </div>
-      <div className="relative mx-auto my-7 flex size-[150px] items-center justify-center rounded-full border border-[#344552] bg-[#1d2833]">
+      <div className="relative mx-auto my-7 flex size-[150px] items-center justify-center rounded-full border border-[#313334] bg-[#1c1e1f]">
         <div
-          className={`absolute inset-3 rounded-full border-2 border-dashed border-[#344552] ${listening ? "animate-spin [animation-duration:12s] motion-reduce:animate-none" : ""}`}
+          className={`absolute inset-3 rounded-full border-2 border-dashed border-[#313334] ${listening ? "animate-spin [animation-duration:12s] motion-reduce:animate-none" : ""}`}
         />
         <button
           type="button"
           aria-label={listening ? "Stop listening" : "Start voice input"}
           onClick={listen}
-          className={`relative grid size-[86px] place-items-center rounded-[30px] border-2 border-[#26314a] shadow-[0_6px_0_#26314a] transition-transform active:translate-y-1 active:shadow-none ${listening ? "bg-[#dbf884] text-[#101a17]!" : "bg-[#ff643b] text-[#171b23]!"}`}
+          className={`relative grid size-[86px] place-items-center rounded-[30px] border-2 border-[#313334] shadow-none transition-transform active:translate-y-1 active:shadow-none ${listening ? "bg-[#dbf884] text-[#101a17]!" : "bg-[#ff643b] text-[#171b23]!"}`}
         >
           {listening ? <Square size={29} strokeWidth={1.8} /> : <Mic size={34} strokeWidth={1.8} />}
         </button>
@@ -126,7 +126,7 @@ export function VoicePanel({
       <h3 className="text-center font-[family-name:var(--font-display)] text-[28px] font-semibold tracking-[-.8px]">
         {listening ? "Go ahead. I'm listening." : "Some things are easier said."}
       </h3>
-      <p className="mt-2! text-center text-[11px] leading-relaxed text-[#a8b8c4]">
+      <p className="mt-2! text-center text-[11px] leading-relaxed text-[#a2a4a5]">
         {listening
           ? "Tap the square when you're finished."
           : "Tap the mic, ask a question, then review it before sending."}
@@ -135,7 +135,7 @@ export function VoicePanel({
         {[12, 20, 14, 27, 18, 24, 10, 22, 16, 27, 14, 20, 12].map((h, i) => (
           <span
             key={`${h}-${String(i)}`}
-            className={`w-1 rounded-full bg-[#1d2833] ${listening ? "animate-pulse bg-[#ff643b]!" : ""}`}
+            className={`w-1 rounded-full bg-[#1c1e1f] ${listening ? "animate-pulse bg-[#ff643b]!" : ""}`}
             style={{ height: `${h}px`, animationDelay: `${i * 60}ms` }}
           />
         ))}
@@ -143,13 +143,13 @@ export function VoicePanel({
       {error && (
         <p
           role="alert"
-          className="mb-4! rounded-xl border border-[#344552] bg-[#1d2833] p-3 text-[11px] leading-relaxed text-[#ffb18c]"
+          className="mb-4! rounded-xl border border-[#313334] bg-[#1c1e1f] p-3 text-[11px] leading-relaxed text-[#ffb18c]"
         >
           <MicOff size={14} className="mr-1 inline" />
           {error}
         </p>
       )}
-      <label className="text-[10px] font-bold text-[#a8b8c4]" htmlFor="voice-transcript">
+      <label className="text-[10px] font-bold text-[#a2a4a5]" htmlFor="voice-transcript">
         {sample ? "SAMPLE TRANSCRIPT · SIMULATED" : "YOUR WORDS"}
       </label>
       <textarea
@@ -164,7 +164,7 @@ export function VoicePanel({
         }
         rows={3}
         maxLength={500}
-        className="mt-2 resize-none rounded-xl border border-[#344552] bg-[#1d2833] p-3 font-[family-name:var(--font-body)] text-xs leading-relaxed outline-[#284bdf]"
+        className="mt-2 resize-none rounded-xl border border-[#313334] bg-[#1c1e1f] p-3 font-[family-name:var(--font-body)] text-xs leading-relaxed outline-[#bad7c3]"
       />
       <button
         type="button"
@@ -178,7 +178,7 @@ export function VoicePanel({
               : "Your transcript was sent to Mr.Fund's demo chat.",
           );
         }}
-        className="mt-3 flex items-center justify-between rounded-xl border-0 bg-[#284bdf] px-4 py-3 text-xs font-bold text-white disabled:opacity-40"
+        className="mt-3 flex items-center justify-between rounded-xl border-0 bg-[#bad7c3] px-4 py-3 text-xs font-bold text-[#203327] disabled:opacity-40"
       >
         <span className="flex items-center gap-2">
           <Check size={16} />
@@ -196,12 +196,12 @@ export function VoicePanel({
           );
           setSample(true);
         }}
-        className="mt-4 flex items-center justify-center gap-1.5 border-0 bg-transparent text-[10px] font-semibold text-[#a8b8c4]"
+        className="mt-4 flex items-center justify-center gap-1.5 border-0 bg-transparent text-[10px] font-semibold text-[#a2a4a5]"
       >
         <AudioLines size={13} />
         Try a demo transcript
       </button>
-      <p className="mt-5! text-center text-[8px] leading-relaxed text-[#a8b8c4]">
+      <p className="mt-5! text-center text-[8px] leading-relaxed text-[#a2a4a5]">
         Voice uses your browser's speech service; its provider may process audio. Mr.Fund's replies
         are scripted in this demo. No transaction is authorized by speaking.
       </p>

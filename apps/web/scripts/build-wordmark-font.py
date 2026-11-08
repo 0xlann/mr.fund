@@ -8,8 +8,8 @@ from fontTools.pens.basePen import BasePen
 from fontTools.pens.boundsPen import BoundsPen
 
 web = Path(__file__).resolve().parents[1]
-font = TTFont(web / "public/play/bricolage-grotesque-variable.ttf")
-glyphs = font.getGlyphSet(location={"wght": 800})
+font = TTFont(web / "public/play/space-grotesk-variable.ttf")
+glyphs = font.getGlyphSet(location={"wght": 700})
 cmap = font.getBestCmap()
 scale = 1000 / font["head"].unitsPerEm
 
@@ -50,9 +50,9 @@ data = {
     "underlinePosition": -100, "underlineThickness": 50,
     "boundingBox": {"xMin": head.xMin * scale, "xMax": head.xMax * scale, "yMin": head.yMin * scale, "yMax": head.yMax * scale},
     "original_font_information": {
-        "source": "Bricolage Grotesque, weight 800, glyph subset for mr.fund and registration mark",
-        "copyright": "Copyright 2022 The Bricolage Grotesque Project Authors",
-        "license": "SIL Open Font License 1.1; public/play/licenses/bricolagegrotesque-OFL.txt",
+        "source": "Space Grotesk, weight 700, glyph subset for mr.fund and registration mark",
+        "copyright": "Copyright 2018 The Space Grotesk Project Authors",
+        "license": "SIL Open Font License 1.1; public/play/licenses/SpaceGrotesk-OFL.txt",
     },
 }
 out = web / "src/play/assets/wordmark.typeface.json"

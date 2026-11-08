@@ -7,7 +7,7 @@ const Playground = dynamic(() => import("./Playground").then((module) => module.
   loading: () => (
     <div
       role="status"
-      className="fixed inset-0 grid min-h-dvh place-items-center bg-[#0d141c] font-[family-name:var(--font-body)] text-sm text-[#edf3f5]"
+      className="fixed inset-0 grid min-h-dvh place-items-center bg-[#0c0e0f] font-[family-name:var(--font-body)] text-sm text-[#edf3f5]"
     >
       Opening the office…
     </div>

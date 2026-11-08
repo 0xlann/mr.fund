@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { Bone, Object3D, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
+import {
+  CONSULTATION_DESK as DESK,
+  CONSULTATION_LAPTOP as LAPTOP,
+} from "../src/play/consultationScene";
 import { createRealisticCharacterMotion } from "../src/play/realisticCharacter";
 
 type Node = {
@@ -102,6 +106,61 @@ describe("downloaded Jungle Jim rig", () => {
     expect(
       knee.getWorldPosition(new Vector3()).sub(hip.getWorldPosition(new Vector3())).normalize().y,
     ).toBeLessThan(-0.95);
+  });
+  it("keeps seated fingers above the desk and clear of the laptop footprint", () => {
+    const root = downloadedRig();
+    const motion = createRealisticCharacterMotion(root);
+    if (!motion) throw new Error("Missing character rig");
+    // Original geometry bounds from this downloaded asset, normalized to the portrait's 3.9 units.
+    root.scale.setScalar(3.9 / (1.722135066986084 - 0.022224653512239456));
+    root.position.y = -0.022224653512239456 * root.scale.y;
+    root.updateMatrixWorld(true);
+    const hip = root.getObjectByName("Hips");
+    if (!hip) throw new Error("Missing hip");
+    root.position.y -= hip.getWorldPosition(new Vector3()).y - 1.05;
+    for (let frame = 0; frame < 80; frame++) {
+      motion.update(0.05, 0, false, "calm", 0, { walk: 0, stride: 0, reach: 0, sit: 1 });
+      root.updateMatrixWorld(true);
+      for (const side of ["Left", "Right"]) {
+        for (const digit of ["Index", "Middle", "Ring", "Pinky"]) {
+          const finger = root.getObjectByName(`${side}Hand${digit}4`);
+          if (!finger) throw new Error("Missing finger");
+          const position = finger.getWorldPosition(new Vector3());
+          expect(position.y).toBeGreaterThan(DESK.top + 0.015);
+          expect(position.z).toBeGreaterThan(DESK.back);
+          // Include the screen/keyboard width, rotation and a cuff/skin margin.
+          const laptopRight =
+            LAPTOP.x + LAPTOP.scale * (0.82 / 2 + (0.53 / 2) * Math.abs(Math.sin(LAPTOP.rotation)));
+          expect(position.x - 0.03).toBeGreaterThan(laptopRight);
+        }
+      }
+    }
+  });
+  it("types over the laptop without putting fingertips through the keyboard", () => {
+    const root = downloadedRig();
+    const motion = createRealisticCharacterMotion(root);
+    if (!motion) throw new Error("Missing character rig");
+    root.scale.setScalar(3.9 / (1.722135066986084 - 0.022224653512239456));
+    root.position.y = -0.022224653512239456 * root.scale.y;
+    root.updateMatrixWorld(true);
+    const hip = root.getObjectByName("Hips");
+    if (!hip) throw new Error("Missing hip");
+    root.position.y -= hip.getWorldPosition(new Vector3()).y - 1.05;
+    for (let frame = 0; frame < 80; frame++) {
+      motion.update(0.05, 0, false, "calm", 0, { walk: 0, stride: 0, reach: 0, sit: 1 }, 1);
+      root.updateMatrixWorld(true);
+      for (const side of ["Left", "Right"]) {
+        for (const digit of ["Index", "Middle", "Ring", "Pinky"]) {
+          const finger = root.getObjectByName(`${side}Hand${digit}4`);
+          if (!finger) throw new Error("Missing finger");
+          const position = finger.getWorldPosition(new Vector3());
+          expect(position.y).toBeGreaterThan(DESK.top + 0.05);
+          expect(Math.abs(position.x)).toBeLessThan(0.36);
+          expect(position.z).toBeGreaterThan(0.6);
+          expect(position.z).toBeLessThan(1.25);
+        }
+      }
+    }
   });
   it("swings walking hands forward and back, opposite to each other and their matching leg", () => {
     const root = downloadedRig();

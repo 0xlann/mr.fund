@@ -4,21 +4,21 @@ import { PlayViewport } from "../../play/PlayViewport";
 import "./tailwind.css";
 
 const bodyFont = localFont({
-  src: "../../../public/play/instrument-sans-variable.ttf",
-  weight: "400 700",
+  src: "../../../public/play/manrope-variable.ttf",
+  weight: "200 800",
   variable: "--font-body",
   display: "swap",
 });
 const displayFont = localFont({
-  src: "../../../public/play/bricolage-grotesque-variable.ttf",
-  weight: "200 800",
+  src: "../../../public/play/space-grotesk-variable.ttf",
+  weight: "300 700",
   variable: "--font-display",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "The office · Mr.Fund",
-  description: "Meet your money's new plus-one. An interactive, simulated Mr.Fund demo.",
+  title: "Consultation · Mr.Fund",
+  description: "A conversation with your DeFi companion. A simulated Mr.Fund consultation.",
   robots: { index: false, follow: false },
 };
 

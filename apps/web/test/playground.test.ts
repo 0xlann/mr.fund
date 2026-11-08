@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { atomic, draft, metrics, snapshot } from "../src/play/demo";
 import { Playground } from "../src/play/Playground";
@@ -8,7 +8,7 @@ import { Playground } from "../src/play/Playground";
 type SceneProps = {
   station: "office" | "chat";
   speaking: boolean;
-  hud: { panelOpen: boolean; positionColumn: boolean; stacked: boolean };
+  onEntranceComplete: () => void;
 };
 const scene = vi.hoisted(() => ({ current: null as SceneProps | null }));
 vi.mock("next/dynamic", () => ({
@@ -16,6 +16,11 @@ vi.mock("next/dynamic", () => ({
     scene.current = props;
     return null;
   },
+}));
+
+vi.mock("../src/play/ImmersiveSceneFrame", () => ({
+  ImmersiveSceneFrame: ({ children }: { children: ReactNode }) =>
+    createElement("div", null, children),
 }));
 
 beforeEach(() => {
@@ -47,6 +52,8 @@ async function begin() {
   click("Start consultation");
   click(DEMO_WALLET);
   await advance(800);
+  act(() => scene.current?.onEntranceComplete());
+  await advance(200);
 }
 
 // These tests exercise local state, not wallet signing or on-chain enforcement.
@@ -73,6 +80,7 @@ describe("/play demo", () => {
     await advance();
     click("Position");
     expect(screen.getAllByText("$1,800.00").length).toBeGreaterThan(1);
+    expect(screen.queryByText("−$100.00")).toBeNull();
     click("Chat");
     click("Execute now");
     click("Approve demo action");
@@ -80,14 +88,20 @@ describe("/play demo", () => {
     click("Position");
     expect(screen.getAllByText("$1,700.00").length).toBeGreaterThan(1);
     expect(screen.getAllByText("167.64%").length).toBeGreaterThan(0);
+    expect(screen.getByText("−$100.00")).toBeTruthy();
+    expect(screen.getByText(/After your last simulated repay: .* → 167.64%/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Activity/ }));
     expect(screen.getByText("Repaid 100.00 USDC")).toBeTruthy();
   });
   it("opens on a welcome screen and keeps the office tools behind Start consultation", () => {
     render(createElement(Playground));
-    expect(screen.getByRole("heading", { name: "The DeFi manager you can talk to." })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Start your consultation with Mr.Fund" }),
+    ).toBeTruthy();
     expect(scene.current?.station).toBe("office");
     expect(screen.queryByRole("navigation", { name: "Office actions" })).toBeNull();
+    expect(screen.queryByRole("banner")).toBeNull();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
     expect(screen.queryByRole("textbox", { name: "Message Mr.Fund" })).toBeNull();
     click("Start consultation");
     const wallet = screen.getByRole("dialog", { name: "Connect to begin." });
@@ -102,6 +116,9 @@ describe("/play demo", () => {
     expect(scene.current?.station).toBe("office");
     await advance(800);
     expect(scene.current?.station).toBe("chat");
+    expect(screen.queryByRole("textbox", { name: "Message Mr.Fund" })).toBeNull();
+    act(() => scene.current?.onEntranceComplete());
+    await advance(200);
     expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Position stats" })).toBeTruthy();
     click("Guardian");
@@ -126,7 +143,6 @@ describe("/play demo", () => {
     await begin();
     expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
     expect(screen.getByRole("complementary", { name: "Consultation details" })).toBeTruthy();
-    expect(scene.current?.hud).toEqual({ panelOpen: true, positionColumn: true, stacked: false });
     expect(screen.queryByRole("button", { name: "Position" })).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Office actions" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Close overlay" })).toBeNull();
@@ -152,6 +168,104 @@ describe("/play demo", () => {
     await advance();
     expect(screen.getByText("SIMULATED WHAT-IF")).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
+  });
+  it("keeps every consultation panel inert behind the welcome on desktop", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })),
+    );
+    render(createElement(Playground));
+    const details = document.querySelector('[aria-label="Consultation details"][class]');
+    const shell = details?.closest("[inert]");
+    expect(shell?.getAttribute("aria-hidden")).toBe("true");
+    expect(screen.queryByRole("tab", { name: "Activity" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Let's talk money." })).toBeNull();
+    expect(screen.getByRole("button", { name: "Start consultation" })).toBeTruthy();
+  });
+  it("speaks replies by default and stops the character's speaking state when speech ends", async () => {
+    class Utterance {
+      text: string;
+      lang = "";
+      rate = 1;
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    const synth = { cancel: vi.fn(), speak: vi.fn<(utterance: Utterance) => void>() };
+    vi.stubGlobal("SpeechSynthesisUtterance", Utterance);
+    vi.stubGlobal("speechSynthesis", synth);
+    render(createElement(Playground));
+    await begin();
+    click("Find my smartest move");
+    await advance();
+    expect(synth.speak).toHaveBeenCalledOnce();
+    expect(scene.current?.speaking).toBe(true);
+    act(() => synth.speak.mock.calls[0]?.[0].onend?.());
+    expect(scene.current?.speaking).toBe(false);
+    click("Mute spoken replies");
+    expect(screen.getByRole("button", { name: "Enable spoken replies" })).toBeTruthy();
+    fireEvent.change(screen.getByRole("textbox", { name: "Message Mr.Fund" }), {
+      target: { value: "Explain my position" },
+    });
+    click("Send message");
+    await advance();
+    expect(synth.speak).toHaveBeenCalledOnce();
+  });
+  it("makes room for the mobile keyboard and restores the companion on blur", async () => {
+    const viewport = Object.assign(new EventTarget(), { height: window.innerHeight });
+    vi.stubGlobal("visualViewport", viewport);
+    render(createElement(Playground));
+    await begin();
+    const input = screen.getByRole("textbox", { name: "Message Mr.Fund" });
+    fireEvent.focus(input);
+    act(() => {
+      viewport.height = 360;
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    expect(screen.queryByRole("navigation", { name: "Office actions" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Your companion" })).toBeNull();
+    expect(screen.getByRole("main").style.height).toBe("360px");
+    fireEvent.blur(input);
+    expect(screen.getByRole("navigation", { name: "Office actions" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Your companion" })).toBeTruthy();
+  });
+  it("keeps Shift+Enter and IME input while Enter sends the question", async () => {
+    render(createElement(Playground));
+    await begin();
+    const input = screen.getByRole("textbox", { name: "Message Mr.Fund" });
+    fireEvent.change(input, { target: { value: "Explain debt please" } });
+    expect(fireEvent.keyDown(input, { key: "Enter", shiftKey: true })).toBe(true);
+    expect(fireEvent.keyDown(input, { key: "Enter", isComposing: true })).toBe(true);
+    expect(screen.queryByText("YOU")).toBeNull();
+    expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(false);
+    expect(screen.getByText("YOU")).toBeTruthy();
+    await advance();
+    expect((input as HTMLTextAreaElement).value).toBe("");
+  });
+  it("unfolds chat after the camera arrives, then unfolds the desktop details", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query === "(min-width: 1280px)",
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    render(createElement(Playground));
+    expect(screen.getByRole("region", { name: "Your companion" })).toBeTruthy();
+    click("Start consultation");
+    click(DEMO_WALLET);
+    await advance(800);
+    expect(screen.queryByRole("textbox", { name: "Message Mr.Fund" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Position" })).toBeNull();
+    act(() => scene.current?.onEntranceComplete());
+    expect(screen.getByRole("textbox", { name: "Message Mr.Fund" })).toBeTruthy();
+    expect(screen.queryByRole("tab", { name: "Position" })).toBeNull();
+    await advance(160);
+    expect(screen.getByRole("tab", { name: "Position" })).toBeTruthy();
   });
   it("animates a reply then returns to listening without changing the financial state", async () => {
     render(createElement(Playground));
@@ -213,9 +327,8 @@ describe("/play demo", () => {
   it("opens and closes tools as overlays once the consultation has started", async () => {
     render(createElement(Playground));
     await begin();
-    expect(screen.getByRole("dialog", { name: "Let's talk money." })).toBeTruthy();
-    click("Close overlay");
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("region", { name: "Let's talk money." })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Close overlay" })).toBeNull();
     click("Position");
     expect(screen.getByRole("dialog", { name: "Here's where you stand." })).toBeTruthy();
     fireEvent.keyDown(window, { key: "Escape" });
@@ -234,7 +347,7 @@ describe("/play demo", () => {
     ).toBe("What if NEAR drops 20%?");
     click("Send my question");
     await advance();
-    expect(screen.getByRole("dialog", { name: "Let's talk money." })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Let's talk money." })).toBeTruthy();
     expect(screen.getByText("SIMULATED WHAT-IF")).toBeTruthy();
   });
 });

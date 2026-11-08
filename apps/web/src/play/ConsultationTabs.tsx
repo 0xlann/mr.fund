@@ -20,7 +20,7 @@ export function ConsultationTabs({
     <div
       role="tablist"
       aria-label="Consultation details"
-      className="grid grid-cols-3 gap-1 rounded-2xl border border-[#344552] bg-[#101923] p-1"
+      className="grid grid-cols-3 gap-1 rounded-full border border-white/7 bg-[#1b1d1e] p-1"
     >
       {tabs.map((tab, index) => (
         <button
@@ -51,7 +51,7 @@ export function ConsultationTabs({
               ?.querySelectorAll<HTMLButtonElement>("[role=tab]")
               [target ?? 0]?.focus();
           }}
-          className={`flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-0 px-2 py-2 text-[11px] font-bold transition-colors ${value === tab.id ? "bg-[#dbf884] text-[#101a17]" : "bg-transparent text-[#a8b8c4] hover:bg-[#263847] hover:text-[#edf3f5]"}`}
+          className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full border-0 px-2 py-2 text-[11px] font-bold transition-colors ${value === tab.id ? "bg-[#e4d7ba] text-[#26352a]" : "bg-transparent text-[#a2a4a5] hover:bg-[#263847] hover:text-[#edf3f5]"}`}
         >
           <tab.icon size={15} />
           {tab.label}

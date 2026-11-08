@@ -45,7 +45,7 @@ Original font/license sources:
 
 ### Raised wall lettering
 
-`src/play/assets/wordmark.typeface.json` is a glyph subset derived from the existing Bricolage Grotesque variable font at weight 800, renamed Mr Fund Wordmark, under the same SIL OFL 1.1 license above. `scripts/build-wordmark-font.py` regenerates it using fontTools in an isolated Python environment (build-time only). Three.js TextGeometry extrudes and bevels the outlines at runtime; no new font download or runtime package is required.
+`src/play/assets/wordmark.typeface.json` is a glyph subset derived from the self-hosted Space Grotesk variable font at weight 700, renamed Mr Fund Wordmark, under SIL OFL 1.1 (`licenses/SpaceGrotesk-OFL.txt`). `scripts/build-wordmark-font.py` regenerates it using fontTools in an isolated Python environment (build-time only). Three.js TextGeometry extrudes and bevels the outlines at runtime; no new font download or runtime package is required.
 
 ## Window garden scenery
 
@@ -54,3 +54,26 @@ Original font/license sources:
 ### Consultation facial preview — 2026-11-07
 
 The Jungle Jim Businessman head receives runtime additive geometry morph targets in `src/play/characterFace.ts`: localized mouth, brow and smile offsets calibrated to the original head mesh. These are project-authored procedural modifications to the credited CC BY 4.0 model, not supplied facial animation clips or phoneme lip-sync. The source GLB is unchanged.
+
+### Consultation typography and bounded portrait — 2026-11-07
+
+Active body font: **Manrope**, Google Fonts source `https://github.com/google/fonts/tree/main/ofl/manrope`, downloaded as `manrope-variable.ttf` from `Manrope[wght].ttf`. SIL OFL text: `licenses/Manrope-OFL.txt`.
+
+Active display font: **Space Grotesk**, Google Fonts source `https://github.com/google/fonts/tree/main/ofl/spacegrotesk`, downloaded as `space-grotesk-variable.ttf` from `SpaceGrotesk[wght].ttf`. SIL OFL text: `licenses/SpaceGrotesk-OFL.txt`.
+
+The existing Jungle Jim character is now presented in a bounded portrait with project-authored procedural desk, laptop, chair and mug geometry. Palms and desk positions are calibrated for the seated pose. The old downloaded furniture, garden texture and previous font files remain inactive source assets; they are not loaded by the consultation renderer. No third-party reference artwork was added.
+
+### Position token icons — 2026-11-07
+
+- `tokens/near.svg`: NEAR symbol from the official NEAR documentation repository, https://github.com/near/docs/blob/master/assets/favicon.svg (download: https://raw.githubusercontent.com/near/docs/master/assets/favicon.svg). The viewBox is tightened around the existing symbol; the glyph paths are unchanged. Displayed in black on a neutral light circular plate.
+- `tokens/usdc.svg`: USDC token symbol from Circle's official website CDN: https://cdn.prod.website-files.com/67116d0daddc92483c812e88/67f70c16822274e9e063e81e_9dd0e90b80eda66f26a25533e4874fe9_usdc-tokenlogo.svg. Only the surrounding preview plate/whitespace was removed; the blue token, white paths and proportions are unchanged. Circle brand source and usage guidelines: https://www.circle.com/pressroom#brand-kit. Displayed at 36px, above the stated 32px minimum for the token logo.
+
+Marks remain the property of their respective owners and identify the tokens; no affiliation is implied. Both icons are local SVG assets and require no external image service at runtime.
+
+### Side-view consultation entrance — 2026-11-07
+
+The same credited Businessman model now has a project-authored typing pose and small procedural finger motions during welcome. `consultationEntrance.ts` coordinates a side-to-front camera orbit with laptop clearance and the return to the resting pose. No motion-capture clip, external animation asset, or additional character model was added.
+
+### Dark office and raised wall wordmark — 2026-11-08
+
+The full-screen welcome now uses project-authored procedural office geometry in `consultationRoom.ts`, without external room/furniture textures or downloads. The same scene moves into the consultation column. `wordmark.typeface.json` was regenerated from Space Grotesk weight 700 using the existing build script and fontTools 4.60.1 in an isolated temporary environment; it renders extruded `mr.fund` lettering directly on the left wall. The source font, SIL OFL text and attribution remain as listed above. No runtime font-processing dependency was added.

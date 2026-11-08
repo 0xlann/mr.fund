@@ -36,6 +36,7 @@ export function createRealisticCharacterMotion(root: Object3D) {
   pointBone(root, rightArm, rightForearm, new Vector3(-0.14, -1, 0.04));
   pointBone(root, rightForearm, rightHand, new Vector3(-0.07, -1, 0.17));
 
+  const digits: { bone: Bone; rest: Quaternion }[] = [];
   // Relax the source's spread, straight T-pose fingers into a loose resting hand.
   for (const side of ["Left", "Right"]) {
     for (const finger of ["Index", "Middle", "Ring", "Pinky"]) {
@@ -45,7 +46,10 @@ export function createRealisticCharacterMotion(root: Object3D) {
         [3, 0.16],
       ] as const) {
         const digit = bone(`${side}Hand${finger}${joint}`);
-        if (digit) digit.rotateX(curl);
+        if (digit) {
+          digit.rotateX(curl);
+          digits.push({ bone: digit, rest: digit.quaternion.clone() });
+        }
       }
     }
   }
@@ -53,7 +57,8 @@ export function createRealisticCharacterMotion(root: Object3D) {
     forearmRest = rightForearm.quaternion.clone(),
     handRest = rightHand.quaternion.clone();
   const leftArmRest = leftArm.quaternion.clone(),
-    leftForearmRest = leftForearm.quaternion.clone();
+    leftForearmRest = leftForearm.quaternion.clone(),
+    leftHandRest = leftHand.quaternion.clone();
   pointBone(root, rightArm, rightForearm, new Vector3(-0.8, -0.28, 0.22));
   const armWave = rightArm.quaternion.clone();
   pointBone(root, rightForearm, rightHand, new Vector3(0.1, 0.96, 0.25));
@@ -74,6 +79,51 @@ export function createRealisticCharacterMotion(root: Object3D) {
   const leftArmSeated = leftArm.quaternion.clone();
   pointBone(root, leftForearm, leftHand, new Vector3(-0.2, -0.1, 1));
   const leftForearmSeated = leftForearm.quaternion.clone();
+  pointBone(root, leftArm, leftForearm, new Vector3(0.02, -0.85, 0.5));
+  const leftArmTyping = leftArm.quaternion.clone();
+  pointBone(root, leftForearm, leftHand, new Vector3(-0.35, -0.03, 1));
+  const leftForearmTyping = leftForearm.quaternion.clone();
+  pointBone(root, rightArm, rightForearm, new Vector3(-0.02, -0.85, 0.5));
+  const rightArmTyping = rightArm.quaternion.clone();
+  pointBone(root, rightForearm, rightHand, new Vector3(0.35, -0.03, 1));
+  const rightForearmTyping = rightForearm.quaternion.clone();
+  // Restore seated arm targets before calibrating the resting palms.
+  leftArm.quaternion.copy(leftArmSeated);
+  leftForearm.quaternion.copy(leftForearmSeated);
+  rightArm.quaternion.copy(rightArmSeated);
+  rightForearm.quaternion.copy(rightForearmSeated);
+  root.updateMatrixWorld(true);
+  // The source hands are edge-on in the seated pose. Flatten the palms so fingers
+  // rest above the desk rather than pointing through its surface.
+  const seatedHand = (hand: Bone, side: "Left" | "Right") => {
+    const middle = bone(`${side}HandMiddle1`),
+      index = bone(`${side}HandIndex1`),
+      pinky = bone(`${side}HandPinky1`);
+    if (!middle || !index || !pinky) return hand.quaternion.clone();
+    pointBone(root, hand, middle, new Vector3(side === "Left" ? -0.12 : 0.12, 0, 1));
+    const forward = middle
+      .getWorldPosition(new Vector3())
+      .sub(hand.getWorldPosition(new Vector3()))
+      .normalize();
+    const across = index
+      .getWorldPosition(new Vector3())
+      .sub(pinky.getWorldPosition(new Vector3()))
+      .projectOnPlane(forward)
+      .normalize();
+    const desired = new Vector3(side === "Left" ? -1 : 1, 0, 0).projectOnPlane(forward).normalize();
+    const angle = Math.atan2(forward.dot(across.clone().cross(desired)), across.dot(desired));
+    const world = hand.getWorldQuaternion(new Quaternion());
+    const parent = hand.parent?.getWorldQuaternion(new Quaternion()) ?? new Quaternion();
+    hand.quaternion.copy(
+      parent.invert().multiply(new Quaternion().setFromAxisAngle(forward, angle).multiply(world)),
+    );
+    root.updateMatrixWorld(true);
+    return hand.quaternion.clone();
+  };
+  const leftHandSeated = seatedHand(leftHand, "Left");
+  const rightHandSeated = seatedHand(rightHand, "Right");
+  leftHand.quaternion.copy(leftHandRest);
+  rightHand.quaternion.copy(handRest);
   leftArm.quaternion.copy(leftArmRest);
   leftForearm.quaternion.copy(leftForearmRest);
   rightArm.quaternion.copy(armRest);
@@ -86,6 +136,9 @@ export function createRealisticCharacterMotion(root: Object3D) {
   const headRest = head?.quaternion.clone(),
     spineRest = spine?.quaternion.clone(),
     chestRest = chest?.quaternion.clone();
+  const headTyping = headRest
+    ?.clone()
+    .multiply(new Quaternion().setFromEuler(new Euler(0.13, 0, 0)));
   if (head) {
     for (const name of ["Teeth_Upper.001", "Teeth_Upper.002"]) {
       const teeth = root.getObjectByName(name) ?? root.getObjectByName(name.replaceAll(".", ""));
@@ -160,6 +213,7 @@ export function createRealisticCharacterMotion(root: Object3D) {
       mood = "calm",
       pointerX = 0,
       travel?: { walk: number; stride: number; reach: number; sit?: number },
+      typing = 0,
     ) {
       elapsed += delta;
       if (wave !== previousWave) {
@@ -186,6 +240,7 @@ export function createRealisticCharacterMotion(root: Object3D) {
         (1 - Math.exp(-delta * 1.7));
       offset(leftArm, leftArmRest, breathing * 0.004, 0, weightShift * 0.5);
       offset(leftForearm, leftForearmRest, breathing * 0.003, 0, 0);
+      leftHand.quaternion.copy(leftHandRest);
       rightArm.quaternion.slerpQuaternions(armRest, armWave, armWeight || 0);
       rightForearm.quaternion.slerpQuaternions(forearmRest, forearmWave, elbowWeight || 0);
       const wristSway = Math.sin((age - 0.8) * 7.4) * 0.16 * wristWeight || 0;
@@ -235,11 +290,26 @@ export function createRealisticCharacterMotion(root: Object3D) {
         rightForearm.quaternion.slerp(forearmReach, reach);
       }
       if (sit > 0) {
+        leftHand.quaternion.slerp(leftHandSeated, sit);
+        rightHand.quaternion.slerp(rightHandSeated, sit * (1 - (wristWeight || 0)));
         leftArm.quaternion.slerp(leftArmSeated, sit);
         leftForearm.quaternion.slerp(leftForearmSeated, sit);
         rightArm.quaternion.slerp(rightArmSeated, sit * (1 - (armWeight || 0)));
         rightForearm.quaternion.slerp(rightForearmSeated, sit * (1 - (elbowWeight || 0)));
       }
+      const typingWeight = Math.max(0, Math.min(1, typing));
+      if (typingWeight > 0) {
+        if (head && headTyping) head.quaternion.slerp(headTyping, typingWeight);
+        leftArm.quaternion.slerp(leftArmTyping, typingWeight);
+        rightArm.quaternion.slerp(rightArmTyping, typingWeight);
+        leftForearm.quaternion.slerp(leftForearmTyping, typingWeight);
+        rightForearm.quaternion.slerp(rightForearmTyping, typingWeight);
+      }
+      digits.forEach((digit, index) => {
+        digit.bone.quaternion.copy(digit.rest);
+        if (!reducedMotion && typingWeight > 0)
+          digit.bone.rotateX(Math.sin(elapsed * 7.5 + index * 1.7) * 0.055 * typingWeight);
+      });
     },
   };
 }

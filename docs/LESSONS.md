@@ -1,6 +1,14 @@
 # Mr.Fund: lessons
 
-Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### 2026-11-07: arm swing must use the actor's axis, not bone-local X
+Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### 2026-11-08: Keep WebGL resolution stable during CSS layout motion
+
+The portrait's ResizeObserver called renderer.setSize for every animated grid/viewport size change. That repeatedly reallocates the drawing buffer during the camera orbit; a second camera lerp also added a trailing stop. Keep projection responsive but defer buffer allocation until motion settles, and use one eased camera timeline. A 60-frame resize regression verifies one allocation during motion and one final commit. No browser FPS claim is implied.
+
+### 2026-11-07: Calibrate a seated desk against finger geometry
+
+A table placed by appearance intersected the seated model's torso and hands. The table rear edge extended through the body, the top sat above the wrist/finger height, and source palms remained edge-on. Calibrate the back edge and height from the actual seated rig; rotate palms, account for finger thickness and keep the laptop out of their footprint. The CPU regression fails at the former 1.5175 table height and passes at the corrected pose/placement. Browser visual confirmation remains separate.
+
+### 2026-11-07: arm swing must use the actor's axis, not bone-local X
 
 The downloaded Businessman arm bones use local axes that differ from the actor's axes. Applying an X Euler offset after the resting arm rotation swung the hands sideways. The walking controller now converts the actor's left/right axis into each resting arm's coordinates, then applies the fore/aft swing about that calibrated axis. The arms move opposite their matching leg. A regression on the actual downloaded skeleton failed before the fix and passes for both forward-facing and 90°-turned actors.
 
