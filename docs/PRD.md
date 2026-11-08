@@ -200,7 +200,7 @@ Visual design waits for frontend work (founder, 2026-11-04: DESIGN.md is skipped
 
 | Screen | Purpose | Must show | States |
 | --- | --- | --- | --- |
-| Welcome / connect | Explain in one sentence, connect wallet | Network badge (testnet/mainnet), what Mr.Fund can and cannot do | Disconnected, connecting, wrong network, connected |
+| Welcome / connect | Explain in one sentence; NEAR Auth hosted login or NEAR Connect ecosystem wallet (D31) | Network badge, full selected account, account-switch/sign-out, what login does not authorize | Checking, disconnected, connecting, wrong network/configuration, connected, recoverable error |
 | Main | Character, chat and position side by side (stacked on narrow screens) | Character with state, chat thread, position panel (collateral, debt, health, liquidation price, data age), Guardian badge | Loading, fresh, stale, empty position, error |
 | Card (inline in chat) | Review and act | All card fields | Draft, adjusting, awaiting wallet, submitted, confirmed, failed |
 | Guardian setup (sheet) | Configure and activate | All form fields, plain-language summary, fees before signing | Editing, invalid field, review, signing, active, failed |

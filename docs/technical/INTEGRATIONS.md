@@ -134,7 +134,58 @@ Docs: https://docs.near.org/tools/near-connect.md and https://docs.near.org/web3
 
 Human steps: install a wallet that supports testnet (Meteor and Intear declare testnet support in the connector manifest; HOT does not declare it; NEAR Mobile declares `testnet: false`). Passkey sign-in via NEAR Auth is documented (testnet open, mainnet needs approved client credentials) and stays optional.
 
-Verification (planned): connect, read the account id, sign a zero-risk view-only flow, then the first real repay in P4.5 with its transaction hash recorded.
+Verification boundary: account/RPC reads do not require signing. Real transaction approval and the first observed repay belong to P4.5 and require their own outcome evidence. Browser login does not prove either.
+
+#### Dual-login module handoff (D31)
+
+Status [V, local, 2026-11-08]: NEAR Auth/NEAR Connect adapters and framework-independent account lifecycle are implemented in `apps/web/src/wallet/`. User deferred all UI-related work; no React provider, `/connect` screen or root/home changes ship. P4.3a remains open for frontend integration and real login evidence.
+
+| Module | Contract |
+| --- | --- |
+| `config.ts` | `readWalletConfig({network, rpcUrl, authClientId?})`: explicit testnet/mainnet and HTTPS RPC; never silently chooses a network |
+| `accounts.ts` | `validateAccounts(unknown)`: validate/project bounded provider candidates to accountId and optional canonical Ed25519 publicKey |
+| `auth-key.ts` | `resolveAuthAccount(config, subject, fetchImpl?)`: verify RPC chain, read FINAL MPC key, derive exact implicit address |
+| `near-auth.ts` | `createNearAuthAdapter(config)`: official Auth0 browser SDK session check, popup login, local logout; no signer |
+| `near-connect.ts` | `createNearConnectAdapter(config)`: lazy browser connector, explicit-network account reads, sign-out, detachable change signals |
+| `session.ts` | `createWalletSession(network, adapters, storage?)`: one selected method/account, network-scoped hints, validated selection, subscriptions/disposal |
+
+Pinned runtime dependencies: `@auth0/auth0-spa-js` 2.11.3, `@hot-labs/near-connect` 0.12.0 and `@scure/base` 2.2.0. Auth0 owns PKCE/state/token validation and memory token caching. The published FastAuth provider 1.4.1 and browser SDK 1.4.2 were inspected for the identity path/MPC arguments, not added with their legacy signing/mobile dependencies.
+
+Future browser composition [I, deferred]:
+
+1. Read only explicitly exposed `NEXT_PUBLIC_NEAR_NETWORK_ID`, `NEXT_PUBLIC_NEAR_RPC_URL` and optional `NEXT_PUBLIC_NEAR_AUTH_CLIENT_ID`; pass them to `readWalletConfig`.
+2. Construct adapters on the client, never in the agent, watcher or chat Route Handler. Add hosted Auth only if `config.auth` is non-null.
+3. Construct one controller for the mounted browser integration. Subscribe to `getSnapshot()` updates before `restore()`; detach/dispose on unmount.
+4. Call `login(method)` directly from a user gesture; do not queue a popup behind another asynchronous operation.
+5. During `connecting` or `signing-out`, competing login/restore/logout calls reject. Disable competing controls and wait for the provider operation to settle.
+6. `selectAccount(accountId)` accepts only the current provider candidates. Use `session.contextKey` to partition/reset account-scoped chat, drafts and position state; it is not an authorization token.
+7. `logout()` clears selected local identity immediately. An error state means remote logout was not confirmed; hosted local logout never claims to end global single sign-on.
+
+Public configuration:
+
+- Testnet uses the documented shared development client when no Auth client id is supplied; this does not prove the future frontend origin is allowlisted.
+- Mainnet without an approved Auth client id leaves `config.auth` null; NEAR Connect can still be constructed. Passing the testnet development client as mainnet is rejected.
+- Missing/invalid network or HTTPS RPC throws before connection. Browser env values are public and must never contain secrets.
+- App-process environment loading remains the frontend/deployment composition root's responsibility. Adding names to `.env.example` does not inject them.
+
+Hosted account mapping:
+
+- The official SDK supplies validated identity `sub`, not an email, display name or client-supplied account.
+- Published identity path: `jwt#https://{network Auth tenant}/#{sub}`.
+- `derived_public_key` uses predecessor `fast-auth.testnet`/`fast-auth.near`, algorithm domain id `1` and the configured deployed MPC contract.
+- The resolver verifies `chain_id` before sending the identity path, then bounds status/view reads with a shared deadline and response ceilings.
+- Exactly 32 canonical Ed25519 key bytes become the lowercase hexadecimal implicit address. No named-account discovery, linking, account creation or funding occurs.
+- This public view reveals the derivation path to the configured RPC, as the upstream SDK does. Do not log raw identity paths, claims, tokens or provider errors.
+
+Observed evidence [V, 2026-11-08]:
+
+- The public testnet `v1.signer-prod.testnet` view returned a valid Ed25519 key; `resolveAuthAccount` derived the expected 64-character address in **775 ms**, using a synthetic probe subject. This is deployed public-read evidence, not credential login or account existence.
+- A direct runtime smoke with a labelled synthetic provider selected Bob, refused concurrent reconnect during delayed logout, cleared identity and then reconnected Alice.
+- Two provider-operation regressions failed before the lifecycle correction; ten session tests passed afterward. Existing adapter tests cover malformed/wrong-chain/key results, bounded/stalled reads, cancellation, local restoration/logout and account-change rechecks.
+- Independent read-only hosted-boundary review found no blocking issues. Lifecycle review found two races involving delayed SDK side effects; the reviewer confirmed both closed after the correction.
+- Final workspace checks: **837 tests passed, 3 opt-in checks skipped**, typecheck/lint and production web build passed; strict OpenSpec validation passed. Production routes remained `/`, `/_not-found` and `/api/chat`, with no connection screen.
+
+Unexercised [U]: real hosted credentials/passkey/device behavior, actual wallet approval, future origin/client allowlisting, restore under browser cookie restrictions, mainnet Auth readiness and end-to-end app login. No keys, signatures, accounts, funds or on-chain permissions were created by these checks. These gates stay with the future frontend owner; do not archive `add-dual-near-auth` as complete browser onboarding.
 
 ### 6. NEAR AI Cloud (B6, P0.6)
 

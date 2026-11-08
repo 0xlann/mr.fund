@@ -12,7 +12,7 @@
 flowchart LR
   subgraph Browser["User device (untrusted UI, trusted wallet)"]
     UI[Web app: character, chat, position panel, cards, Guardian form]
-    W[Wallet via NEAR Connect]
+    W[NEAR Auth or NEAR Connect account context]
   end
   subgraph Server["Mr.Fund server (holds LLM key)"]
     API[Chat API]
@@ -48,6 +48,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | Web app | User input, wallet session, API responses | Rendered chat, cards, forms; transaction requests to the wallet | Chat transcript and receipts in browser storage | Untrusted for authority; displays only engine numbers |
 | Wallet (NEAR Connect) | Transactions built by the engine | Signatures, transaction outcomes | User keys | Trusted by the user; Mr.Fund never sees keys |
+| Dual-login module (D31) | Hosted Auth0 identity or NEAR Connect wallet accounts | Network-qualified selected account; no signer exposed in this slice | Provider-managed login state; network-scoped method/account hint only | Browser state is not server authentication or Guardian authority |
 | Chat API | Message, account id, locale | Streamed assistant reply, card drafts, character state | None durable (stateless per request) | Holds the LLM key; rate-limited |
 | Agent | Conversation, tool registry | Tool calls, final text, card drafts | None | LLM output is untrusted text |
 | Finance engine | Snapshots, policies, parameters | Numbers with inputs and assumptions; typed errors | None (pure) | Source of truth for every number |
@@ -57,6 +58,21 @@ flowchart LR
 | Guardian | Owner calls, watcher requests, token transfers | Rhea calls, events, views | Policy, reserve accounting, history | **Authority boundary for automatic actions** |
 | Rhea lending | Token transfers and `execute` | Position changes | Positions | External; behavior proven in Phase 0 |
 | Oracle | View calls | Prices with publish time | Prices | External; freshness enforced by consumers |
+
+### Dual-login implementation boundary (D31)
+
+[V, local, 2026-11-08] `apps/web/src/wallet/` implements explicit configuration, account validation, hosted identity-to-public-address derivation, NEAR Auth/NEAR Connect adapters and a framework-independent session controller. Per the user's later instruction, all UI-related integration is deferred: no React provider, root wiring, connection page or DESIGN work ships in this slice.
+
+- `createWalletSession(network, adapters, storage?)` exposes `getSnapshot`, `subscribe`, `restore`, `login`, `selectAccount`, `logout` and `dispose`. Its state contains lifecycle status, nullable selected session and a sanitized error.
+- The session contains method, network, accountId, validated account candidates and `contextKey`. Future frontend state must partition/reset by that key; it does not prove account ownership to a server.
+- Provider state, not browser hints, establishes account context. A restored method/account hint cannot add accounts absent from the provider.
+- Interactive login and sign-out are exclusive. Competing operations reject until they settle; do not queue popups and lose the user's gesture. Passive SDK events during login cannot supersede its final account read.
+- Generation guards discard obsolete passive/disposed results. They are not a substitute for exclusion: the connector's delayed sign-out mutates global provider state before returning.
+- Hosted Auth delegates identity validation to the official Auth0 browser SDK and uses the published network tenant/identity path to read the deployed MPC Ed25519 public key. An implicit address is neither a funded account nor evidence of transaction permission.
+- No signing method, raw token, private key or backend authorization credential crosses the interface. Guardian permissions, manual wallet approval and public-read chat behavior are unchanged.
+
+Observed module tests, the public MPC probe and remaining real-login gates are recorded in [INTEGRATIONS](INTEGRATIONS.md#dual-login-module-handoff-d31). React context and app-level login proof remain unchecked in `add-dual-near-auth`.
+
 
 ## Data flow
 
@@ -205,6 +221,8 @@ scripts/                  Phase 0 probes and demo operator scripts
 ```
 
 Import rules: `engine` imports only `shared`. `rhea` and `guardian-client` import `shared` and the RPC client. `agent` imports `engine`, `rhea`, `guardian-client` and `shared`, and never a signer. The watcher imports `engine`, `rhea`, `guardian-client` and its own signer; it never imports `agent`. Transaction builders exist only in `rhea` and `guardian-client`.
+
+The D31 login slice lives in `apps/web/src/wallet/` and `/connect`, outside agent/server/watcher imports. Auth0's official browser SDK performs NEAR Auth login; the MPC public-key view maps its authenticated subject to an implicit address without creating or funding it. NEAR Connect supplies ecosystem accounts. The shared context exposes no signing API. Mainnet Auth approval, real login proof and wallet transaction submission have separate evidence gates in `add-dual-near-auth`; see its design for exact path/configuration and upstream SDK compatibility findings.
 
 ### Core types (TypeScript, `packages/shared`)
 
