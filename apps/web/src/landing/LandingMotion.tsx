@@ -93,7 +93,8 @@ export function LandingMotion({ children }: { children: ReactNode }) {
     <MotionContext.Provider value={{ paused, reduced, toggle: () => setPaused((value) => !value) }}>
       <div
         ref={root}
-        className="overflow-x-clip bg-[#0e1110] bg-[url(/landing/grain-dark.svg)] font-[family-name:var(--font-body)] text-[#eff1e9] antialiased [&_*]:box-border [&_button]:font-[family-name:inherit] [&_a]:no-underline motion-reduce:[&_*]:scroll-auto motion-reduce:[&_*]:transition-none"
+        data-grid-origin
+        className="overflow-x-clip bg-[#0e1110] bg-[url(/landing/grid.svg)] font-[family-name:var(--font-body)] text-[#eff1e9] antialiased [&_*]:box-border [&_button]:font-[family-name:inherit] [&_a]:no-underline motion-reduce:[&_*]:scroll-auto motion-reduce:[&_*]:transition-none"
       >
         <div
           ref={progress}

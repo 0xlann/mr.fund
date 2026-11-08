@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { ConsultationBackdrop } from "./ConsultationBackdrop";
+import { Corners } from "./Corners";
 import { conversation } from "./conversation";
 import type { LandingFigures } from "./figures";
 
@@ -50,16 +52,8 @@ const steps = [
   },
 ] as const;
 const COUNT = steps.length;
-/** Static class names so Tailwind generates each counter offset. */
-const counterOffset = [
-  "translate-y-0",
-  "-translate-y-[100%]",
-  "-translate-y-[200%]",
-  "-translate-y-[300%]",
-  "-translate-y-[400%]",
-  "-translate-y-[500%]",
-] as const;
-
+/** Tile size of /landing/grid.svg. */
+const GRID = 88;
 function Row({ label, value, good = false }: { label: ReactNode; value: string; good?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-4 border-0 border-t border-solid border-[#26282b] py-3 text-sm first:border-t-0">
@@ -249,37 +243,6 @@ function Scene({ index, f }: { index: number; f: LandingFigures }) {
   );
 }
 
-/** Viewfinder-style corner brackets. `outside` sits them 8px beyond the frame edge. */
-const cornerPlacement = {
-  outside: ["-left-2 -top-2", "-right-2 -top-2", "-bottom-2 -left-2", "-bottom-2 -right-2"],
-  inside: ["left-0 top-0", "right-0 top-0", "bottom-0 left-0", "bottom-0 right-0"],
-} as const;
-const cornerSides = [
-  "border-l-2 border-t-2",
-  "border-r-2 border-t-2",
-  "border-b-2 border-l-2",
-  "border-b-2 border-r-2",
-] as const;
-
-function Corners({
-  placement = "outside",
-  small = false,
-}: {
-  placement?: keyof typeof cornerPlacement;
-  small?: boolean;
-}) {
-  return (
-    <span aria-hidden="true">
-      {cornerSides.map((sides, i) => (
-        <span
-          key={sides}
-          className={`pointer-events-none absolute ${small ? "size-3" : "size-5"} border-0 border-solid border-[#c7d9bc] ${sides} ${cornerPlacement[placement][i]}`}
-        />
-      ))}
-    </span>
-  );
-}
-
 function Header() {
   return (
     <div className="relative pt-6">
@@ -307,7 +270,7 @@ const today = (
 
 /**
  * Desktop: a tall scroll track with a sticky stage. Scroll position picks the active step,
- * fills the progress rail and rolls the counter. Below 1024px the steps stack with their scenes.
+ * fills the progress rail. Below 1024px the steps stack with their scenes.
  */
 export function HowItWorks({ figures }: { figures: LandingFigures }) {
   const track = useRef<HTMLDivElement>(null);
@@ -317,9 +280,22 @@ export function HowItWorks({ figures }: { figures: LandingFigures }) {
     const el = track.current;
     if (!el) return;
     let frame = 0;
+    const origin = el.closest<HTMLElement>("[data-grid-origin]");
+    // The sticky layer holds its own grid so it stays still while pinned. Its travel is a whole
+    // number of tiles and its offset matches the page grid, so it lines up when pinning starts and ends.
+    const fit = () => {
+      if (!window.matchMedia?.("(min-width: 1024px)").matches) {
+        el.style.height = "";
+        return;
+      }
+      const vh = window.innerHeight;
+      el.style.height = `${vh + Math.max(GRID, Math.round((4.6 * vh) / GRID) * GRID)}px`;
+    };
     const update = () => {
       frame = 0;
       const rect = el.getBoundingClientRect();
+      const fromOrigin = rect.top - (origin?.getBoundingClientRect().top ?? 0);
+      el.style.setProperty("--grid-y", `${(((-fromOrigin % GRID) + GRID) % GRID).toFixed(2)}px`);
       const span = rect.height - window.innerHeight;
       const progress = span > 0 ? Math.min(1, Math.max(0, -rect.top / span)) : 0;
       el.style.setProperty("--progress", String(progress));
@@ -328,13 +304,18 @@ export function HowItWorks({ figures }: { figures: LandingFigures }) {
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
+    const resize = () => {
+      fit();
+      schedule();
+    };
+    fit();
     update();
     window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
+    window.addEventListener("resize", resize);
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("resize", resize);
     };
   }, []);
 
@@ -351,13 +332,10 @@ export function HowItWorks({ figures }: { figures: LandingFigures }) {
   };
 
   return (
-    <section
-      id="how"
-      className="relative scroll-mt-28 bg-[#0e1110] bg-[url(/landing/grid.svg)] text-[#eff1e9]"
-    >
+    <section id="how" className="relative scroll-mt-28 text-[#eff1e9]">
       {/* Desktop: sticky scroll story */}
       <div ref={track} className="relative hidden lg:block lg:h-[560svh]">
-        <div className="sticky top-[100px] flex h-[calc(100svh-116px)] items-stretch py-6">
+        <div className="sticky top-0 flex h-svh items-stretch bg-[#0e1110] bg-[url(/landing/grid.svg)] pb-10 pt-[124px] [background-position:0_var(--grid-y,0px)]">
           <div className={`${shell} grid grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-16`}>
             <div className="flex min-h-0 flex-col justify-between">
               <Header />
@@ -410,43 +388,22 @@ export function HowItWorks({ figures }: { figures: LandingFigures }) {
                   );
                 })}
               </ol>
-              <p className="m-0 max-w-[460px] text-[13px] leading-relaxed text-[#7f8f83]">
+              <p className="m-0 max-w-[460px] text-[15px] leading-relaxed text-[#7f8f83]">
                 {today}
               </p>
             </div>
 
             <div className="relative min-h-0">
               <Corners />
-              <div className={`${panel} relative h-full overflow-hidden bg-[#0f1012]`}>
-                <div className="absolute inset-x-0 top-0 flex items-center justify-between px-6 py-5 text-sm">
-                  <span className="text-[#8f9d92]">
-                    Step {String(active + 1).padStart(2, "0")} · {steps[active]?.title}
-                  </span>
-                  <span className="text-[11px] uppercase tracking-[.14em] text-[#e4d7ba]">
-                    Simulated
-                  </span>
-                </div>
-                <div
-                  aria-hidden="true"
-                  className="absolute bottom-3 right-6 h-[clamp(120px,15vw,200px)] overflow-hidden leading-none"
-                >
-                  <div
-                    className={`${editorial} text-[clamp(120px,15vw,200px)] text-[#1d2420] transition-transform duration-700 ease-[cubic-bezier(.7,0,.2,1)] ${counterOffset[active]}`}
-                  >
-                    {steps.map((step, index) => (
-                      <div key={step.title} className="h-[clamp(120px,15vw,200px)]">
-                        {String(index + 1).padStart(2, "0")}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+              <div className={`${panel} relative isolate h-full overflow-hidden bg-[#181b20]`}>
+                <ConsultationBackdrop />
                 {steps.map((step, index) => {
                   const state = index === active ? "on" : index < active ? "past" : "next";
                   return (
                     <div
                       key={step.title}
                       aria-hidden={state !== "on" || undefined}
-                      className={`absolute inset-0 grid place-items-center px-10 transition-[opacity,translate,clip-path] duration-700 ease-[cubic-bezier(.7,0,.2,1)] ${
+                      className={`absolute inset-0 z-10 grid place-items-center px-10 transition-[opacity,translate,clip-path] duration-700 ease-[cubic-bezier(.7,0,.2,1)] ${
                         state === "on"
                           ? "translate-y-0 opacity-100 [clip-path:inset(0_0_0_0)]"
                           : state === "past"
@@ -490,15 +447,21 @@ export function HowItWorks({ figures }: { figures: LandingFigures }) {
                   </div>
                 </div>
                 <p className="m-0 text-[15px] leading-relaxed text-[#a0aea3]">{step.text}</p>
-                <div aria-hidden="true" className="relative p-5">
+                <div
+                  aria-hidden="true"
+                  className="relative isolate overflow-hidden border border-solid border-[#343539] p-5 py-12"
+                >
+                  <ConsultationBackdrop />
                   <Corners placement="inside" />
-                  <Scene index={index} f={figures} />
+                  <div className="relative z-10">
+                    <Scene index={index} f={figures} />
+                  </div>
                 </div>
               </li>
             );
           })}
         </ol>
-        <p className="mb-0 mt-14 border-0 border-t border-solid border-[#343539] pt-6 text-sm leading-relaxed text-[#8f9d92]">
+        <p className="mb-0 mt-14 border-0 border-t border-solid border-[#343539] pt-6 text-[15px] leading-relaxed text-[#8f9d92]">
           {today}
         </p>
       </div>

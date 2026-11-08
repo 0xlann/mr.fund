@@ -38,7 +38,7 @@ it.each([
       },
     );
     vi.stubGlobal("scrollTo", vi.fn());
-    document.body.innerHTML = `<div id="landing"><div data-hero><span data-hero-word>Money</span><h1 data-hero-title></h1><p data-hero-intro></p><div data-hero-orbit></div><div data-hero-pin><div data-hero-visual><div data-hero-window></div><div data-hero-chat></div></div></div></div><div data-reveal>Visible content</div><span data-rule></span><div data-hero-seal>m.</div><article data-feature-card><div data-feature-art><svg><circle data-feature-signal /></svg><span data-feature-pop>Fund</span></div></article><div data-curtain></div><div data-float></div><div id="progress"></div></div>`;
+    document.body.innerHTML = `<div id="landing"><div data-hero><span data-hero-word>Money</span><h1 data-hero-title></h1><p data-hero-intro></p><div data-hero-orbit></div><div data-hero-pin><div data-hero-visual><div data-hero-window></div><div data-hero-chat></div></div></div></div><div data-reveal>Visible content</div><span data-rule></span><div data-hero-seal>m.</div><article data-feature-card><div data-feature-art><svg><circle data-feature-signal /></svg><span data-feature-pop>Fund</span></div></article><div data-curtain></div><div data-float></div><footer><div data-footer-art></div></footer><div id="progress"></div></div>`;
     const root = document.getElementById("landing"),
       progress = document.getElementById("progress");
     if (!root) throw new Error("Missing fixture");
@@ -56,6 +56,7 @@ it.each([
     dispose();
     expect(root.querySelector(".pin-spacer")).toBeNull();
     expect(root.querySelector<SVGElement>("[data-feature-signal]")?.style.opacity).toBe("");
+    expect(root.querySelector<HTMLElement>("[data-footer-art]")?.style.transform).toBe("");
     expect(ScrollTrigger.getAll().length).toBe(before);
     expect(document.documentElement.classList.contains("lenis")).toBe(false);
   },

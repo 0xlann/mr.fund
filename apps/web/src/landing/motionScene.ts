@@ -249,6 +249,22 @@ export function mountLandingMotion(root: HTMLElement, progress: HTMLElement | nu
             .to(heroWindow, { scale: 1.025, duration: 1, ease: "none" }, 0)
             .fromTo("[data-hero-chat]", { y: 20 }, { y: -12, duration: 1, ease: "none" }, 0);
         }
+        const footerArt = root.querySelector<HTMLElement>("[data-footer-art]");
+        if (footerArt)
+          gsap.fromTo(
+            footerArt,
+            { y: large ? 24 : 12 },
+            {
+              y: 0,
+              ease: "none",
+              scrollTrigger: {
+                trigger: footerArt.parentElement,
+                start: "top bottom",
+                end: "bottom bottom",
+                scrub: 0.8,
+              },
+            },
+          );
       },
     );
     if (window.matchMedia("(hover: hover) and (pointer: fine)").matches)
