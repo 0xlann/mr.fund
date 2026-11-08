@@ -88,3 +88,17 @@ The facial FBX and original TGA textures were downloaded from that pinned revisi
 `rocketbox/business-male-01.glb`: 1,292,448 bytes. Geometry and textures are embedded; no external texture requests or decoder are required. `rocketbox/preview.webp` is a WebP conversion of the author's model preview, used only for the labelled WebGL fallback. Source textures and the Blender binary are temporary build tools outside the repository. The prior Jungle Jim GLB stays inactive for comparison; the checkpoint commit is `dbb9ab9`.
 
 Runtime uses authored facial shapes with a text-based sound approximation and optional browser speech word boundaries. Accurate audio/phoneme timing and browser visual approval are not claimed.
+
+### Chat texture — 2026-11-08
+
+`chat-texture.svg` is an original 40px repeating two-dot pattern authored for this project from simple SVG circles. It uses the existing beige/sage palette at low opacity, with no external artwork, fonts or runtime generation.
+
+### Wallet brand marks — 2026-11-08
+
+- `wallets/meteor.svg`: official Meteor Wallet mark, downloaded unchanged from https://raw.githubusercontent.com/Meteor-Wallet/meteor-public/main/logo_svg.svg (public-facing official repository: https://github.com/Meteor-Wallet/meteor-public). Its native brand gradient is preserved; panel surfaces remain solid.
+- `wallets/intear.svg`: official Intear Wallet favicon, downloaded unchanged from https://wallet.intear.tech/favicon.svg.
+- NEAR reuses the existing official documentation mark in `tokens/near.svg`, credited above.
+
+Marks identify future wallet options inside the mock-wallet dialog; no live connection is implied. They remain the property of their respective owners. All are served locally without an external image service.
+
+The redesigned wallet dialog displays these marks without background plates or containers. NEAR uses a CSS invert filter for a white-on-charcoal presentation; the source SVG remains unchanged.

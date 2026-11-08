@@ -65,3 +65,41 @@ Panel clips now use plain rectangular insets with the panel's own rounded corner
 ### Raised wall branding — 2026-11-08
 
 `mr.fund` is actual bevelled, extruded Space Grotesk lettering on the inner left wall, facing into the room. It has cream front faces, darker edge materials and casts a shadow; there is no plaque or box behind it. The glyph subset is generated from the already licensed Space Grotesk variable font at weight 700 by `scripts/build-wordmark-font.py`. A geometry test verifies its left-wall position, orientation, width and nonzero depth.
+
+### Chat bubble refinement — 2026-11-08
+
+The conversation follows the user-supplied messenger reference while keeping existing panel grid dimensions and the solid charcoal/sage/beige palette. Messages sit toward the bottom when the transcript is short. Mr.Fund uses a small beige brand avatar and charcoal bubbles with a softened lower corner; user bubbles align right in the existing sage accent. Repeated visible speaker labels are removed but remain accessible. Starting questions use compact outline chips; thinking is a three-dot bubble. A compact pill composer grows for multiline text and retains clear, voice and send controls. Progressive text, mock financial cards and all transaction permission boundaries remain unchanged. No invented timestamps, audio recordings or read receipts are shown.
+
+The chat panel has a small centred `mr.fund` name at the top, without the former title strip, eyebrow or divider.
+
+The chat background repeats a lightweight, project-authored SVG dot texture in low-opacity beige/sage over the same solid charcoal base. Bubbles and composer remain opaque for legibility; no gradient, animation or panel size change is introduced.
+
+Position uses the same dot texture across its panel background on desktop and mobile; health, token and other content cards retain their solid fills.
+
+Header position stats use 14px labels, 16px semibold values and a 12px simulation/PnL note. The note wraps below the pair on narrower desktops; the optional brand tagline appears only on wider desktops to leave space for the larger stats.
+
+Position keeps “Talk me through it” in a fixed panel footer without a separator or the repeated illustrative-input paragraph. Only position metrics/content scroll; the action stays at the panel bottom on desktop and mobile.
+
+The repeated “You approve every move” demo-chat footer below the composer is removed at the user’s request. Existing simulation labels and explanatory help remain elsewhere.
+
+The compact “Simulated · Fresh snapshot” label above the position health card is removed at the user’s request. Refresh is placed inside the Position health card beside the protocol label; the separate toolbar above it is removed.
+
+The mock-wallet dialog displays official Meteor, Intear and NEAR marks beside their names in its future-wallet row. Assets are local; those brands remain informational, with only Demo wallet offering a connection.
+
+### Wallet access layout — 2026-11-08
+
+The wallet dialog uses a dedicated 500px maximum-width treatment with responsive single-line display typography, a compact simulated-network indicator and a sage access card as the primary Demo wallet action. The card has asymmetric icon/edition and title/arrow rows, with honest pending state and an explicit accessible connection label. Future wallet marks sit in an open three-column row at 40px, with names below; no plate, circle, border or box surrounds them. NEAR's existing black symbol is inverted to white for dark-background contrast; source SVGs are unchanged. Other dialogs keep their existing layout.
+
+All shared toast notifications appear at the top right, with 16px/safe-area insets and a 420px maximum width clamped to the viewport. Inline field validation remains next to its field.
+
+Toast styling uses a compact charcoal card with a subtle border, sage information icon, Mr.Fund sender label, readable 13px message text, and an independent close control. The neutral icon avoids marking failures or cancellations as successful. Entry is a short fade/slide respecting reduced motion; existing dismissal and auto-hide timing remain unchanged.
+
+The wallet dialog repeats the same low-opacity SVG dot texture as the consultation panels. Its title scales from 24px to 38px to keep “Connect to begin.” on one line, with room for the close control.
+
+### Guardian card refinement — 2026-11-08
+
+Guardian now matches the Position card’s solid charcoal surface and restrained sage accents. Removed the large tilted shield, spark, green background, section index and older promotional treatment. The card shows a small shield/name, configuration-state badge, shorter title and description, two plain policy/control rows, and a full-width sage setup action. Active policy states retain existing deterministic values and controls, with neutral borders, readable labels and pill actions. No policy, permissions, fee, reserve or transaction behavior was changed.
+
+### Detail tab content motion — 2026-11-08
+
+Opening Position, Guardian or Activity starts a top-to-bottom content cascade: sections translate down from 12px above and fade in over 400ms, with 45ms stagger steps capped at 225ms. Keyed content mounts replay the animation when the selected tool changes or the consultation first becomes visible, without changing the outer panel, renderer or stored tool state. Position’s fixed footer remains outside its scroll body. Tailwind starting-style utilities implement all motion without a runtime animation dependency; reduced motion disables transitions. Rapid switches replace the selected content immediately without queued exit animations.

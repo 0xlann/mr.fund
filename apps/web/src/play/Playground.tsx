@@ -4,7 +4,6 @@ import { mood as computeMood } from "@mrfund/engine";
 import { type GuardianPolicy, validatePolicy } from "@mrfund/shared";
 import {
   AlertTriangle,
-  ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
@@ -15,6 +14,7 @@ import {
   CircleHelp,
   Copy,
   History,
+  Info,
   LoaderCircle,
   LockKeyhole,
   LogOut,
@@ -29,7 +29,6 @@ import {
   Shield,
   ShieldCheck,
   SlidersHorizontal,
-  Sparkles,
   Volume2,
   VolumeX,
   Wallet,
@@ -37,6 +36,7 @@ import {
   Zap,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import {
   type FormEvent,
   type ReactNode,
@@ -47,6 +47,7 @@ import {
   useState,
 } from "react";
 import { ConsultationTabs, type DetailTab } from "./ConsultationTabs";
+import { DetailContent } from "./DetailContent";
 import {
   amount,
   atomic,
@@ -117,17 +118,15 @@ const initialFields: PolicyFields = {
 };
 const prompts = [
   {
-    icon: <Sparkles size={16} />,
     label: "Find my smartest move",
     text: "Should I repay or earn yield?",
   },
   {
-    icon: <ArrowDownRight size={17} />,
     label: "What if NEAR drops 20%?",
     text: "What if NEAR drops 20%?",
   },
-  { icon: <Shield size={16} />, label: "Meet my Guardian", text: "What can Guardian do for me?" },
-  { icon: <CircleHelp size={16} />, label: "Explain my position", text: "Explain my position" },
+  { label: "Meet my Guardian", text: "What can Guardian do for me?" },
+  { label: "Explain my position", text: "Explain my position" },
 ];
 const greeting: Message = {
   id: 0,
@@ -141,12 +140,14 @@ function ModalFrame({
   children,
   close,
   wide = false,
+  wallet = false,
 }: {
   title: string;
   eyebrow: string;
   children: ReactNode;
   close: () => void;
   wide?: boolean;
+  wallet?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -167,7 +168,9 @@ function ModalFrame({
         }
       }}
       ref={ref}
-      className={playClasses(`play-modal ${wide ? "wide" : ""}`)}
+      className={playClasses(
+        `play-modal ${wide ? "wide" : ""} ${wallet ? "w-[min(500px,calc(100vw_-_28px))]! rounded-[32px]! bg-[url(/play/chat-texture.svg)] bg-repeat" : ""}`,
+      )}
       onCancel={(e) => {
         e.preventDefault();
         close();
@@ -176,8 +179,12 @@ function ModalFrame({
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div className="modal-inner p-[27px] max-[620px]:p-[23px_20px]">
-        <div className="modal-heading flex justify-between items-start gap-[10px] [&_.eyebrow]:text-[#a2a4a5] [&_.eyebrow]:text-[8px] [&_h2]:font-[family-name:var(--font-display)] [&_h2]:text-[30px] [&_h2]:font-medium [&_h2]:leading-[1.15] [&_h2]:tracking-[-1.2px] [&_h2]:mt-[7px] [&>.icon-button]:bg-[#1c1e1f] [&>.icon-button]:w-[30px] [&>.icon-button]:h-[30px] [&>.icon-button]:shrink-0 max-[620px]:[&_h2]:text-[27px] max-[620px]:[&_.eyebrow]:text-[7px]">
+      <div
+        className={`modal-inner ${wallet ? "relative overflow-hidden px-6 pb-6 pt-8 sm:px-8 sm:pb-7 sm:pt-10" : "p-[27px] max-[620px]:p-[23px_20px]"}`}
+      >
+        <div
+          className={`modal-heading ${wallet ? "flex items-start justify-between gap-5 [&_.eyebrow]:text-[9px] [&_.eyebrow]:font-medium [&_.eyebrow]:text-[#929996] [&_h2]:mt-4 [&_h2]:whitespace-nowrap [&_h2]:font-[family-name:var(--font-display)] [&_h2]:text-[clamp(24px,7vw,38px)] [&_h2]:font-medium [&_h2]:leading-[1.04] [&_h2]:tracking-[-1.1px]" : "flex justify-between items-start gap-[10px] [&_.eyebrow]:text-[#a2a4a5] [&_.eyebrow]:text-[8px] [&_h2]:font-[family-name:var(--font-display)] [&_h2]:text-[30px] [&_h2]:font-medium [&_h2]:leading-[1.15] [&_h2]:tracking-[-1.2px] [&_h2]:mt-[7px] [&>.icon-button]:bg-[#1c1e1f] [&>.icon-button]:w-[30px] [&>.icon-button]:h-[30px] [&>.icon-button]:shrink-0 max-[620px]:[&_h2]:text-[27px] max-[620px]:[&_.eyebrow]:text-[7px]"}`}
+        >
           <div>
             <span className="eyebrow text-[9px] font-extrabold tracking-[.15em] block leading-[1.5]">
               {eyebrow}
@@ -210,6 +217,17 @@ function useMedia(query: string) {
   }, [query]);
   return matches;
 }
+function ChatAvatar() {
+  return (
+    <span
+      aria-hidden="true"
+      className="grid size-8 shrink-0 place-items-center rounded-full bg-[#e4d7ba] font-[family-name:var(--font-display)] text-lg font-bold leading-none tracking-[-1.5px] text-[#203327]"
+    >
+      m.
+    </span>
+  );
+}
+
 function Tag({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <span className={playClasses(`tag ${className}`)}>{children}</span>;
 }
@@ -854,95 +872,92 @@ export function Playground() {
     </label>
   );
 
-  function guardianContent(full = false) {
+  function guardianContent() {
     return (
-      <section className={playClasses(`guardian-card ${full ? "expanded" : ""}`)}>
-        <div className="guardian-top flex items-center gap-[10px] [&_.tag]:border-0 [&_.tag]:text-[7px] [&_.tag]:text-[#a2a4a5] [&_.tag]:bg-[#294134] [&_.tag]:p-[6px_8px] max-[1100px]:[&_.tag]:text-[6px] max-[820px]:[&_.tag]:text-[8px] max-[620px]:gap-[8px] max-[620px]:[&_.tag]:text-[6px]">
-          <span className="guardian-symbol w-[35px] h-[35px] rounded-[9px] [border:1px_solid_#b5cb6e] flex items-center justify-center">
-            <ShieldCheck size={27} />
+      <section className="guardian-card min-w-0 overflow-hidden rounded-[24px] border border-white/8 bg-[#1f2122] p-5 text-[#edf3f5] sm:p-6">
+        <div data-panel-enter="0" className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-2 text-[13px] font-medium text-[#c7d7ca]">
+            <ShieldCheck size={18} strokeWidth={1.6} />
+            Guardian
           </span>
-          <Tag>
-            {guardian === "inactive" ? (
-              "YOUR RULES. ON WATCH."
-            ) : (
-              <>
-                <i className={playClasses(`status-dot ${guardian !== "active" ? "muted" : ""}`)} />
-                {guardian.toUpperCase()}
-              </>
-            )}
-          </Tag>
-          <span className="section-index ml-auto text-[7px] tracking-[.08em] text-[#a2a4a5] font-bold max-[1100px]:text-[6px] max-[820px]:text-[8px] max-[620px]:text-[6px]">
-            02 / GUARDIAN
+          <span className="flex items-center gap-1.5 rounded-full bg-[#292d2b] px-2.5 py-1 text-[10px] text-[#aeb8b1]">
+            <span
+              className={`size-1 rounded-full ${guardian === "active" ? "bg-[#bad7c3]" : "bg-[#818a85]"}`}
+            />
+            {guardian === "inactive"
+              ? "Not configured"
+              : guardian === "active"
+                ? "Active · demo"
+                : guardian === "paused"
+                  ? "Paused · demo"
+                  : "Deactivated"}
           </span>
         </div>
-        <div className="guardian-body flex items-center relative gap-[10px] pt-[17px] min-h-[157px] [&>div:first-child]:relative [&>div:first-child]:z-[1] [&>div:first-child]:flex-1 [&_h2]:font-[family-name:var(--font-display)] [&_h2]:text-[27px] [&_h2]:leading-[1.12] [&_h2]:tracking-[-1.2px] [&_h2]:font-medium [&_p]:text-[9px] [&_p]:leading-[1.7] [&_p]:text-[#a2a4a5] [&_p]:max-w-[265px] [&_p]:mt-[11px] min-[1500px]:[&_h2]:text-[32px] min-[1500px]:[&_p]:text-[10px] min-[1500px]:min-h-[165px] max-[1100px]:[&_h2]:text-[24px] max-[1100px]:[&_p]:text-[8px] max-[820px]:[&_h2]:text-[31px] max-[820px]:[&_p]:text-[11px] max-[820px]:[&_p]:max-w-[350px] max-[620px]:min-h-[155px] max-[620px]:[&_h2]:text-[26px] max-[620px]:[&_p]:text-[9px]">
-          <div>
-            <h2>
-              {guardian === "inactive" ? (
-                <>
-                  A little backup.
-                  <br />A lot more peace of mind.
-                </>
-              ) : guardian === "active" ? (
-                <>
-                  Your limits.
-                  <br />
-                  Always in charge.
-                </>
-              ) : guardian === "paused" ? (
-                <>
-                  Taking a breather.
-                  <br />
-                  You're in control.
-                </>
-              ) : (
-                <>
-                  Off duty.
-                  <br />
-                  Still your money.
-                </>
-              )}
-            </h2>
-            <p>
-              {guardian === "inactive"
-                ? "Give your position a watchful eye. You choose the limits. Guardian sticks to them."
-                : `Reserve ${amount(reserve)} USDC · Spendable ${amount(spendable)} USDC. A separate, simulated Guardian-held loan.`}
-            </p>
-          </div>
-          <div
-            className="guardian-visual relative w-[120px] h-[125px] shrink-0 perspective-[500px] transform-[rotate(-10deg)] max-[1100px]:w-[99px] max-[1100px]:transform-[scale(.85)_rotate(-10deg)] max-[1100px]:[transform-origin:right_center] max-[820px]:transform-[rotate(-10deg)] max-[820px]:w-[130px] max-[620px]:transform-[scale(.9)_rotate(-10deg)] max-[620px]:w-[100px]"
-            aria-hidden="true"
-          >
-            <div className="shield-back absolute w-[86px] h-[102px] [clip-path:polygon(50%_0,100%_17%,92%_67%,78%_87%,50%_100%,22%_87%,8%_67%,0_17%)] bg-[#8dab3f] left-[14px] top-[14px] transform-[rotateY(-25deg)_rotateX(8deg)] flex items-center justify-center text-[#e8ffb5]" />
-            <div className="shield-front absolute w-[86px] h-[102px] [clip-path:polygon(50%_0,100%_17%,92%_67%,78%_87%,50%_100%,22%_87%,8%_67%,0_17%)] bg-[#8dab3f] left-[14px] top-[14px] transform-[rotateY(-25deg)_rotateX(8deg)] flex items-center justify-center text-[#e8ffb5] top-[9px] left-[10px] bg-[#263527] border-0 [&_svg]:transform-[translateY(-3px)]">
-              <ShieldCheck strokeWidth={1.6} size={66} />
-            </div>
-            <span className="shield-spark absolute text-[#a2a4a5] text-[31px] right-[0] top-[2px]">
-              ✦
-            </span>
-          </div>
+        <div data-panel-enter="1" className="pb-6 pt-7">
+          <h2 className="font-[family-name:var(--font-display)] text-[30px] font-medium leading-[1.12] tracking-[-1px]">
+            {guardian === "inactive" ? (
+              <>
+                Your rules.
+                <br />
+                Your Guardian.
+              </>
+            ) : guardian === "active" ? (
+              "Your policy, at a glance."
+            ) : guardian === "paused" ? (
+              "Paused. On your terms."
+            ) : (
+              "Your policy is off."
+            )}
+          </h2>
+          <p className="mt-3! text-[12px] leading-[1.8] text-[#9da6a1]">
+            {guardian === "inactive"
+              ? "Choose when to repay and how much. Review every limit before you switch it on."
+              : `Reserve ${amount(reserve)} USDC · Spendable ${amount(spendable)} USDC. A separate, simulated Guardian-held loan.`}
+          </p>
         </div>
         {guardian === "inactive" ? (
-          <div className="guardian-bottom flex gap-[20px] items-center mt-[11px] [&>span]:text-[7px] [&>span]:text-[#a2a4a5] [&>span]:leading-[1.65] max-[1100px]:gap-[10px] max-[1100px]:[&_.button]:text-[9px]! max-[1100px]:[&_.button]:p-[12px] max-[1100px]:[&>span]:text-[6px] max-[820px]:gap-[20px] max-[820px]:[&_.button]:text-[11px]! max-[820px]:[&_.button]:p-[13px_16px] max-[820px]:[&>span]:text-[8px] max-[620px]:gap-[14px] max-[620px]:[&_.button]:text-[9px]! max-[620px]:[&_.button]:p-[12px_14px] max-[620px]:[&>span]:text-[7px]">
+          <div>
+            <div data-panel-enter="2" className="mb-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <SlidersHorizontal size={16} strokeWidth={1.6} className="mt-0.5 text-[#aabeb0]" />
+                <div>
+                  <p className="text-[12px] font-medium text-[#d5ddd7]">Limits you choose</p>
+                  <p className="mt-1! text-[11px] leading-relaxed text-[#858f89]">
+                    Repayment cap, reserve and trigger.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <Pause size={16} strokeWidth={1.6} className="mt-0.5 text-[#aabeb0]" />
+                <div>
+                  <p className="text-[12px] font-medium text-[#d5ddd7]">Control stays with you</p>
+                  <p className="mt-1! text-[11px] leading-relaxed text-[#858f89]">
+                    Pause or change your policy.
+                  </p>
+                </div>
+              </div>
+            </div>
             <button
+              data-panel-enter="3"
               type="button"
-              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] ink-button bg-[#263847] text-white! [&:hover]:bg-[#344052]"
+              className="flex min-h-11 w-full items-center justify-between gap-3 rounded-full border-0 bg-[#bad7c3] px-4 py-3 text-[12px] font-semibold text-[#203327] transition-colors hover:bg-[#d3e5d7]"
               onClick={() => {
                 setSetupReview(false);
                 setModal("setup");
               }}
             >
-              Meet your Guardian <ArrowUpRight size={18} />
+              Meet your Guardian <ArrowUpRight size={17} />
             </button>
-            <span>
-              Opt-in. Your limits.
-              <br />
-              Never a guarantee.
-            </span>
+            <p data-panel-enter="4" className="mt-3! text-center text-[10px] text-[#808c84]">
+              Opt-in · Simulated policy preview
+            </p>
           </div>
         ) : (
           <>
-            <div className="guardian-numbers grid grid-cols-[repeat(3,1fr)] m-[13px_0] [border-top:1px_solid_#bdd96e] pt-[15px] gap-[12px] [&_small]:block [&_small]:text-[7px] [&_small]:text-[#a2a4a5] [&_small]:tracking-[.05em] [&_strong]:font-[family-name:var(--font-display)] [&_strong]:text-[23px] [&_strong]:font-medium [&_strong]:block [&_strong]:mt-[4px] [&_em]:[font:8px_var(--font-body)] max-[620px]:gap-[8px] max-[620px]:[&_small]:text-[6px] max-[620px]:[&_strong]:text-[22px] max-[620px]:[&_em]:text-[6px]">
+            <div
+              data-panel-enter="2"
+              className="guardian-numbers grid grid-cols-[repeat(3,1fr)] m-[13px_0] [border-top:1px_solid_#ffffff14] pt-[15px] gap-[12px] [&_small]:block [&_small]:text-[10px] [&_small]:text-[#a2a4a5] [&_small]:tracking-[.05em] [&_strong]:font-[family-name:var(--font-display)] [&_strong]:text-[23px] [&_strong]:font-medium [&_strong]:block [&_strong]:mt-[4px] [&_em]:[font:10px_var(--font-body)] max-[620px]:gap-[8px] max-[620px]:[&_small]:text-[9px] max-[620px]:[&_strong]:text-[22px] max-[620px]:[&_em]:text-[9px]"
+            >
               <div>
                 <small>PER ACTION</small>
                 <strong>
@@ -965,11 +980,14 @@ export function Playground() {
                 </strong>
               </div>
             </div>
-            <div className="guardian-controls flex gap-[8px] items-center mt-[17px] flex-wrap [&>.icon-button]:ml-auto">
+            <div
+              data-panel-enter="3"
+              className="guardian-controls flex gap-[8px] items-center mt-[17px] flex-wrap [&>.icon-button]:ml-auto"
+            >
               {guardian !== "deactivated" && (
                 <button
                   type="button"
-                  className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] ink-button bg-[#263847] text-white! [&:hover]:bg-[#344052] small"
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border-0 bg-[#bad7c3] px-4 py-2.5 text-xs font-semibold text-[#203327] transition-colors hover:bg-[#d3e5d7]"
                   onClick={() => ownerAction(guardian === "active" ? "pause" : "resume")}
                 >
                   {guardian === "active" ? <Pause size={15} /> : <Play size={15} />}
@@ -978,34 +996,27 @@ export function Playground() {
               )}
               <button
                 type="button"
-                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#313334] bg-transparent [&:hover]:bg-[#ffffff40] small"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-transparent px-4 py-2.5 text-xs font-medium text-[#c5cec7] transition-colors hover:bg-[#292d2b]"
                 onClick={() => ownerAction("withdraw")}
               >
                 Withdraw
               </button>
               <button
                 type="button"
-                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#313334] bg-transparent [&:hover]:bg-[#ffffff40] small"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-transparent px-4 py-2.5 text-xs font-medium text-[#c5cec7] transition-colors hover:bg-[#292d2b]"
                 onClick={() => ownerAction("topup")}
               >
                 <Plus size={15} />
                 Top up
               </button>
-              {!full && (
-                <button
-                  type="button"
-                  className="icon-button inline-flex items-center justify-center border-0 bg-transparent w-[32px] h-[32px] rounded-full p-0 [transition:background_.18s] [&:hover]:bg-[#8080801a]"
-                  onClick={() => openPanel("guardian")}
-                  aria-label="View Guardian details"
-                >
-                  <ArrowUpRight size={20} />
-                </button>
-              )}
             </div>
           </>
         )}
-        {full && guardian !== "inactive" && (
-          <div className="guardian-details mt-[24px] [border-top:1px_solid_#bdd56f] pt-[20px] [&_.fine-print]:text-[#a2a4a5] [&_.fine-print]:text-[8px]">
+        {guardian !== "inactive" && (
+          <div
+            data-panel-enter="4"
+            className="guardian-details mt-[24px] [border-top:1px_solid_#ffffff14] pt-[20px] [&_.fine-print]:text-[#a2a4a5] [&_.fine-print]:text-[10px]"
+          >
             <div className="detail-grid grid grid-cols-[1fr_1fr] gap-[23px_18px] [&_small]:text-[9px] [&_small]:text-[#a2a4a5] [&_small]:block [&_b]:text-[10px] [&_b]:block [&_b]:leading-[1.7] [&_b]:mt-[6px] [&_b]:font-bold [&_span]:text-[8px] [&_span]:block [&_span]:leading-[1.7] [&_span]:text-[#a2a4a5] max-[620px]:gap-[20px_13px] max-[620px]:[&_b]:text-[9px] max-[620px]:[&_small]:text-[8px]">
               <div>
                 <small>Lifetime spent / cap</small>
@@ -1045,7 +1056,7 @@ export function Playground() {
             <div className="replay-actions flex flex-wrap items-center gap-[10px] mt-[18px]">
               <button
                 type="button"
-                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] ink-button bg-[#263847] text-white! [&:hover]:bg-[#344052] small"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border-0 bg-[#bad7c3] px-4 py-2.5 text-xs font-semibold text-[#203327] transition-colors hover:bg-[#d3e5d7]"
                 onClick={() => replay(false)}
               >
                 <Play size={14} />
@@ -1053,7 +1064,7 @@ export function Playground() {
               </button>
               <button
                 type="button"
-                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#313334] bg-transparent [&:hover]:bg-[#ffffff40] small"
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-transparent px-4 py-2.5 text-xs font-medium text-[#c5cec7] transition-colors hover:bg-[#292d2b]"
                 onClick={() => replay(true)}
               >
                 Test over-limit rejection
@@ -1080,7 +1091,7 @@ export function Playground() {
   function activityContent() {
     return (
       <section className="activity-panel bg-[var(--paper)] [border:1px_solid_var(--line)] rounded-[20px] p-[28px] max-[620px]:p-[24px_20px]">
-        <div className="flex items-center justify-end">
+        <div data-panel-enter="0" className="flex items-center justify-end">
           <Tag>
             <History size={13} />
             {receipts.length} demo events
@@ -1088,11 +1099,12 @@ export function Playground() {
         </div>
         {receipts.length ? (
           <div className="receipt-list mt-[25px]">
-            {receipts.map((r) => (
+            {receipts.map((r, index) => (
               <button
                 type="button"
                 className="receipt-row flex items-center gap-[15px] p-[18px_0] border-0 [border-bottom:1px_solid_#313334] bg-transparent w-full text-left [&>svg]:ml-auto [&>svg]:text-[#a2a4a5] [&_b]:text-[12px] [&_b]:block [&_small]:text-[9px] [&_small]:block [&_small]:mt-[7px] [&_small]:text-[#a2a4a5] [&:hover]:bg-[#1c1e1f] max-[620px]:gap-[10px] max-[620px]:[&_b]:text-[11px] max-[620px]:[&_small]:text-[8px]"
                 key={r.id}
+                data-panel-enter={Math.min(index + 1, 5)}
                 onClick={() => setSelectedReceipt(r)}
               >
                 <span className={playClasses(`receipt-icon ${r.status}`)}>
@@ -1113,7 +1125,10 @@ export function Playground() {
             ))}
           </div>
         ) : (
-          <div className="empty-activity flex items-center flex-col text-center p-[65px_15px_75px] gap-[17px] [&>svg]:text-[#a2a4a5] [&_h3]:font-[family-name:var(--font-display)] [&_h3]:text-[30px] [&_h3]:font-medium [&_h3]:tracking-[-1px] [&_p]:text-[#a2a4a5] [&_p]:text-[11px] [&_p]:leading-[1.8] [&_p]:max-w-[340px] [&_.button]:mt-[8px]">
+          <div
+            data-panel-enter="1"
+            className="empty-activity flex items-center flex-col text-center p-[65px_15px_75px] gap-[17px] [&>svg]:text-[#a2a4a5] [&_h3]:font-[family-name:var(--font-display)] [&_h3]:text-[30px] [&_h3]:font-medium [&_h3]:tracking-[-1px] [&_p]:text-[#a2a4a5] [&_p]:text-[11px] [&_p]:leading-[1.8] [&_p]:max-w-[340px] [&_.button]:mt-[8px]"
+          >
             <History size={38} strokeWidth={1.3} />
             <h3>A clean slate.</h3>
             <p>Your demo receipts will land here after you try a repayment or set up Guardian.</p>
@@ -1158,10 +1173,11 @@ export function Playground() {
     if (value === "guardian")
       return (
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {guardianContent(true)}
+          {guardianContent()}
           <button
             type="button"
             onClick={() => _ask("What are my Guardian limits?")}
+            data-panel-enter="5"
             className="mt-4 flex w-full items-center justify-between rounded-xl border border-[#313334] bg-[#1c1e1f] px-4 py-3 text-xs font-semibold"
           >
             Ask about my limits
@@ -1235,7 +1251,7 @@ export function Playground() {
               <span className="font-[family-name:var(--font-display)] text-[22px] font-semibold tracking-[-1px]">
                 mr.fund<span className="ml-1 align-top text-[9px] text-[#999b9c]">®</span>
               </span>
-              <span className="ml-3 hidden border-l border-white/10 pl-4 text-[10px] text-[#818384] lg:block">
+              <span className="ml-3 hidden border-l border-white/10 pl-4 text-[10px] text-[#818384] 2xl:block">
                 A little clarity for your money.
               </span>
             </div>
@@ -1243,19 +1259,23 @@ export function Playground() {
               {stage === "consult" && (
                 <section
                   aria-label="Position stats"
-                  className="mr-2 hidden items-center gap-5 text-xs lg:flex"
+                  className="mr-3 hidden grid-cols-2 items-center gap-x-5 gap-y-1 text-sm lg:grid 2xl:grid-cols-[auto_auto_auto]"
                 >
                   <span className="text-[#8f9192]">
                     Health{" "}
-                    <b className="ml-2 font-medium text-[#d7f8a4] tabular-nums">{healthText}</b>
+                    <b className="ml-2 text-base font-semibold text-[#d7f8a4] tabular-nums">
+                      {healthText}
+                    </b>
                   </span>
                   <span className="text-[#8f9192]">
                     Debt{" "}
-                    <b className="ml-2 font-medium text-[#e4dfed] tabular-nums">
+                    <b className="ml-2 text-base font-semibold text-[#e4dfed] tabular-nums">
                       {dataState === "fresh" && debt > 0n ? `$${amount(debt)}` : "—"}
                     </b>
                   </span>
-                  <span className="text-[9px] text-[#7a7c7d]">SIMULATED · PnL unavailable</span>
+                  <span className="col-span-2 text-xs text-[#a2a4a5] 2xl:col-span-1">
+                    SIMULATED · PnL unavailable
+                  </span>
                 </section>
               )}
               <button
@@ -1352,7 +1372,7 @@ export function Playground() {
               aria-label="Consultation details"
               inert={!detailsRevealed}
               aria-hidden={!detailsRevealed}
-              className={`relative z-10 col-start-3 row-start-1 hidden min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#121415] xl:flex ${panelReveal(detailsRevealed)}`}
+              className={`relative z-10 col-start-3 row-start-1 hidden min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#121415] xl:flex ${detailTab === "position" ? "bg-[url(/play/chat-texture.svg)] bg-repeat" : ""} ${panelReveal(detailsRevealed)}`}
             >
               <div className="shrink-0 px-4 pt-4">
                 <ConsultationTabs
@@ -1367,7 +1387,9 @@ export function Playground() {
                 aria-labelledby={`detail-tab-${detailTab}`}
                 className="flex min-h-0 flex-1 flex-col"
               >
-                {toolContent(detailTab)}
+                <DetailContent key={`${detailTab}-${detailsRevealed}`}>
+                  {toolContent(detailTab)}
+                </DetailContent>
               </div>
             </aside>
           )}
@@ -1377,7 +1399,7 @@ export function Playground() {
               aria-labelledby="office-panel-title"
               inert={!chatRevealed}
               aria-hidden={!chatRevealed}
-              className={`relative z-10 col-start-1 ${keyboardHeight || shortMobile ? "row-start-1" : "row-start-2"} flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#121415] md:col-start-2 md:row-start-1 [&_.chat-message_p]:text-[14px]! [&_.chat-message_p]:leading-[1.85]! [&_.prompt-grid_button]:text-[12px]! [&_.chat-panel]:flex-1 ${panelReveal(chatRevealed)}`}
+              className={`relative z-10 col-start-1 ${keyboardHeight || shortMobile ? "row-start-1" : "row-start-2"} flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#121415] md:col-start-2 md:row-start-1 [&_.chat-panel]:flex-1 ${panel === "position" ? "bg-[url(/play/chat-texture.svg)] bg-repeat" : ""} ${panelReveal(chatRevealed)}`}
             >
               <h2 id="office-panel-title" className="sr-only">
                 {panelTitles[panel]}
@@ -1396,242 +1418,260 @@ export function Playground() {
                 </div>
               )}
               {panel === "chat" && (
-                <section className="chat-panel flex flex-1 min-h-0 flex-col bg-[#121415] px-5 text-[#edf3f5] sm:px-6">
+                <section className="chat-panel flex flex-1 min-h-0 flex-col bg-[#121415] bg-[url(/play/chat-texture.svg)] bg-repeat px-4 text-[#edf3f5] sm:px-5">
+                  <div className="shrink-0 pb-2 pt-5 text-center font-[family-name:var(--font-display)] text-sm font-semibold tracking-[-.4px] text-[#edf3f5]">
+                    mr.fund
+                  </div>
                   <div
-                    className="chat-scroll flex-1 overflow-y-auto [scrollbar-width:thin] [scrollbar-color:#3d3547_transparent] p-[22px_4px_16px_0] min-h-0 overscroll-contain max-[820px]:pt-[17px] max-[620px]:pt-[22px]"
+                    className="chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-0.5 pb-2 pt-6 [scrollbar-width:thin] [scrollbar-color:#313334_transparent] sm:pt-8"
                     ref={scrollRef}
                     aria-live="polite"
                     aria-busy={thinking}
                   >
-                    {messages.map((message) => (
-                      <div key={message.id} className={playClasses(`chat-message ${message.role}`)}>
-                        <span className="message-label mb-2 block text-[9px] font-medium tracking-[.12em] text-[#8a8c8d]">
-                          {message.role === "assistant" ? "MR.FUND" : "YOU"}
-                        </span>
-                        {message.role === "assistant" ? (
-                          <ReplyText
-                            id={message.id}
-                            text={message.text}
-                            streaming={streamingId === message.id}
-                            onComplete={finishText}
-                          />
-                        ) : (
-                          <p>{message.text}</p>
-                        )}
-                        {message.kind === "scenario" && whatIf.ok && (
-                          <div className="scenario-result [border:1px_solid_#313334] bg-[#1c1e1f] p-[13px] mt-[12px] rounded-[9px] [&_.tag]:text-[#a2a4a5] [&_.tag]:border-0 [&_.tag]:p-0 [&>div]:flex [&>div]:gap-[17px] [&>div]:items-center [&>div]:mt-[12px] [&>div>span]:text-[9px] [&>div>span]:flex [&>div>span]:flex-col [&>div>span]:gap-[3px] [&>div>span]:text-[#a2a4a5] [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[22px] [&_b]:text-[#a2a4a5] [&>small]:text-[8px] [&>small]:text-[#a2a4a5] [&>small]:block [&>small]:mt-[10px]">
-                            <Tag>SIMULATED WHAT-IF</Tag>
-                            <div>
-                              <span>
-                                NEAR price <b>−20%</b>
-                              </span>
-                              <ArrowRight size={19} />
-                              <span>
-                                Health <b>{percent(whatIf.value.value.healthBps)}</b>
-                              </span>
-                            </div>
-                            <small>Engine calculation · no action executed</small>
+                    <div className="flex min-h-full flex-col justify-end">
+                      {messages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`chat-message mb-5 flex items-end gap-2.5 ${message.role === "user" ? "justify-end pl-9" : "pr-4 sm:pr-8"}`}
+                        >
+                          {message.role === "assistant" && <ChatAvatar />}
+                          <div
+                            className={`min-w-0 max-w-[92%] rounded-[22px] px-4 py-3 text-[13px] leading-[1.7] [overflow-wrap:anywhere] [&_p]:whitespace-pre-wrap [&_p]:font-normal [&_p]:leading-[1.7] sm:text-sm ${message.role === "user" ? "rounded-br-[6px] bg-[#bad7c3] text-[#203327]" : "rounded-bl-[6px] bg-[#1f2122] text-[#d6d8d9]"}`}
+                          >
+                            <span className="sr-only">
+                              {message.role === "assistant" ? "MR.FUND" : "YOU"}
+                            </span>
+                            {message.role === "assistant" ? (
+                              <ReplyText
+                                id={message.id}
+                                text={message.text}
+                                streaming={streamingId === message.id}
+                                onComplete={finishText}
+                              />
+                            ) : (
+                              <p>{message.text}</p>
+                            )}
+                            {message.kind === "scenario" && whatIf.ok && (
+                              <div className="scenario-result [border:1px_solid_#313334] bg-[#1c1e1f] p-[13px] mt-[12px] rounded-[9px] [&_.tag]:text-[#a2a4a5] [&_.tag]:border-0 [&_.tag]:p-0 [&>div]:flex [&>div]:gap-[17px] [&>div]:items-center [&>div]:mt-[12px] [&>div>span]:text-[9px] [&>div>span]:flex [&>div>span]:flex-col [&>div>span]:gap-[3px] [&>div>span]:text-[#a2a4a5] [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[22px] [&_b]:text-[#a2a4a5] [&>small]:text-[8px] [&>small]:text-[#a2a4a5] [&>small]:block [&>small]:mt-[10px]">
+                                <Tag>SIMULATED WHAT-IF</Tag>
+                                <div>
+                                  <span>
+                                    NEAR price <b>−20%</b>
+                                  </span>
+                                  <ArrowRight size={19} />
+                                  <span>
+                                    Health <b>{percent(whatIf.value.value.healthBps)}</b>
+                                  </span>
+                                </div>
+                                <small>Engine calculation · no action executed</small>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    ))}
-                    {messages.length === 1 && (
-                      <>
-                        <p className="mb-4! mt-7! text-[10px] font-semibold uppercase tracking-[.15em] text-[#838586]">
-                          A good place to start
-                        </p>
-                        <div className="prompt-grid grid grid-cols-1 gap-2 [&_button]:flex [&_button]:min-h-12 [&_button]:items-center [&_button]:gap-3 [&_button]:rounded-2xl [&_button]:border [&_button]:border-white/6 [&_button]:bg-[#1c1e1f] [&_button]:px-4 [&_button]:py-3 [&_button]:text-left [&_button]:font-medium [&_button]:text-[#ccc9d6] [&_button]:transition-colors [&_button:hover]:border-[#aeb0b140] [&_button:hover]:bg-[#242627] [&_svg]:text-[#c7d7ca]">
+                        </div>
+                      ))}
+                      {messages.length === 1 && (
+                        <div className="prompt-grid mb-6 ml-[42px] flex flex-wrap gap-2 [&_button]:inline-flex [&_button]:items-center [&_button]:gap-2 [&_button]:rounded-full [&_button]:border [&_button]:border-[#313334] [&_button]:bg-transparent [&_button]:px-3.5 [&_button]:py-2.5 [&_button]:text-left [&_button]:text-[11px] [&_button]:font-medium [&_button]:text-[#a2a4a5] [&_button]:transition-colors [&_button:hover]:bg-[#1f2122] [&_button:hover]:text-[#edf3f5]">
                           {prompts.map((p) => (
                             <button type="button" key={p.label} onClick={() => _ask(p.text)}>
-                              {p.icon}
                               <span>{p.label}</span>
-                              <ArrowUpRight size={14} />
                             </button>
                           ))}
                         </div>
-                      </>
-                    )}
-                    {thinking && (
-                      <div className="thinking-message flex gap-[4px] items-center p-[8px_0_18px] [&>span]:w-[5px] [&>span]:h-[5px] [&>span]:bg-[var(--blue)] [&>span]:rounded-full [&>span]:animate-pulse [&_small]:text-[9px] [&_small]:ml-[6px] [&_small]:text-[#a2a4a5]">
-                        <span />
-                        <span />
-                        <span />
-                        <small>Checking the numbers…</small>
-                      </div>
-                    )}
-                    {cardOpen && (
-                      <div className="recommendation-card bg-[#1c1e1f] [border:1px_solid_#313334] rounded-[12px] p-[15px] m-[12px_0] [&_h3]:font-[family-name:var(--font-display)] [&_h3]:text-[24px] [&_h3]:tracking-[-.9px] [&_h3]:m-[5px_0] [&>p]:text-[10px] [&>p]:text-[#a2a4a5] [&>p]:mb-[15px] [&_details]:[border-top:1px_solid_#313334] [&_details]:pt-[10px] [&_details]:text-[8px] [&_details]:text-[#a2a4a5] [&_summary]:flex [&_summary]:items-center [&_summary]:justify-between [&_summary]:cursor-pointer [&_summary]:font-semibold [&_details_p]:mt-[10px] [&_details_p]:leading-[1.7]">
-                        <div className="recommendation-heading flex items-center justify-between [&_.tag]:border-0 [&_.tag]:text-[var(--blue)] [&_.tag]:bg-[#1c1e1f] [&_.tag]:pl-[0]">
-                          <Tag>
-                            <Zap size={12} />
-                            THE SMARTER MOVE
-                          </Tag>
-                          <button
-                            type="button"
-                            className="icon-button inline-flex items-center justify-center border-0 bg-transparent w-[32px] h-[32px] rounded-full p-0 [transition:background_.18s] [&:hover]:bg-[#8080801a]"
-                            aria-label="Dismiss recommendation"
-                            onClick={() => setCardOpen(false)}
-                          >
-                            <X size={16} />
-                          </button>
+                      )}
+                      {thinking && (
+                        <div className="mb-5 flex items-end gap-2.5" role="status">
+                          <ChatAvatar />
+                          <div className="flex items-center gap-1.5 rounded-[22px] rounded-bl-[6px] bg-[#1f2122] px-4 py-4">
+                            {[0, 150, 300].map((delay) => (
+                              <span
+                                key={delay}
+                                aria-hidden="true"
+                                className={`size-1.5 rounded-full bg-[#a2a4a5] motion-safe:animate-pulse ${delay === 150 ? "[animation-delay:150ms]" : delay === 300 ? "[animation-delay:300ms]" : ""}`}
+                              />
+                            ))}
+                            <span className="sr-only">Checking the numbers…</span>
+                          </div>
                         </div>
-                        <h3>{card?.ok ? card.value.headline : "Refresh before your next move"}</h3>
-                        {card?.ok ? (
-                          <>
-                            <p>Less debt. Less interest. More breathing room.</p>
-                            <div className="comparison-bars flex flex-col gap-[12px] m-[18px_0] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:flex-wrap [&>div]:gap-[5px] [&>div]:text-[8px] [&>div]:text-[#a2a4a5] [&_b]:text-[9px] [&_b]:text-[var(--ink)] [&_i]:block [&_i]:basis-[100%] [&_i]:h-[7px] [&_i]:rounded-[3px] [&_.repay-bar]:bg-[var(--blue)] [&_.yield-bar]:bg-[#1c1e1f] [&_.yield-bar]:max-w-[66.7%]">
-                              <div>
-                                <span>Repay · avoided interest</span>
-                                <b>
-                                  {comp.ok ? amount(comp.value.value.repaySaves) : "—"} USDC / yr
-                                </b>
-                                <i className="repay-bar" />
-                              </div>
-                              <div>
-                                <span>Supply · estimated yield</span>
-                                <b>
-                                  {comp.ok ? amount(comp.value.value.yieldEarns) : "—"} USDC / yr
-                                </b>
-                                <i className="yield-bar" />
-                              </div>
-                            </div>
-                            <div className="card-number-list tabular-nums [border-top:1px_solid_#313334] p-[6px_0] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:p-[7px_0] [&>div]:gap-[10px] [&>div]:text-[8px] [&_span]:text-[#a2a4a5] [&_b]:flex [&_b]:items-center [&_b]:gap-[6px] [&_b]:font-bold [&_b]:text-[9px] [&_small]:text-[7px] [&_small]:text-[#a2a4a5]">
-                              {card.value.numbers.map((n) => (
-                                <div key={n.label}>
-                                  <span>{n.label}</span>
+                      )}
+                      {cardOpen && (
+                        <div className="recommendation-card bg-[#1c1e1f] [border:1px_solid_#313334] rounded-[12px] p-[15px] m-[12px_0] [&_h3]:font-[family-name:var(--font-display)] [&_h3]:text-[24px] [&_h3]:tracking-[-.9px] [&_h3]:m-[5px_0] [&>p]:text-[10px] [&>p]:text-[#a2a4a5] [&>p]:mb-[15px] [&_details]:[border-top:1px_solid_#313334] [&_details]:pt-[10px] [&_details]:text-[8px] [&_details]:text-[#a2a4a5] [&_summary]:flex [&_summary]:items-center [&_summary]:justify-between [&_summary]:cursor-pointer [&_summary]:font-semibold [&_details_p]:mt-[10px] [&_details_p]:leading-[1.7]">
+                          <div className="recommendation-heading flex items-center justify-between [&_.tag]:border-0 [&_.tag]:text-[var(--blue)] [&_.tag]:bg-[#1c1e1f] [&_.tag]:pl-[0]">
+                            <Tag>
+                              <Zap size={12} />
+                              THE SMARTER MOVE
+                            </Tag>
+                            <button
+                              type="button"
+                              className="icon-button inline-flex items-center justify-center border-0 bg-transparent w-[32px] h-[32px] rounded-full p-0 [transition:background_.18s] [&:hover]:bg-[#8080801a]"
+                              aria-label="Dismiss recommendation"
+                              onClick={() => setCardOpen(false)}
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                          <h3>
+                            {card?.ok ? card.value.headline : "Refresh before your next move"}
+                          </h3>
+                          {card?.ok ? (
+                            <>
+                              <p>Less debt. Less interest. More breathing room.</p>
+                              <div className="comparison-bars flex flex-col gap-[12px] m-[18px_0] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:flex-wrap [&>div]:gap-[5px] [&>div]:text-[8px] [&>div]:text-[#a2a4a5] [&_b]:text-[9px] [&_b]:text-[var(--ink)] [&_i]:block [&_i]:basis-[100%] [&_i]:h-[7px] [&_i]:rounded-[3px] [&_.repay-bar]:bg-[var(--blue)] [&_.yield-bar]:bg-[#1c1e1f] [&_.yield-bar]:max-w-[66.7%]">
+                                <div>
+                                  <span>Repay · avoided interest</span>
                                   <b>
-                                    {n.before} <ArrowRight size={12} />
-                                    {n.after ?? "—"} <small>{n.unit}</small>
+                                    {comp.ok ? amount(comp.value.value.repaySaves) : "—"} USDC / yr
                                   </b>
+                                  <i className="repay-bar" />
                                 </div>
-                              ))}
-                            </div>
-                            {adjusting && (
-                              <label className="adjust-field flex flex-col text-[9px] gap-[7px] m-[12px_0] [&_input]:bg-[#101923] [&_input]:[border:1px_solid_#313334] [&_input]:rounded-[6px] [&_input]:p-[10px] [&_input]:w-full [&_input]:text-[12px]">
-                                Repay amount (USDC)
-                                <input
-                                  type="number"
-                                  min="0.000001"
-                                  step="0.01"
-                                  value={repayAmount}
-                                  onChange={(e) => setRepayAmount(e.target.value)}
-                                />
-                              </label>
-                            )}
-                            <details>
-                              <summary>
-                                Why this? Assumptions, fees & risks <ChevronDown size={13} />
-                              </summary>
+                                <div>
+                                  <span>Supply · estimated yield</span>
+                                  <b>
+                                    {comp.ok ? amount(comp.value.value.yieldEarns) : "—"} USDC / yr
+                                  </b>
+                                  <i className="yield-bar" />
+                                </div>
+                              </div>
+                              <div className="card-number-list tabular-nums [border-top:1px_solid_#313334] p-[6px_0] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:p-[7px_0] [&>div]:gap-[10px] [&>div]:text-[8px] [&_span]:text-[#a2a4a5] [&_b]:flex [&_b]:items-center [&_b]:gap-[6px] [&_b]:font-bold [&_b]:text-[9px] [&_small]:text-[7px] [&_small]:text-[#a2a4a5]">
+                                {card.value.numbers.map((n) => (
+                                  <div key={n.label}>
+                                    <span>{n.label}</span>
+                                    <b>
+                                      {n.before} <ArrowRight size={12} />
+                                      {n.after ?? "—"} <small>{n.unit}</small>
+                                    </b>
+                                  </div>
+                                ))}
+                              </div>
+                              {adjusting && (
+                                <label className="adjust-field flex flex-col text-[9px] gap-[7px] m-[12px_0] [&_input]:bg-[#101923] [&_input]:[border:1px_solid_#313334] [&_input]:rounded-[6px] [&_input]:p-[10px] [&_input]:w-full [&_input]:text-[12px]">
+                                  Repay amount (USDC)
+                                  <input
+                                    type="number"
+                                    min="0.000001"
+                                    step="0.01"
+                                    value={repayAmount}
+                                    onChange={(e) => setRepayAmount(e.target.value)}
+                                  />
+                                </label>
+                              )}
+                              <details>
+                                <summary>
+                                  Why this? Assumptions, fees & risks <ChevronDown size={13} />
+                                </summary>
+                                <p>
+                                  Both rates are illustrative APRs, estimated linearly for 365 days
+                                  without compounding. Borrow 21.00%; supply 14.01%. Demo input age:
+                                  fresh.{" "}
+                                  {card.value.cappedBy
+                                    ? `Amount capped by ${card.value.cappedBy}.`
+                                    : ""}
+                                </p>
+                                <p>
+                                  Execution fee: 0.10 test USDC → fees.demo.testnet, charged on mock
+                                  approval. Rates change. Repayment reduces liquidation risk within
+                                  your limits; it cannot remove it.
+                                </p>
+                                {card.value.assumptions.map((a) => (
+                                  <p key={a}>{a}</p>
+                                ))}
+                              </details>
+                              <div className="card-actions flex gap-[9px] mt-[16px] [&>button]:flex-1 [&>button]:justify-center">
+                                <button
+                                  type="button"
+                                  className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#313334] bg-transparent [&:hover]:bg-[#ffffff40] small"
+                                  onClick={() => setAdjusting((v) => !v)}
+                                >
+                                  <SlidersHorizontal size={14} />
+                                  Adjust
+                                </button>
+                                <button
+                                  type="button"
+                                  className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-[#203327]! [&:hover]:bg-[#a7c8b1] small"
+                                  onClick={executeRepay}
+                                  disabled={unavailable}
+                                >
+                                  Execute now <ArrowUpRight size={15} />
+                                </button>
+                              </div>
+                            </>
+                          ) : (
+                            <>
                               <p>
-                                Both rates are illustrative APRs, estimated linearly for 365 days
-                                without compounding. Borrow 21.00%; supply 14.01%. Demo input age:
-                                fresh.{" "}
-                                {card.value.cappedBy
-                                  ? `Amount capped by ${card.value.cappedBy}.`
-                                  : ""}
+                                {unavailable
+                                  ? "Fresh position data is needed. Execute is blocked."
+                                  : "Enter a positive amount. Your wallet must cover the repayment and its fee."}
                               </p>
-                              <p>
-                                Execution fee: 0.10 test USDC → fees.demo.testnet, charged on mock
-                                approval. Rates change. Repayment reduces liquidation risk within
-                                your limits; it cannot remove it.
-                              </p>
-                              {card.value.assumptions.map((a) => (
-                                <p key={a}>{a}</p>
-                              ))}
-                            </details>
-                            <div className="card-actions flex gap-[9px] mt-[16px] [&>button]:flex-1 [&>button]:justify-center">
+                              {adjusting && (
+                                <label className="adjust-field flex flex-col text-[9px] gap-[7px] m-[12px_0] [&_input]:bg-[#101923] [&_input]:[border:1px_solid_#313334] [&_input]:rounded-[6px] [&_input]:p-[10px] [&_input]:w-full [&_input]:text-[12px]">
+                                  Repay amount (USDC)
+                                  <input
+                                    type="number"
+                                    min="0.000001"
+                                    step="0.01"
+                                    value={repayAmount}
+                                    onChange={(e) => setRepayAmount(e.target.value)}
+                                  />
+                                </label>
+                              )}
                               <button
                                 type="button"
                                 className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#313334] bg-transparent [&:hover]:bg-[#ffffff40] small"
-                                onClick={() => setAdjusting((v) => !v)}
+                                onClick={unavailable ? refresh : () => setAdjusting(true)}
                               >
-                                <SlidersHorizontal size={14} />
-                                Adjust
+                                {unavailable ? "Refresh position" : "Adjust amount"}
                               </button>
-                              <button
-                                type="button"
-                                className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-[#203327]! [&:hover]:bg-[#a7c8b1] small"
-                                onClick={executeRepay}
-                                disabled={unavailable}
-                              >
-                                Execute now <ArrowUpRight size={15} />
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <p>
-                              {unavailable
-                                ? "Fresh position data is needed. Execute is blocked."
-                                : "Enter a positive amount. Your wallet must cover the repayment and its fee."}
-                            </p>
-                            {adjusting && (
-                              <label className="adjust-field flex flex-col text-[9px] gap-[7px] m-[12px_0] [&_input]:bg-[#101923] [&_input]:[border:1px_solid_#313334] [&_input]:rounded-[6px] [&_input]:p-[10px] [&_input]:w-full [&_input]:text-[12px]">
-                                Repay amount (USDC)
-                                <input
-                                  type="number"
-                                  min="0.000001"
-                                  step="0.01"
-                                  value={repayAmount}
-                                  onChange={(e) => setRepayAmount(e.target.value)}
-                                />
-                              </label>
-                            )}
-                            <button
-                              type="button"
-                              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#313334] bg-transparent [&:hover]:bg-[#ffffff40] small"
-                              onClick={unavailable ? refresh : () => setAdjusting(true)}
-                            >
-                              {unavailable ? "Refresh position" : "Adjust amount"}
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                    {lastRepay && (
-                      <button
-                        type="button"
-                        className="inline-receipt flex items-center text-left w-full [border:1px_solid_#313334] bg-[#1c1e1f] p-[14px_12px] gap-[10px] rounded-[9px] m-[10px_0] [&_b]:text-[11px] [&_b]:block [&_small]:text-[8px] [&_small]:text-[#a2a4a5] [&_small]:block [&_small]:mt-[4px] [&>svg]:ml-auto"
-                        onClick={() => setSelectedReceipt(lastRepay)}
-                      >
-                        <span className="receipt-check w-[32px] h-[32px] grid place-items-center bg-[var(--lime)] text-[#101a17]! rounded-full text-[#a2a4a5]">
-                          <Check size={20} />
-                        </span>
-                        <span>
-                          <b>{lastRepay.title}</b>
-                          <small>Demo receipt · Health {lastRepay.after}</small>
-                        </span>
-                        <ArrowUpRight size={18} />
-                      </button>
-                    )}
-                    {messages.length > 1 && !thinking && streamingId === null && (
-                      <div className="follow-up-prompts flex gap-[7px] flex-wrap mt-[14px] [&_button]:bg-transparent [&_button]:[border:1px_solid_#313334] [&_button]:rounded-[6px] [&_button]:p-[7px_8px] [&_button]:text-[8px] [&_button]:flex [&_button]:gap-[5px] [&_button]:items-center">
-                        <button type="button" onClick={() => _ask("What if NEAR drops 20%?")}>
-                          What if NEAR drops? <ArrowUpRight size={12} />
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {lastRepay && (
+                        <button
+                          type="button"
+                          className="inline-receipt flex items-center text-left w-full [border:1px_solid_#313334] bg-[#1c1e1f] p-[14px_12px] gap-[10px] rounded-[9px] m-[10px_0] [&_b]:text-[11px] [&_b]:block [&_small]:text-[8px] [&_small]:text-[#a2a4a5] [&_small]:block [&_small]:mt-[4px] [&>svg]:ml-auto"
+                          onClick={() => setSelectedReceipt(lastRepay)}
+                        >
+                          <span className="receipt-check w-[32px] h-[32px] grid place-items-center bg-[var(--lime)] text-[#101a17]! rounded-full text-[#a2a4a5]">
+                            <Check size={20} />
+                          </span>
+                          <span>
+                            <b>{lastRepay.title}</b>
+                            <small>Demo receipt · Health {lastRepay.after}</small>
+                          </span>
+                          <ArrowUpRight size={18} />
                         </button>
-                        <button type="button" onClick={() => _ask("What are my Guardian limits?")}>
-                          My Guardian limits <ArrowUpRight size={12} />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      {messages.length > 1 && !thinking && streamingId === null && (
+                        <div className="follow-up-prompts flex gap-[7px] flex-wrap mt-[14px] [&_button]:bg-transparent [&_button]:[border:1px_solid_#313334] [&_button]:rounded-[6px] [&_button]:p-[7px_8px] [&_button]:text-[8px] [&_button]:flex [&_button]:gap-[5px] [&_button]:items-center">
+                          <button type="button" onClick={() => _ask("What if NEAR drops 20%?")}>
+                            What if NEAR drops? <ArrowUpRight size={12} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => _ask("What are my Guardian limits?")}
+                          >
+                            My Guardian limits <ArrowUpRight size={12} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   <form
-                    className="chat-composer mt-3 rounded-[24px] border border-white/8 bg-[#1f2122] p-3 transition-colors focus-within:border-[#e4d7ba4d]"
+                    className="chat-composer mb-4 mt-3 flex shrink-0 items-end gap-1 rounded-[28px] border border-white/8 bg-[#1f2122] p-1.5 transition-colors focus-within:border-[#e4d7ba4d]"
                     onSubmit={(event: FormEvent) => {
                       event.preventDefault();
                       _ask(input);
                     }}
                   >
                     <textarea
-                      rows={2}
+                      rows={1}
                       onFocus={() => setComposerFocused(true)}
                       onBlur={() => {
                         setComposerFocused(false);
                         setKeyboardHeight(null);
                       }}
-                      className="block h-10 w-full resize-none border-0 bg-transparent px-2 py-1.5 font-[family-name:var(--font-body)] text-base leading-relaxed text-[#eeeef3] outline-none! placeholder:text-[#757778] sm:h-16"
+                      className="block field-sizing-content min-h-11 max-h-32 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-3 font-[family-name:var(--font-body)] text-base leading-5 text-[#eeeef3] outline-none! placeholder:text-[#757778] sm:text-sm"
                       aria-label="Message Mr.Fund"
-                      placeholder="What's on your mind?"
+                      placeholder="Write a message…"
                       value={input}
                       maxLength={500}
                       onChange={(event) => setInput(event.target.value)}
@@ -1648,48 +1688,39 @@ export function Playground() {
                       }}
                       disabled={thinking}
                     />
-                    <div className="mt-2 flex items-center justify-between px-1">
-                      <span className="text-[9px] text-[#7f8182] sm:text-[10px]">
-                        One question. A clearer next move.
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          aria-label="Clear conversation"
-                          title="Clear conversation"
-                          onClick={clearConversation}
-                          className="grid size-9 place-items-center rounded-full border border-white/8 bg-[#2b2d2e] text-[#b9bbbc] transition-colors hover:bg-[#363839]"
-                        >
-                          <MoreHorizontal size={17} />
-                        </button>
-                        <button
-                          type="button"
-                          aria-label="Open voice input"
-                          title="Voice input"
-                          onClick={() => openPanel("voice")}
-                          className="grid size-9 place-items-center rounded-full border border-white/8 bg-[#2b2d2e] text-[#b9bbbc] transition-colors hover:bg-[#363839]"
-                        >
-                          <Mic size={17} />
-                        </button>
-                        <button
-                          type="submit"
-                          aria-label="Send message"
-                          disabled={!input.trim() || thinking || streamingId !== null}
-                          className="grid size-9 place-items-center rounded-full border-0 bg-[#e4d7ba] text-[#26352a] transition-colors hover:bg-[#eee6d3] disabled:bg-[#323435] disabled:text-[#767879]"
-                        >
-                          {thinking ? (
-                            <LoaderCircle size={17} className="animate-spin" />
-                          ) : (
-                            <ArrowUpRight size={20} />
-                          )}
-                        </button>
-                      </div>
+                    <div className="flex shrink-0 items-center gap-0.5 pb-1 pr-1 sm:gap-1">
+                      <button
+                        type="button"
+                        aria-label="Clear conversation"
+                        title="Clear conversation"
+                        onClick={clearConversation}
+                        className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#a2a4a5] transition-colors hover:bg-[#2b2d2e] hover:text-[#edf3f5]"
+                      >
+                        <MoreHorizontal size={17} />
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Open voice input"
+                        title="Voice input"
+                        onClick={() => openPanel("voice")}
+                        className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#a2a4a5] transition-colors hover:bg-[#2b2d2e] hover:text-[#edf3f5]"
+                      >
+                        <Mic size={17} />
+                      </button>
+                      <button
+                        type="submit"
+                        aria-label="Send message"
+                        disabled={!input.trim() || thinking || streamingId !== null}
+                        className="grid size-9 place-items-center rounded-full border-0 bg-[#e4d7ba] text-[#26352a] transition-colors hover:bg-[#eee6d3] disabled:bg-[#323435] disabled:text-[#767879]"
+                      >
+                        {thinking ? (
+                          <LoaderCircle size={17} className="animate-spin" />
+                        ) : (
+                          <ArrowUpRight size={20} />
+                        )}
+                      </button>
                     </div>
                   </form>
-                  <div className="chat-disclaimer flex items-center justify-center gap-[4px] text-[7px] text-[#a2a4a5] p-[9px_0_12px] max-[820px]:text-[6px] max-[620px]:text-[7px] max-[620px]:pb-[12px]">
-                    <LockKeyhole size={10} />
-                    You approve every move. Demo chat isn't an LLM connection.
-                  </div>
                 </section>
               )}
               {panel === "voice" && (
@@ -1699,7 +1730,9 @@ export function Playground() {
                   onNotice={setNotice}
                 />
               )}
-              {panel !== "chat" && panel !== "voice" && toolContent(panel)}
+              {panel !== "chat" && panel !== "voice" && (
+                <DetailContent key={`${panel}-${chatRevealed}`}>{toolContent(panel)}</DetailContent>
+              )}
             </aside>
           )}
         </div>
@@ -1755,22 +1788,36 @@ export function Playground() {
       <div className="relative z-40">
         {notice && (
           <div
-            className="play-toast fixed bottom-[165px] left-[50%] transform-[translateX(-50%)] z-[100] flex gap-[11px] items-center bg-[#263847] text-white [border:1px_solid_#434b58] rounded-[12px] p-[14px_16px] text-[11px] shadow-none max-w-[calc(100vw_-_30px)] w-[max-content] [&>span]:h-[25px] [&>span]:w-[25px] [&>span]:rounded-full [&>span]:bg-[var(--lime)] [&>span]:text-[#101a17] [&>span]:grid [&>span]:place-items-center [&>span]:shrink-0 [&_button]:border-0 [&_button]:bg-transparent [&_button]:text-[#b6bcc5] [&_button]:ml-[10px] [&_button]:flex [&_button]:p-[3px] max-[620px]:bottom-[155px] max-[620px]:text-[10px] max-[620px]:p-[11px] max-[620px]:gap-[8px] max-[620px]:w-[calc(100vw_-_28px)] max-[620px]:leading-[1.6] max-[620px]:[&>span]:w-[22px] max-[620px]:[&>span]:h-[22px]"
+            className="play-toast fixed right-[max(16px,env(safe-area-inset-right))] top-[max(16px,env(safe-area-inset-top))] z-[100] grid w-[380px] max-w-[calc(100vw_-_32px)] grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 rounded-[20px] border border-white/10 bg-[#1c1e1f] p-4 text-[#edf3f5] transition-[opacity,translate] duration-200 ease-out starting:-translate-y-2 starting:opacity-0 motion-reduce:transition-none"
             role="status"
+            aria-atomic="true"
           >
-            <span>
-              <Check size={16} />
+            <span className="mt-0.5 grid size-9 place-items-center rounded-[12px] bg-[#bad7c314] text-[#bad7c3]">
+              <Info size={18} strokeWidth={1.7} />
             </span>
-            {notice}
-            <button type="button" aria-label="Dismiss notification" onClick={() => setNotice("")}>
-              <X size={15} />
+            <div className="min-w-0 py-0.5">
+              <p className="font-[family-name:var(--font-display)] text-[13px] font-semibold tracking-[-.2px]">
+                Mr.Fund
+              </p>
+              <p className="mt-1.5! text-[13px] leading-[1.6] text-[#b8bdbc] [overflow-wrap:anywhere]">
+                {notice}
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Dismiss notification"
+              onClick={() => setNotice("")}
+              className="-mr-1 -mt-1 grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#818a85] transition-colors hover:bg-[#2b2f2d] hover:text-[#edf3f5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#bad7c3]"
+            >
+              <X size={16} strokeWidth={1.7} />
             </button>
           </div>
         )}
 
         {modal === "wallet" && (
           <ModalFrame
-            eyebrow="JUST A DRESS REHEARSAL"
+            wallet
+            eyebrow="YOUR CONSULTATION"
             title={
               connected
                 ? "Your mock wallet."
@@ -1780,11 +1827,14 @@ export function Playground() {
             }
             close={() => setModal(null)}
           >
-            <Tag className="text-[#a2a4a5]!">NETWORK · TESTNET · SIMULATED</Tag>
-            <p className="modal-copy text-[12px] leading-[1.8] text-[#a2a4a5] m-[20px_0]! max-[620px]:text-[11px]">
+            <span className="mt-5 inline-flex items-center gap-2 text-[9px] font-medium tracking-[.08em] text-[#a2a4a5]">
+              <span aria-hidden="true" className="size-1.5 rounded-full bg-[#bad7c3]" />
+              NETWORK · TESTNET · SIMULATED
+            </span>
+            <p className="mt-4! max-w-[320px] text-[13px] leading-[1.8] text-[#a2a4a5]">
               {connected
                 ? "Connected to a local demo identity. These tokens are simulated balances."
-                : "Try the whole experience with a mock wallet. No extension, real account, or signature needed."}
+                : "Meet Mr.Fund with a demo wallet. No setup or signature needed."}
             </p>
             {connected ? (
               <>
@@ -1825,38 +1875,69 @@ export function Playground() {
               <>
                 <button
                   type="button"
-                  className="wallet-option flex gap-[13px] items-center w-full bg-[#1c1e1f] [border:1px_solid_#313334] p-[17px_14px] rounded-[12px] text-left mt-[24px] [&>span]:w-[43px] [&>span]:h-[43px] [&>span]:bg-[var(--blue)] [&>span]:rounded-[11px] [&>span]:text-[#fff] [&>span]:grid [&>span]:place-items-center [&_b]:text-[13px] [&_small]:text-[9px] [&_small]:text-[#a2a4a5] [&_small]:block [&_small]:mt-[5px] [&>svg]:ml-auto [&:hover]:bg-[#1c1e1f] [&:hover]:[border-color:#b7c79f]"
+                  aria-label={connecting ? "Connecting demo wallet" : "Connect demo wallet"}
+                  className="group relative mt-7 flex w-full flex-col items-stretch gap-6 overflow-hidden rounded-[22px] border-0 bg-[#d3e5d7] p-5 text-left text-[#203327] transition-colors hover:bg-[#e1efe4] disabled:cursor-wait sm:p-6"
                   disabled={connecting}
                   onClick={connectDemoWallet}
                 >
-                  <span>
+                  <div className="flex items-start justify-between">
                     {connecting ? (
-                      <LoaderCircle size={24} className="animate-spin" />
+                      <LoaderCircle size={30} className="animate-spin" />
                     ) : (
-                      <Wallet size={24} />
+                      <Wallet size={30} strokeWidth={1.4} />
                     )}
-                  </span>
-                  <div>
-                    <b>Demo wallet</b>
-                    <small>
-                      {connecting
-                        ? "Connecting to the simulated testnet…"
-                        : "1,000 test USDC · instant connection"}
-                    </small>
+                    <span className="text-[9px] font-semibold uppercase tracking-[.15em] text-[#52685b]">
+                      Demo access / 01
+                    </span>
                   </div>
-                  <ArrowUpRight size={20} />
+                  <div className="flex items-end justify-between gap-4">
+                    <div>
+                      <b className="block font-[family-name:var(--font-display)] text-[25px] font-medium leading-tight tracking-[-.8px]">
+                        Demo wallet
+                      </b>
+                      <small className="mt-2 block text-[11px] text-[#52685b]">
+                        {connecting
+                          ? "Connecting to the simulated testnet…"
+                          : "1,000 test USDC · instant connection"}
+                      </small>
+                    </div>
+                    <ArrowUpRight
+                      size={26}
+                      strokeWidth={1.5}
+                      className="mb-1 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 motion-reduce:transform-none"
+                    />
+                  </div>
                 </button>
-                <div className="disabled-wallets p-[25px_0_20px] text-center [&>span]:text-[9px] [&>span]:text-[#a2a4a5] [&>div]:flex [&>div]:justify-center [&>div]:gap-[27px] [&>div]:mt-[16px] [&>div]:text-[#a2a4a5] [&>div]:font-[family-name:var(--font-display)] [&>div]:text-[11px]">
-                  <span>Real wallets arrive with the live integration</span>
-                  <div>
-                    <b>METEOR</b>
-                    <b>INTEAR</b>
-                    <b>NEAR</b>
+                <div className="pb-2 pt-7">
+                  <p className="text-center text-[11px] text-[#858d89]">Your own wallet, next.</p>
+                  <div className="mx-auto mt-5 grid max-w-[280px] grid-cols-3 gap-6">
+                    {[
+                      { name: "Meteor", logo: "/play/wallets/meteor.svg", treatment: "" },
+                      { name: "Intear", logo: "/play/wallets/intear.svg", treatment: "" },
+                      { name: "NEAR", logo: "/play/tokens/near.svg", treatment: "invert" },
+                    ].map((provider) => (
+                      <span
+                        key={provider.name}
+                        className="flex flex-col items-center gap-3 text-[11px] font-medium text-[#bbc3be]"
+                      >
+                        <Image
+                          src={provider.logo}
+                          alt=""
+                          width={40}
+                          height={40}
+                          className={`size-10 object-contain ${provider.treatment}`}
+                        />
+                        {provider.name}
+                      </span>
+                    ))}
                   </div>
+                  <p className="mt-5! text-center text-[10px] text-[#747c78]">
+                    Coming with the live integration
+                  </p>
                 </div>
               </>
             )}
-            <p className="fine-print text-[9px] leading-[1.8] text-[#a2a4a5] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
+            <p className="mt-6! flex items-center justify-center gap-2 text-[10px] leading-relaxed text-[#8b948f]">
               <LockKeyhole size={12} />
               Mr.Fund never asks for your private key.
             </p>

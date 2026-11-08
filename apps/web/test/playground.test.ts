@@ -46,7 +46,7 @@ const advance = async (ms = 2200) => {
 function click(name: string) {
   fireEvent.click(screen.getByRole("button", { name }));
 }
-const DEMO_WALLET = "Demo wallet1,000 test USDC · instant connection";
+const DEMO_WALLET = "Connect demo wallet";
 /** Welcome, then wallet, then the chair gesture: the whole flow into a consultation. */
 async function begin() {
   click("Start consultation");
