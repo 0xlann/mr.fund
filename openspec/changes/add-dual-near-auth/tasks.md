@@ -7,7 +7,7 @@
 
 - [x] 2.1 Key-resolution regressions failed before implementation and passed afterward; wrong chain, malformed RPC/key, curve/length and exact-address boundaries are covered. Public testnet MPC read completed in 775 ms (2026-11-08), using a synthetic probe subject: real public derivation, not a user login, account creation, funding or signing.
 - [x] 2.2 Hosted lifecycle regressions failed before implementation and passed afterward. Official Auth0 memory-cache login/session restoration maps validated `sub`, not email; cancellation/resolution failures remain sanitized. Logout clears the local SDK cache, not global hosted SSO. Typecheck/focused Biome passed (2026-11-08); human hosted-login completion remains separate evidence.
-- [ ] 2.3 Write failing connector lifecycle tests. Implement `createNearConnectAdapter`: one connector on configured network, no access-key request, passive restore, validated accounts, sign-out and detachable account-change events. Prove SDK callbacks cannot establish arbitrary account selection.
+- [x] 2.3 Connector regressions failed before implementation and passed afterward: passive configured-network reads, validated multiple/empty/malformed accounts, provider failures, current-wallet logout and detachable account-change signals. No access-key/plugin request or signer exposure. Web typecheck and focused Biome passed (2026-11-08); controller concurrency and real-wallet completion remain separate tasks.
 
 ## 3. Shared account lifecycle
 
