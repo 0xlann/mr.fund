@@ -18,7 +18,7 @@ export function mountLandingMotion(root: HTMLElement, progress: HTMLElement | nu
   gsap.ticker.add(tick);
   const media = gsap.matchMedia();
   const releases: (() => void)[] = [];
-  const loops: { tween: gsap.core.Tween; trigger: ScrollTrigger }[] = [];
+  const loops: { tween: gsap.core.Tween | gsap.core.Timeline; trigger: ScrollTrigger }[] = [];
   let disposed = false;
   const context = gsap.context(() => {
     const intro = gsap.timeline({ defaults: { ease: "power3.out" } });
@@ -84,6 +84,67 @@ export function mountLandingMotion(root: HTMLElement, progress: HTMLElement | nu
           scrollTrigger: { trigger: card, start: "top 94%", once: true },
         },
       );
+      const signals = card.querySelectorAll("[data-feature-signal]");
+      const pops = card.querySelectorAll("[data-feature-pop]");
+      const surfaces = card.querySelectorAll("[data-feature-surface]");
+      if (signals.length || pops.length || surfaces.length) {
+        const tween = gsap.timeline({ paused: true, repeat: -1, repeatDelay: 1.2 });
+        if (signals.length)
+          tween.fromTo(
+            signals,
+            { opacity: 0.12 },
+            {
+              opacity: 1,
+              duration: 0.7,
+              stagger: 0.23,
+              ease: "sine.inOut",
+              repeat: 1,
+              yoyo: true,
+              repeatDelay: 1.1,
+            },
+            0,
+          );
+        if (surfaces.length)
+          tween.fromTo(
+            surfaces,
+            { backgroundColor: "#202125" },
+            {
+              backgroundColor: "#303238",
+              duration: 0.7,
+              repeat: 1,
+              yoyo: true,
+              repeatDelay: 1.1,
+            },
+            0,
+          );
+        if (pops.length) {
+          gsap.set(pops, { display: "inline-flex", transformOrigin: "50% 50%" });
+          tween.fromTo(
+            pops,
+            { y: 3, scale: 0.97 },
+            {
+              y: -3,
+              scale: 1,
+              duration: 0.65,
+              stagger: 0.18,
+              ease: "sine.inOut",
+              repeat: 1,
+              yoyo: true,
+              repeatDelay: 1.3,
+            },
+            0.2,
+          );
+        }
+        tween.timeScale(1.7);
+        const trigger = ScrollTrigger.create({
+          trigger: card,
+          start: "top bottom",
+          end: "bottom top",
+          onToggle: (state) => (state.isActive && !document.hidden ? tween.play() : tween.pause()),
+        });
+        if (trigger.isActive && !document.hidden) tween.play();
+        loops.push({ tween, trigger });
+      }
       const art = card.querySelector("[data-feature-art]");
       if (art)
         gsap.fromTo(
@@ -104,7 +165,7 @@ export function mountLandingMotion(root: HTMLElement, progress: HTMLElement | nu
       const tween = gsap.to(
         el,
         marquee
-          ? { xPercent: -50, duration: 30, ease: "none", repeat: -1, paused: true }
+          ? { xPercent: -50, duration: 60, ease: "none", repeat: -1, paused: true }
           : orbit
             ? { rotation: 360, duration: 48, ease: "none", repeat: -1, paused: true }
             : {
@@ -188,69 +249,6 @@ export function mountLandingMotion(root: HTMLElement, progress: HTMLElement | nu
             .to(heroWindow, { scale: 1.025, duration: 1, ease: "none" }, 0)
             .fromTo("[data-hero-chat]", { y: 20 }, { y: -12, duration: 1, ease: "none" }, 0);
         }
-        const pin = root.querySelector<HTMLElement>("[data-stack-pin]");
-        if (pin) {
-          const layers = Array.from(pin.querySelectorAll<HTMLElement>("[data-stack-card]"));
-          if (large) {
-            gsap.set(pin, { height: "min(600px, calc(100svh - 144px))" });
-            gsap.set(layers, {
-              position: "absolute",
-              inset: 0,
-              margin: 0,
-              minHeight: 0,
-              transformOrigin: "50% 0%",
-            });
-            for (const [index, layer] of layers.entries())
-              gsap.set(layer, { yPercent: index === 0 ? 0 : 112, zIndex: index + 1 });
-            const timeline = gsap.timeline({
-              scrollTrigger: {
-                trigger: pin,
-                start: "top 104px",
-                end: () => `+=${window.innerHeight * 1.8}`,
-                pin: true,
-                scrub: 0.8,
-                anticipatePin: 1,
-                invalidateOnRefresh: true,
-              },
-            });
-            for (let index = 1; index < layers.length; index++) {
-              const current = layers[index],
-                previous = layers[index - 1];
-              if (!current || !previous) continue;
-              timeline
-                .to(current, { yPercent: 0, duration: 1, ease: "power1.inOut" }, index - 1)
-                .to(previous, { scale: 0.94, yPercent: -4, opacity: 0.55, duration: 1 }, index - 1);
-            }
-          } else
-            for (const layer of layers)
-              gsap.fromTo(
-                layer,
-                { y: 65, scale: 0.96 },
-                {
-                  y: 0,
-                  scale: 1,
-                  ease: "none",
-                  scrollTrigger: { trigger: layer, start: "top 97%", end: "top 42%", scrub: 0.5 },
-                },
-              );
-        }
-        const phone = root.querySelector<HTMLElement>("[data-phone-stage]");
-        if (phone)
-          gsap.fromTo(
-            phone,
-            { y: 90, rotation: large ? 7 : 0 },
-            {
-              y: -20,
-              rotation: large ? -3 : 0,
-              ease: "none",
-              scrollTrigger: {
-                trigger: phone,
-                start: "top bottom",
-                end: "center center",
-                scrub: 0.9,
-              },
-            },
-          );
       },
     );
     if (window.matchMedia("(hover: hover) and (pointer: fine)").matches)

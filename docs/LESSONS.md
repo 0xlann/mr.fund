@@ -4,6 +4,11 @@ Read the headlines before starting work. Record actual surprises only, never inv
 
 The portrait's ResizeObserver called renderer.setSize for every animated grid/viewport size change. That repeatedly reallocates the drawing buffer during the camera orbit; a second camera lerp also added a trailing stop. Keep projection responsive but defer buffer allocation until motion settles, and use one eased camera timeline. A 60-frame resize regression verifies one allocation during motion and one final commit. No browser FPS claim is implied.
 
+
+### 2026-11-08: Parse JSX before applying automatic fixes
+
+A programmatic JSX replacement left an extra closing tag. Running Biome with `--write` against that invalid tree applied unrelated partial fixes. Recovered the file and reapplied the bounded feature change, then checked parsing before formatting. After structural JSX edits, run the checker without writes first; resolve parse errors before allowing automatic fixes.
+
 ### 2026-11-08: Speech needs authored lip shapes, not just a gap
 
 The Jungle Jim model has a closed face without speech shapes. Splitting its lip seam made a measurable opening but the user found the resulting motion unnatural. The Rocketbox trial retains its authored visemes instead, without replacing head topology. Validate model capabilities and user-visible articulation separately from geometry tests; a measured gap does not prove natural speech. Rocketbox also uses different bone axes, so walking leg rotations must use the actor's axis transformed into each bone's rest frame.

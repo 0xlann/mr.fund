@@ -37,3 +37,7 @@ The live 3D character is Microsoft Rocketbox Business Male 01, served from `/pla
 ## User-finalized video hero
 
 The user-provided `../video/gemini_generated_video_92f34b13.mp4` and `../video/hero-poster.webp` are the final hero's local background media. Their original generation process was not independently verified. The live phone character remains the existing Rocketbox model; chat/navbar avatars use `mr-fund-avatar.png` above.
+
+## Code-native feature diagrams
+
+The “Less dashboard” feature grid now renders original HTML/SVG compositions from `src/landing/FeatureArtwork.tsx`, with independent GSAP colour reveals. It reuses only the generated `mr-fund-avatar.png` and the existing official NEAR/USDC token marks. The six full-scene PNGs above are not loaded by this feature grid; existing uses elsewhere remain. Chart traces and orbit sectors are decorative, not portfolio allocations or observed historical returns. Financial labels use the simulated deterministic engine fixture.

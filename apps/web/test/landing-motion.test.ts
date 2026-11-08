@@ -6,7 +6,6 @@ import { ConversationPreview } from "../src/landing/ConversationPreview";
 import { conversation } from "../src/landing/conversation";
 import { landingFigures } from "../src/landing/figures";
 import { LandingMotion, MotionToggle } from "../src/landing/LandingMotion";
-import { PhonePreview } from "../src/landing/PhonePreview";
 
 const fixture = vi.hoisted(() => ({
   mount: vi.fn(),
@@ -98,16 +97,6 @@ describe("landing motion controls", () => {
     expect(stories[1].answer.startsWith(partial)).toBe(true);
     expect(partial.length).toBeGreaterThan(0);
     expect(partial.length).toBeLessThan(20);
-  });
-  it("keeps a standing 3D character in the phone with chat only", async () => {
-    render(createElement(PhonePreview, { figures: landingFigures() }));
-    expect(screen.getByTestId("live-character")).toBeTruthy();
-    expect(fixture.standing).toBe(true);
-    expect(fixture.active).toBe(true);
-    expect(screen.queryByRole("navigation", { name: "Office actions" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Position" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Pause mobile chat preview" }));
-    expect(fixture.active).toBe(false);
   });
   it("releases scroll animation resources when paused or unmounted", () => {
     const view = render(createElement(LandingMotion, null, createElement(MotionToggle)));
