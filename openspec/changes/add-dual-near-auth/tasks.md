@@ -1,7 +1,7 @@
 ## 1. Contract and dependencies
 
 - [x] 1.1 Record user-approved D31 dual-login scope and reconcile PRD/architecture/P4.3; keep D19, public wallet proof and backend authentication separate. Strict OpenSpec validation passed (2026-11-08); no runtime evidence is implied by this specification commit.
-- [ ] 1.2 Add pinned browser dependencies and public configuration/types. Write config rejection tests first, observe failure, implement `readWalletConfig`, then prove no silent network or mainnet-client fallback. Commit the complete valid manifest/lockfile with its behavior/docs within 50–350 changed lines.
+- [x] 1.2 Add pinned browser dependencies and public configuration/types. Config tests failed before implementation and all 12 passed afterward (2026-11-08); no silent chain/mainnet-client fallback. Frozen install passed after explicitly denying the reviewed sponsorship-only postinstall and unrequested connector skills. No global build-policy weakening.
 
 ## 2. Independent login adapters
 

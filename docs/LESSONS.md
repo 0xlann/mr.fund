@@ -2,6 +2,12 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-08: a browser dependency's sponsorship postinstall is not a required build
+
+- What happened: adding the pinned Auth0 browser SDK installed its dependencies but pnpm failed with `ERR_PNPM_IGNORED_BUILDS` for `browser-tabs-lock@1.3.0`.
+- Root cause: that package declares a postinstall which only prints sponsorship text; its published JavaScript needs no build. The connector also ships agent skills that this repository did not request.
+- Rule: inspect the exact lifecycle script before making a package-specific permission decision. Explicitly deny the unnecessary script and unrequested skills; retain strict defaults. `pnpm install --frozen-lockfile` then completed without executing that script.
+
 ### 2026-11-08: a provenance guard must tokenize leading-decimal amounts
 
 - What happened: final review found that `.99%` bypassed the numeric checker without any tool source. Eight regression cases reproduced the missing rejection, including an actual chat turn that emitted the unsupported rate.

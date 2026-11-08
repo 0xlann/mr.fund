@@ -13,3 +13,10 @@ minimumReleaseAgeExclude:
   - "@biomejs/cli-linux-x64@2.6.5"
   - "@biomejs/cli-win32-arm64@2.6.5"
   - "@biomejs/cli-win32-x64@2.6.5"
+# Reviewed: this dependency's postinstall prints sponsorship text only.
+# Browser artifacts are already shipped; do not execute scripts or import SDK agent skills.
+permissions:
+  browser-tabs-lock:
+    build: false
+  "@hot-labs/near-connect":
+    skills: false
