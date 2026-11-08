@@ -11,7 +11,7 @@
 
 ## 3. Shared account lifecycle
 
-- [ ] 3.1 Write failing controller tests for stored-hint forgery, multiple-account selection, unavailable selection and disconnect. Implement `createWalletSession` over the adapters with one active method/network/account and account-scoped context key.
+- [x] 3.1 Account-selection/controller tests passed (2026-11-08): hints cannot authenticate, network preferences are isolated, selected accounts belong to the current provider, identity changes clear prior account context, and errors are sanitized. The focused six-file run passed 88 tests with web typecheck and Biome. Deep provider-side concurrency review remains task 3.2, not claimed by generation checks alone.
 - [ ] 3.2 Write failing delayed login/restore/logout and external account-change tests; implement generation invalidation so superseded results/events never revive the prior account. Test failed remote logout without claiming the provider session ended.
 - [ ] 3.3 Wire a browser-only `WalletProvider`/`useWalletSession` into root layout; load adapters only on the client and preserve server secret separation. Restore only the explicitly selected provider; no unsolicited prompts.
 
