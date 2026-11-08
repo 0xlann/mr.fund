@@ -10,6 +10,7 @@ import { createCharacterFace } from "./characterFace";
 import { consultationEntrance, ENTRANCE_SECONDS } from "./consultationEntrance";
 import { createConsultationRoom } from "./consultationRoom";
 import { CONSULTATION_DESK as DESK, CONSULTATION_LAPTOP as LAPTOP } from "./consultationScene";
+import { mobileConsultation } from "./mobileConsultation";
 import { createPortraitResolution } from "./portraitResolution";
 import { createRealisticCharacterMotion } from "./realisticCharacter";
 import type { SpeechCue } from "./speechVisemes";
@@ -17,6 +18,7 @@ import type { SpeechCue } from "./speechVisemes";
 type Props = {
   mood: string;
   speaking: boolean;
+  mobile: boolean;
   speech: { current: SpeechCue };
   wave: number;
   station: "office" | "chat";
@@ -57,8 +59,12 @@ function PortraitScene(props: Props) {
     renderer.domElement.className = "block h-full w-full";
     element.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#101416");
-    scene.add(createConsultationRoom());
+    const officeBackground = new THREE.Color("#101416");
+    scene.background = officeBackground;
+    const room = createConsultationRoom();
+    scene.add(room);
+    const furniture = new THREE.Group();
+    scene.add(furniture);
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environment = environment;
@@ -98,7 +104,7 @@ function PortraitScene(props: Props) {
       x: number,
       y: number,
       z: number,
-      parent: THREE.Object3D = scene,
+      parent: THREE.Object3D = furniture,
     ) => {
       const mesh = new THREE.Mesh(
         new RoundedBoxGeometry(w, h, d, 3, Math.min(0.05, h / 3, d / 3)),
@@ -122,7 +128,7 @@ function PortraitScene(props: Props) {
     laptop.position.set(LAPTOP.x, DESK.top + 0.018, LAPTOP.z);
     laptop.scale.setScalar(LAPTOP.scale);
     laptop.rotation.y = LAPTOP.rotation;
-    scene.add(laptop);
+    furniture.add(laptop);
     box(0.82, 0.035, 0.53, metal, 0, 0, -0.12, laptop);
     const display = new THREE.Group();
     display.position.set(0, 0.24, 0.12);
@@ -142,10 +148,10 @@ function PortraitScene(props: Props) {
     box(0.62, 0.006, 0.28, chair, 0, 0.022, -0.16, laptop);
     const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.075, 0.22, 32), cream);
     mug.position.set(0.85, DESK.top + 0.11, 0.95);
-    scene.add(mug);
+    furniture.add(mug);
     const handle = new THREE.Mesh(new THREE.TorusGeometry(0.058, 0.018, 8, 20), cream);
     handle.position.set(0.95, DESK.top + 0.12, 0.95);
-    scene.add(handle);
+    furniture.add(handle);
     let actor: THREE.Object3D | null = null;
     let baseY = 0,
       centerX = 0,
@@ -269,12 +275,21 @@ function PortraitScene(props: Props) {
       previous = time;
       if (!visible || document.hidden) return;
       const current = live.current;
+      const standing = current.mobile && current.station === "chat";
+      room.visible = !standing;
+      furniture.visible = !standing;
+      scene.background = standing ? null : officeBackground;
       if (current.station === "office") {
         progress = 0;
         completed = false;
       } else if (motion)
-        progress = reduced.matches ? 1 : Math.min(1, progress + delta / ENTRANCE_SECONDS);
-      const entrance = consultationEntrance(progress, camera.aspect);
+        progress = reduced.matches
+          ? 1
+          : Math.min(1, progress + delta / (standing ? 1.1 : ENTRANCE_SECONDS));
+      const entrance = standing
+        ? mobileConsultation(progress, camera.aspect)
+        : consultationEntrance(progress, camera.aspect);
+      const interactive = standing || entrance.actor.sit >= 0.99;
       // Follow the one eased timeline directly; a second camera lerp causes a trailing stop.
       camera.position.set(...entrance.camera);
       target.set(...entrance.target);
@@ -284,10 +299,10 @@ function PortraitScene(props: Props) {
       laptop.scale.setScalar(entrance.laptopScale);
       motion?.update(
         delta,
-        entrance.actor.sit < 0.99 ? 0 : current.wave,
+        interactive ? current.wave : 0,
         reduced.matches,
         current.mood,
-        entrance.actor.sit < 0.99 ? 0 : pointer,
+        interactive ? pointer : 0,
         {
           walk: entrance.actor.walk,
           stride: entrance.actor.stride,
@@ -359,7 +374,9 @@ function PortraitScene(props: Props) {
       aria-label={
         props.station === "office"
           ? "Mr.Fund standing in his dark office"
-          : "Mr.Fund walking to his chair and sitting for the consultation"
+          : props.mobile
+            ? "Mr.Fund standing beside your conversation"
+            : "Mr.Fund walking to his chair and sitting for the consultation"
       }
       className="absolute inset-0 isolate overflow-hidden"
     >

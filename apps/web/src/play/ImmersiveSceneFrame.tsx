@@ -13,9 +13,11 @@ const same = (a: Rect | null, b: Rect) =>
 /** One persistent scene: full-screen welcome, then the character column after Start. */
 export function ImmersiveSceneFrame({
   immersive,
+  transparent = false,
   children,
 }: {
   immersive: boolean;
+  transparent?: boolean;
   children?: ReactNode;
 }) {
   const anchor = useRef<HTMLDivElement>(null);
@@ -86,7 +88,7 @@ export function ImmersiveSceneFrame({
     <div ref={anchor} className="absolute inset-0">
       <div
         ref={frame}
-        className="fixed z-0 overflow-hidden bg-[#101314]"
+        className={`fixed z-0 overflow-hidden ${transparent ? "bg-transparent" : "bg-[#101314]"}`}
         style={{ left: 0, top: 0, width: "100vw", height: "100dvh" }}
       >
         {children}

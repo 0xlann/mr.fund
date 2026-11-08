@@ -102,3 +102,7 @@ Runtime uses authored facial shapes with a text-based sound approximation and op
 Marks identify future wallet options inside the mock-wallet dialog; no live connection is implied. They remain the property of their respective owners. All are served locally without an external image service.
 
 The redesigned wallet dialog displays these marks without background plates or containers. NEAR uses a CSS invert filter for a white-on-charcoal presentation; the source SVG remains unchanged.
+
+### Standing phone presentation — 2026-11-08
+
+Phones reuse the same optimized Rocketbox GLB, original rig and authored facial targets. The runtime hides the procedural room/furniture, uses a standing pose and transparent renderer background, and reframes the existing character to the left of the chat. No extra model, texture, 3D viewer or remote service is loaded. Desktop/tablet retain their seated presentation.

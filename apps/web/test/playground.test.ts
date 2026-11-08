@@ -8,6 +8,7 @@ import { Playground } from "../src/play/Playground";
 type SceneProps = {
   station: "office" | "chat";
   speaking: boolean;
+  mobile: boolean;
   onEntranceComplete: () => void;
 };
 const scene = vi.hoisted(() => ({ current: null as SceneProps | null }));
@@ -326,6 +327,38 @@ describe("/play demo", () => {
     click("Refresh position");
     await advance();
     expect(screen.getByRole("button", { name: "Execute now" })).toBeTruthy();
+  });
+  it("uses the standing phone scene and keeps the dock when switching full-screen tools or typing", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query === "(max-width: 767px)",
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+    const viewport = Object.assign(new EventTarget(), { height: window.innerHeight });
+    vi.stubGlobal("visualViewport", viewport);
+    render(createElement(Playground));
+    await begin();
+    expect(scene.current?.mobile).toBe(true);
+    expect(screen.getByRole("navigation", { name: "Office actions" })).toBeTruthy();
+    const chat = screen.getByRole("region", { name: "Let's talk money." });
+    expect(chat.className).toContain("rounded-none!");
+    click("Position");
+    expect(screen.getByRole("dialog", { name: "Here's where you stand." }).className).toContain(
+      "row-start-1",
+    );
+    expect(screen.getByRole("navigation", { name: "Office actions" })).toBeTruthy();
+    click("Chat");
+    fireEvent.focus(screen.getByRole("textbox", { name: "Message Mr.Fund" }));
+    act(() => {
+      viewport.height = window.innerHeight - 300;
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    expect(screen.getByRole("navigation", { name: "Office actions" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeTruthy();
+    expect(scene.current?.mobile).toBe(true);
   });
   it("opens and closes tools as overlays once the consultation has started", async () => {
     render(createElement(Playground));

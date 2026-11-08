@@ -221,7 +221,7 @@ function ChatAvatar() {
   return (
     <span
       aria-hidden="true"
-      className="grid size-8 shrink-0 place-items-center rounded-full bg-[#e4d7ba] font-[family-name:var(--font-display)] text-lg font-bold leading-none tracking-[-1.5px] text-[#203327]"
+      className="grid size-8 shrink-0 place-items-center rounded-full max-md:hidden bg-[#e4d7ba] font-[family-name:var(--font-display)] text-lg font-bold leading-none tracking-[-1.5px] text-[#203327]"
     >
       m.
     </span>
@@ -236,6 +236,7 @@ export function Playground() {
   const [stage, setStage] = useState<"welcome" | "consult">("welcome");
   const [panel, setPanel] = useState<Panel | null>("chat");
   const wide = useMedia("(min-width: 1280px)");
+  const phone = useMedia("(max-width: 767px)") && !wide;
   const shortMobile = useMedia("(max-height:600px) and (max-width:767px)") && !wide;
   const [speaking, setSpeaking] = useState(false);
   const [streamingId, setStreamingId] = useState<number | null>(null);
@@ -1236,13 +1237,19 @@ export function Playground() {
       style={keyboardHeight ? { height: keyboardHeight } : undefined}
       className="play-app fixed inset-0 isolate flex h-dvh w-full flex-col overflow-hidden [color-scheme:dark] [--dock-icon:44px] [--voice-icon:50px] [--dock-item:52px] sm:[--dock-icon:48px] sm:[--voice-icon:54px] sm:[--dock-item:60px] [--ink:#eeeeF3] [--cream:#202223] [--paper:#121415] [--orange:#ff956e] [--blue:#bad7c3] [--lime:#d7f8a4] [--line:#313334] bg-[#0c0e0f] font-[family-name:var(--font-body)] text-sm text-[#eeeef3] antialiased [&_*]:box-border [&_button]:cursor-pointer [&_button]:[font-family:inherit] [&_button:disabled]:cursor-not-allowed [&_button:disabled]:opacity-45 [&_input]:[font-family:inherit] [&_select]:[font-family:inherit] [&_a]:text-inherit [&_a]:no-underline [&_:where(h1,h2,h3,p)]:m-0 [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-4 [&_button:focus-visible]:outline-[#c7d7ca] [&_input:focus-visible]:outline-2 [&_input:focus-visible]:outline-[#c7d7ca] [&_svg]:shrink-0 selection:bg-[#e4d7ba] selection:text-[#151718] motion-reduce:[&_*]:animate-none motion-reduce:[&_*]:transition-none!"
     >
+      {phone && stage === "consult" && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[#121415] bg-[url(/play/chat-texture.svg)] bg-repeat"
+        />
+      )}
       <h1 className="sr-only">Mr.Fund — your personal DeFi companion</h1>
       <div className="absolute inset-0 flex flex-col">
         {stage === "consult" && (
           <header
             inert={!chatRevealed}
             aria-hidden={!chatRevealed}
-            className={`relative z-20 mx-auto flex h-[76px] w-full max-w-[1920px] shrink-0 items-center justify-between gap-3 px-4 md:h-[88px] md:px-8 transition-opacity duration-500 ${chatRevealed ? "opacity-100" : "opacity-0"} ${keyboardHeight || shortMobile ? "h-14!" : ""}`}
+            className={`relative z-20 mx-auto flex h-[76px] w-full max-w-[1920px] shrink-0 items-center justify-between gap-3 px-4 md:h-[88px] md:px-8 transition-opacity duration-500 ${chatRevealed ? "opacity-100" : "opacity-0"} ${phone || keyboardHeight || shortMobile ? "h-14!" : ""}`}
           >
             <div className="flex items-center gap-3">
               <span className="grid size-9 place-items-center rounded-xl bg-[#e4d7ba] font-[family-name:var(--font-display)] text-2xl font-bold tracking-[-2px] text-[#1f2122]">
@@ -1331,17 +1338,28 @@ export function Playground() {
           </header>
         )}
         <div
-          className={`mx-auto grid min-h-0 w-full max-w-[1920px] flex-1 gap-4 px-4 md:gap-5 md:px-8 ${keyboardHeight || shortMobile ? `grid-cols-1 grid-rows-[minmax(0,1fr)] ${keyboardHeight ? "pb-4" : "pb-[88px]"}` : "grid-rows-[164px_minmax(0,1fr)] pb-[100px] md:grid-cols-[.7fr_1.3fr] md:grid-rows-1 xl:grid-cols-[.8fr_1.45fr_1fr] xl:pb-6"}`}
+          className={`mx-auto grid min-h-0 w-full max-w-[1920px] flex-1 ${phone ? "grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 px-0 pb-[96px]" : `gap-4 px-4 md:gap-5 md:px-8 ${keyboardHeight || shortMobile ? `grid-cols-1 grid-rows-[minmax(0,1fr)] ${keyboardHeight ? "pb-4" : "pb-[88px]"}` : "grid-rows-[164px_minmax(0,1fr)] pb-[100px] md:grid-cols-[.7fr_1.3fr] md:grid-rows-1 xl:grid-cols-[.8fr_1.45fr_1fr] xl:pb-6"}`}`}
         >
           <section
             aria-label="Your companion"
-            hidden={chatRevealed && (keyboardHeight !== null || shortMobile)}
-            className="relative col-start-1 row-start-1 min-h-0 min-w-0"
+            hidden={
+              chatRevealed &&
+              (keyboardHeight !== null ||
+                (!phone && shortMobile) ||
+                (phone && panel !== "chat" && panel !== null))
+            }
+            className={
+              phone ? "absolute inset-0" : "relative col-start-1 row-start-1 min-h-0 min-w-0"
+            }
           >
-            <ImmersiveSceneFrame immersive={!chatRevealed}>
+            <ImmersiveSceneFrame
+              immersive={!chatRevealed || phone}
+              transparent={phone && stage === "consult"}
+            >
               <CharacterPortrait
                 mood={characterMood}
                 speaking={speaking}
+                mobile={phone}
                 speech={speechCue}
                 wave={wave}
                 station={stage === "welcome" ? "office" : "chat"}
@@ -1399,7 +1417,7 @@ export function Playground() {
               aria-labelledby="office-panel-title"
               inert={!chatRevealed}
               aria-hidden={!chatRevealed}
-              className={`relative z-10 col-start-1 ${keyboardHeight || shortMobile ? "row-start-1" : "row-start-2"} flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#121415] md:col-start-2 md:row-start-1 [&_.chat-panel]:flex-1 ${panel === "position" ? "bg-[url(/play/chat-texture.svg)] bg-repeat" : ""} ${panelReveal(chatRevealed)}`}
+              className={`relative z-10 col-start-1 ${phone || keyboardHeight || shortMobile ? "row-start-1" : "row-start-2"} flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#121415] md:col-start-2 md:row-start-1 [&_.chat-panel]:flex-1 ${phone ? `rounded-none! border-0! ${panel === "chat" ? "bg-transparent!" : ""}` : ""} ${panel === "position" ? "bg-[url(/play/chat-texture.svg)] bg-repeat" : ""} ${panelReveal(chatRevealed)}`}
             >
               <h2 id="office-panel-title" className="sr-only">
                 {panelTitles[panel]}
@@ -1418,8 +1436,10 @@ export function Playground() {
                 </div>
               )}
               {panel === "chat" && (
-                <section className="chat-panel flex flex-1 min-h-0 flex-col bg-[#121415] bg-[url(/play/chat-texture.svg)] bg-repeat px-4 text-[#edf3f5] sm:px-5">
-                  <div className="shrink-0 pb-2 pt-5 text-center font-[family-name:var(--font-display)] text-sm font-semibold tracking-[-.4px] text-[#edf3f5]">
+                <section
+                  className={`chat-panel flex flex-1 min-h-0 flex-col px-4 text-[#edf3f5] sm:px-5 ${phone ? "bg-transparent" : "bg-[#121415] bg-[url(/play/chat-texture.svg)] bg-repeat"}`}
+                >
+                  <div className="max-md:hidden shrink-0 pb-2 pt-5 text-center font-[family-name:var(--font-display)] text-sm font-semibold tracking-[-.4px] text-[#edf3f5]">
                     mr.fund
                   </div>
                   <div
@@ -1432,7 +1452,7 @@ export function Playground() {
                       {messages.map((message) => (
                         <div
                           key={message.id}
-                          className={`chat-message mb-5 flex items-end gap-2.5 ${message.role === "user" ? "justify-end pl-9" : "pr-4 sm:pr-8"}`}
+                          className={`chat-message mb-5 flex items-end gap-2.5 ${message.role === "user" ? "justify-end pl-9 max-md:pl-28" : "pr-4 sm:pr-8 max-md:pl-[88px] max-md:pr-0"}`}
                         >
                           {message.role === "assistant" && <ChatAvatar />}
                           <div
@@ -1470,7 +1490,7 @@ export function Playground() {
                         </div>
                       ))}
                       {messages.length === 1 && (
-                        <div className="prompt-grid mb-6 ml-[42px] flex flex-wrap gap-2 [&_button]:inline-flex [&_button]:items-center [&_button]:gap-2 [&_button]:rounded-full [&_button]:border [&_button]:border-[#313334] [&_button]:bg-transparent [&_button]:px-3.5 [&_button]:py-2.5 [&_button]:text-left [&_button]:text-[11px] [&_button]:font-medium [&_button]:text-[#a2a4a5] [&_button]:transition-colors [&_button:hover]:bg-[#1f2122] [&_button:hover]:text-[#edf3f5]">
+                        <div className="prompt-grid mb-6 ml-[42px] max-md:ml-[88px] flex flex-wrap gap-2 [&_button]:inline-flex [&_button]:items-center [&_button]:gap-2 [&_button]:rounded-full [&_button]:border [&_button]:border-[#313334] [&_button]:bg-transparent [&_button]:px-3.5 [&_button]:py-2.5 [&_button]:text-left [&_button]:text-[11px] [&_button]:font-medium [&_button]:text-[#a2a4a5] [&_button]:transition-colors [&_button:hover]:bg-[#1f2122] [&_button:hover]:text-[#edf3f5]">
                           {prompts.map((p) => (
                             <button type="button" key={p.label} onClick={() => _ask(p.text)}>
                               <span>{p.label}</span>
@@ -1479,7 +1499,7 @@ export function Playground() {
                         </div>
                       )}
                       {thinking && (
-                        <div className="mb-5 flex items-end gap-2.5" role="status">
+                        <div className="mb-5 flex items-end gap-2.5 max-md:pl-[88px]" role="status">
                           <ChatAvatar />
                           <div className="flex items-center gap-1.5 rounded-[22px] rounded-bl-[6px] bg-[#1f2122] px-4 py-4">
                             {[0, 150, 300].map((delay) => (
@@ -1736,7 +1756,7 @@ export function Playground() {
             </aside>
           )}
         </div>
-        {stage === "consult" && chatRevealed && !wide && keyboardHeight === null && (
+        {stage === "consult" && chatRevealed && !wide && (phone || keyboardHeight === null) && (
           <nav
             aria-label="Office actions"
             className="absolute inset-x-0 bottom-[max(8px,env(safe-area-inset-bottom))] z-30 mx-auto flex w-max max-w-[calc(100%_-_16px)] items-end gap-2 px-2 pb-2 pt-3 sm:gap-5 sm:px-6 sm:pb-3 [@media(max-height:600px)]:gap-1! [@media(max-height:600px)]:py-2"
