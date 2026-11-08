@@ -45,6 +45,10 @@ export function createWalletSession(
   let active: AuthMethod | null = null;
   let selected: string | undefined;
   let detach: (() => void) | undefined;
+  function requireIdle() {
+    if (state.status === "connecting" || state.status === "signing-out")
+      throw new Error("Wait for the current provider operation to finish, then try again.");
+  }
   function publish(next: WalletState) {
     if (disposed) return;
     state = Object.freeze(next);
@@ -69,7 +73,9 @@ export function createWalletSession(
     detach?.();
     active = method;
     detach = adapters[method]?.subscribe?.(() => {
-      if (active === method && !disposed) void read(method, false);
+      // Interactive login reads the final accounts itself. SDK events during it
+      // must not launch a competing restore and invalidate that result.
+      if (active === method && !disposed && state.status !== "connecting") void read(method, false);
     });
   }
   async function read(method: AuthMethod, interactive: boolean) {
@@ -119,6 +125,7 @@ export function createWalletSession(
     },
     async restore() {
       if (disposed) return;
+      requireIdle();
       generation++;
       let hint: unknown;
       try {
@@ -147,6 +154,7 @@ export function createWalletSession(
     },
     async login(method: AuthMethod) {
       if (disposed) return;
+      requireIdle();
       clear();
       watch(method);
       await read(method, true);
@@ -172,6 +180,8 @@ export function createWalletSession(
       });
     },
     async logout() {
+      if (disposed) return;
+      requireIdle();
       const adapter = active ? adapters[active] : undefined;
       const ticket = ++generation;
       clear();

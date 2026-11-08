@@ -2,6 +2,12 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-08: generation guards cannot undo wallet SDK side effects
+
+- What happened: lifecycle review traced delayed connector sign-out and sign-in events that could clear a newer connection. Two controller regressions reproduced competing-operation failures before the fix.
+- Root cause: the pinned connector removes its global selected-wallet after awaiting remote sign-out. Ignoring an old result does not undo that mutation; a sign-in event can also start a competing passive restore.
+- Rule: reject competing interactive operations until login/logout settles, preserve the user's explicit popup gesture, and let interactive login read final accounts without event-driven restores superseding it. Keep generation guards for passive/disposal results.
+
 ### 2026-11-08: a browser dependency's sponsorship postinstall is not a required build
 
 - What happened: adding the pinned Auth0 browser SDK installed its dependencies but pnpm failed with `ERR_PNPM_IGNORED_BUILDS` for `browser-tabs-lock@1.3.0`.
