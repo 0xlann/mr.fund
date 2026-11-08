@@ -4,6 +4,10 @@ Read the headlines before starting work. Record actual surprises only, never inv
 
 The portrait's ResizeObserver called renderer.setSize for every animated grid/viewport size change. That repeatedly reallocates the drawing buffer during the camera orbit; a second camera lerp also added a trailing stop. Keep projection responsive but defer buffer allocation until motion settles, and use one eased camera timeline. A 60-frame resize regression verifies one allocation during motion and one final commit. No browser FPS claim is implied.
 
+### 2026-11-08: Speech needs authored lip shapes, not just a gap
+
+The Jungle Jim model has a closed face without speech shapes. Splitting its lip seam made a measurable opening but the user found the resulting motion unnatural. The Rocketbox trial retains its authored visemes instead, without replacing head topology. Validate model capabilities and user-visible articulation separately from geometry tests; a measured gap does not prove natural speech. Rocketbox also uses different bone axes, so walking leg rotations must use the actor's axis transformed into each bone's rest frame.
+
 ### 2026-11-07: Calibrate a seated desk against finger geometry
 
 A table placed by appearance intersected the seated model's torso and hands. The table rear edge extended through the body, the top sat above the wrist/finger height, and source palms remained edge-on. Calibrate the back edge and height from the actual seated rig; rotate palms, account for finger thickness and keep the laptop out of their footprint. The CPU regression fails at the former 1.5175 table height and passes at the corrected pose/placement. Browser visual confirmation remains separate.

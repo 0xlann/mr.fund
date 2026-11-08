@@ -12,10 +12,12 @@ import { createConsultationRoom } from "./consultationRoom";
 import { CONSULTATION_DESK as DESK, CONSULTATION_LAPTOP as LAPTOP } from "./consultationScene";
 import { createPortraitResolution } from "./portraitResolution";
 import { createRealisticCharacterMotion } from "./realisticCharacter";
+import type { SpeechCue } from "./speechVisemes";
 
 type Props = {
   mood: string;
   speaking: boolean;
+  speech: { current: SpeechCue };
   wave: number;
   station: "office" | "chat";
   onEntranceComplete: () => void;
@@ -173,14 +175,14 @@ function PortraitScene(props: Props) {
       for (const value of skeletons) value.dispose();
     };
     new GLTFLoader().load(
-      "/play/jungle-jim/businessman.glb",
+      "/play/rocketbox/business-male-01.glb",
       ({ scene: model }) => {
         if (disposed) {
           disposeModel(model);
           return;
         }
         try {
-          motion = createRealisticCharacterMotion(model);
+          motion = createRealisticCharacterMotion(model, -0.55);
           if (!motion) throw new Error("Missing character rig");
           face = createCharacterFace(model);
           model.updateMatrixWorld(true);
@@ -330,6 +332,7 @@ function PortraitScene(props: Props) {
                 ? "pleased"
                 : "listening",
         reduced.matches,
+        current.speech.current,
       );
       renderer.render(scene, camera);
     };
@@ -372,7 +375,7 @@ function PortraitScene(props: Props) {
         <Image
           fill
           sizes="(min-width:1280px) 320px, 50vw"
-          src="/play/jungle-jim/preview.jpg"
+          src="/play/rocketbox/preview.webp"
           alt="Mr.Fund character preview — 3D unavailable"
           className="object-cover object-top"
         />

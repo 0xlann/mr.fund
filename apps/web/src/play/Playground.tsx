@@ -332,6 +332,11 @@ export function Playground() {
   const timeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
   const messageId = useRef(0);
   const speechSequence = useRef(0);
+  const speechCue = useRef<{ id: number; text: string; charIndex: number | null }>({
+    id: 0,
+    text: "",
+    charIndex: null,
+  });
   const playback = useRef<{
     id: number;
     messageId: number;
@@ -506,6 +511,7 @@ export function Playground() {
         soundRef.current &&
         "speechSynthesis" in window &&
         typeof SpeechSynthesisUtterance !== "undefined";
+      speechCue.current = { id: speechId, text, charIndex: null };
       playback.current = { id: speechId, messageId: id, textDone: false, audioDone: !canSpeak };
       setMessages((prev) => [...prev, { id, role: "assistant", text, ...(kind ? { kind } : {}) }]);
       setStreamingId(id);
@@ -517,6 +523,10 @@ export function Playground() {
         utterance.rate = 0.95;
         utterance.onstart = () => {
           if (playback.current?.id === speechId && !playback.current.audioDone) setSpeaking(true);
+        };
+        utterance.onboundary = (event) => {
+          if (speechCue.current.id === speechId && event.name === "word")
+            speechCue.current.charIndex = event.charIndex;
         };
         utterance.onend = () => finishAudio(speechId);
         utterance.onerror = () => finishAudio(speechId);
@@ -1070,13 +1080,7 @@ export function Playground() {
   function activityContent() {
     return (
       <section className="activity-panel bg-[var(--paper)] [border:1px_solid_var(--line)] rounded-[20px] p-[28px] max-[620px]:p-[24px_20px]">
-        <div className="panel-heading flex justify-between items-center gap-[15px] [&_.eyebrow]:text-[#a2a4a5] [&_h2]:font-[family-name:var(--font-display)] [&_h2]:text-[30px] [&_h2]:font-medium [&_h2]:tracking-[-1px] [&_h2]:mt-[8px] [&>.tag]:[border-color:#d7decc] [&>.tag]:text-[#a2a4a5] [&>.tag]:text-[8px] max-[620px]:items-start max-[620px]:flex-col max-[620px]:[&_h2]:text-[28px]">
-          <div>
-            <span className="eyebrow text-[9px] font-extrabold tracking-[.15em] block leading-[1.5]">
-              THE PAPER TRAIL
-            </span>
-            <h2>Every move. In the open.</h2>
-          </div>
+        <div className="flex items-center justify-end">
           <Tag>
             <History size={13} />
             {receipts.length} demo events
@@ -1172,12 +1176,12 @@ export function Playground() {
     );
   }
 
-  const panelTitles: Record<Panel, { label: string; title: string }> = {
-    chat: { label: "THE CONVERSATION", title: "Let's talk money." },
-    voice: { label: "A LITTLE FACE TIME", title: "I'm all ears." },
-    position: { label: "YOUR FINANCIAL PICTURE", title: "Here's where you stand." },
-    guardian: { label: "YOUR RULES. ON WATCH.", title: "Meet your Guardian." },
-    activity: { label: "THE PAPER TRAIL", title: "Every move, accounted for." },
+  const panelTitles: Record<Panel, string> = {
+    chat: "Let's talk money.",
+    voice: "I'm all ears.",
+    position: "Here's where you stand.",
+    guardian: "Meet your Guardian.",
+    activity: "Every move, accounted for.",
   };
   const dockItems: { id: Panel; label: string; icon: ReactNode; color: string }[] = [
     {
@@ -1318,6 +1322,7 @@ export function Playground() {
               <CharacterPortrait
                 mood={characterMood}
                 speaking={speaking}
+                speech={speechCue}
                 wave={wave}
                 station={stage === "welcome" ? "office" : "chat"}
                 onEntranceComplete={finishEntrance}
@@ -1349,14 +1354,6 @@ export function Playground() {
               aria-hidden={!detailsRevealed}
               className={`relative z-10 col-start-3 row-start-1 hidden min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#121415] xl:flex ${panelReveal(detailsRevealed)}`}
             >
-              <div className="shrink-0 border-b border-[#313334] bg-[#1c1e1f] px-5 py-4">
-                <span className="text-[7px] font-extrabold tracking-[.17em] text-[#a2a4a5]">
-                  {panelTitles[detailTab].label}
-                </span>
-                <h2 className="mt-1! font-[family-name:var(--font-display)] text-[22px] font-medium tracking-[-.7px]">
-                  {panelTitles[detailTab].title}
-                </h2>
-              </div>
               <div className="shrink-0 px-4 pt-4">
                 <ConsultationTabs
                   value={detailTab}
@@ -1382,43 +1379,22 @@ export function Playground() {
               aria-hidden={!chatRevealed}
               className={`relative z-10 col-start-1 ${keyboardHeight || shortMobile ? "row-start-1" : "row-start-2"} flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[28px] border border-white/8 bg-[#121415] md:col-start-2 md:row-start-1 [&_.chat-message_p]:text-[14px]! [&_.chat-message_p]:leading-[1.85]! [&_.prompt-grid_button]:text-[12px]! [&_.chat-panel]:flex-1 ${panelReveal(chatRevealed)}`}
             >
-              <div className="flex shrink-0 items-center justify-between gap-3 border-b border-[#313334] bg-[#1c1e1f] px-5 py-4 [@media(max-height:600px)]:px-4 [@media(max-height:600px)]:py-2">
-                <div>
-                  <span className="text-[7px] font-extrabold tracking-[.17em] text-[#a2a4a5]">
-                    {panelTitles[panel].label}
-                  </span>
-                  <h2
-                    id="office-panel-title"
-                    className="mt-1! font-[family-name:var(--font-display)] text-[22px] font-medium tracking-[-.7px] [@media(max-height:600px)]:text-[19px]"
+              <h2 id="office-panel-title" className="sr-only">
+                {panelTitles[panel]}
+              </h2>
+              {!wide && panel !== "chat" && (
+                <div className="flex shrink-0 justify-end px-4 pt-3">
+                  <button
+                    type="button"
+                    ref={panelClose}
+                    aria-label="Close overlay"
+                    onClick={() => openPanel(null)}
+                    className="grid size-8 shrink-0 place-items-center rounded-full border border-[#313334] bg-[#1c1e1f]"
                   >
-                    {panelTitles[panel].title}
-                  </h2>
+                    <X size={17} />
+                  </button>
                 </div>
-                <div className="flex items-center gap-2">
-                  {panel === "chat" && (
-                    <button
-                      type="button"
-                      aria-label="Clear conversation"
-                      title="Clear conversation"
-                      onClick={clearConversation}
-                      className="grid size-9 place-items-center rounded-full border border-white/8 bg-[#25292b] text-[#9b9d9e] hover:bg-[#25292b]"
-                    >
-                      <MoreHorizontal size={17} />
-                    </button>
-                  )}
-                  {!wide && panel !== "chat" && (
-                    <button
-                      type="button"
-                      ref={panelClose}
-                      aria-label="Close overlay"
-                      onClick={() => openPanel(null)}
-                      className="grid size-8 shrink-0 place-items-center rounded-full border border-[#313334] bg-[#1c1e1f]"
-                    >
-                      <X size={17} />
-                    </button>
-                  )}
-                </div>
-              </div>
+              )}
               {panel === "chat" && (
                 <section className="chat-panel flex flex-1 min-h-0 flex-col bg-[#121415] px-5 text-[#edf3f5] sm:px-6">
                   <div
@@ -1677,6 +1653,15 @@ export function Playground() {
                         One question. A clearer next move.
                       </span>
                       <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          aria-label="Clear conversation"
+                          title="Clear conversation"
+                          onClick={clearConversation}
+                          className="grid size-9 place-items-center rounded-full border border-white/8 bg-[#2b2d2e] text-[#b9bbbc] transition-colors hover:bg-[#363839]"
+                        >
+                          <MoreHorizontal size={17} />
+                        </button>
                         <button
                           type="button"
                           aria-label="Open voice input"
@@ -1986,22 +1971,22 @@ export function Playground() {
               Character:{" "}
               <a
                 className="underline underline-offset-2"
-                href="https://sketchfab.com/3d-models/businessman-rigged-8933d61fcb1e46f3aead661227bb4fed"
+                href="https://github.com/microsoft/Microsoft-Rocketbox"
                 target="_blank"
                 rel="noreferrer"
               >
-                Businessman (Rigged) by Jungle Jim
+                Business Male 01 by Microsoft Rocketbox
               </a>
               —{" "}
               <a
                 className="underline underline-offset-2"
-                href="https://creativecommons.org/licenses/by/4.0/"
+                href="https://github.com/microsoft/Microsoft-Rocketbox/blob/master/LICENSE.md"
                 target="_blank"
                 rel="noreferrer"
               >
-                CC BY 4.0
+                MIT License
               </a>
-              . Adapted with a standing pose, procedural wave and scene placement.
+              . Optimized for this demo with facial blendshapes and procedural body animation.
             </p>
           </ModalFrame>
         )}

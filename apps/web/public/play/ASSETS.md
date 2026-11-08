@@ -15,7 +15,7 @@ The user temporarily tried the source FBX, then requested a return to Jungle Jim
 CC BY: https://creativecommons.org/licenses/by/4.0/
 CC BY-NC: https://creativecommons.org/licenses/by-nc/4.0/
 
-## Active character (temporary): Businessman (Rigged) by Jungle Jim
+## Previous character: Businessman (Rigged) by Jungle Jim
 
 Source: https://sketchfab.com/3d-models/businessman-rigged-8933d61fcb1e46f3aead661227bb4fed
 Author: Jungle Jim (https://sketchfab.com/jungle_jim).
@@ -77,3 +77,14 @@ The same credited Businessman model now has a project-authored typing pose and s
 ### Dark office and raised wall wordmark — 2026-11-08
 
 The full-screen welcome now uses project-authored procedural office geometry in `consultationRoom.ts`, without external room/furniture textures or downloads. The same scene moves into the consultation column. `wordmark.typeface.json` was regenerated from Space Grotesk weight 700 using the existing build script and fontTools 4.60.1 in an isolated temporary environment; it renders extruded `mr.fund` lettering directly on the left wall. The source font, SIL OFL text and attribution remain as listed above. No runtime font-processing dependency was added.
+
+## Active trial: Microsoft Rocketbox Business Male 01 — 2026-11-08
+
+Source: https://github.com/microsoft/Microsoft-Rocketbox/tree/0943055db6ec570bcef9f2c8b41c9e5467c808f9/Assets/Avatars/Professions/Business_Male_01
+Author/copyright: Microsoft Corporation. MIT license copied verbatim to `rocketbox/LICENSE.md`.
+
+The facial FBX and original TGA textures were downloaded from that pinned revision. `scripts/build-rocketbox.py` converts them with Blender 4.5.3 LTS: preserves all 7,435 triangles and the original 80-joint skeleton, renames body bones to the existing controller vocabulary, retains 15 visemes plus seven expression/blink shapes, removes unused shapes/animations, and builds nonmetallic materials from reduced colour maps (head/body 1024px JPEG, quality 88; hair 512px PNG). The source FBX's legacy specular maps incorrectly import as metallic=1, so the conversion explicitly corrects this. No Mixamo account, re-rig, new runtime dependency or service is required.
+
+`rocketbox/business-male-01.glb`: 1,292,448 bytes. Geometry and textures are embedded; no external texture requests or decoder are required. `rocketbox/preview.webp` is a WebP conversion of the author's model preview, used only for the labelled WebGL fallback. Source textures and the Blender binary are temporary build tools outside the repository. The prior Jungle Jim GLB stays inactive for comparison; the checkpoint commit is `dbb9ab9`.
+
+Runtime uses authored facial shapes with a text-based sound approximation and optional browser speech word boundaries. Accurate audio/phoneme timing and browser visual approval are not claimed.

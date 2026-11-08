@@ -1,90 +1,84 @@
 import { readFileSync } from "node:fs";
-import { Bone, BufferGeometry, Float32BufferAttribute, Mesh, Object3D } from "three";
+import { Box3, Mesh, Object3D, Vector3 } from "three";
 import { describe, expect, it } from "vitest";
 import { createCharacterFace } from "../src/play/characterFace";
+import { createRealisticCharacterMotion } from "../src/play/realisticCharacter";
+import { textViseme } from "../src/play/speechVisemes";
+import { rocketboxAsset } from "./character-asset";
 
-function downloadedFace() {
-  const file = readFileSync("apps/web/public/play/jungle-jim/businessman.glb");
-  const length = file.readUInt32LE(12);
-  const data = JSON.parse(file.subarray(20, 20 + length).toString());
-  const mesh = data.meshes.find((item: { name: string }) => item.name === "stage2_mesh_id");
-  const accessor = data.accessors[mesh.primitives[0].attributes.POSITION];
-  const view = data.bufferViews[accessor.bufferView];
-  const start = 28 + length + (view.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
-  const values = new Float32Array(accessor.count * 3);
-  for (let index = 0; index < values.length; index++)
-    values[index] = file.readFloatLE(start + index * 4);
-  const geometry = new BufferGeometry();
-  geometry.setAttribute("position", new Float32BufferAttribute(values, 3));
-  const indexAccessor = data.accessors[mesh.primitives[0].indices];
-  const indexView = data.bufferViews[indexAccessor.bufferView];
-  const indexStart = 28 + length + (indexView.byteOffset ?? 0) + (indexAccessor.byteOffset ?? 0);
-  const indices = Array.from({ length: indexAccessor.count }, (_, index) =>
-    indexAccessor.componentType === 5123
-      ? file.readUInt16LE(indexStart + index * 2)
-      : file.readUInt32LE(indexStart + index * 4),
-  );
-  geometry.setIndex(indices);
-  const face = new Mesh(geometry);
-  face.name = "stage2_mesh_id";
-  const root = new Object3D();
-  root.add(face);
-  const head = new Bone();
-  head.name = "Head";
-  root.add(head);
-  return { face, root };
-}
-
-describe("expression frames on the downloaded face", () => {
-  it("adds localized additive mouth and expression targets without altering the source positions", () => {
-    const { face, root } = downloadedFace();
-    const original = face.geometry.attributes.position?.array.slice();
-    const controller = createCharacterFace(root);
-    expect(controller).not.toBeNull();
-    const targets = face.geometry.morphAttributes.position;
-    expect(targets).toHaveLength(3);
-    for (const target of targets ?? []) {
-      const changed = Array.from(target.array).filter((value) => value !== 0);
-      expect(changed.length).toBeGreaterThan(0);
-      expect(Math.max(...changed.map(Math.abs))).toBeLessThan(0.025);
-    }
-    expect(face.geometry.attributes.position?.array.slice(0, original?.length)).toEqual(original);
-    controller?.update(1, "speaking", false);
-    expect(face.morphTargetInfluences?.[0]).toBeGreaterThan(0);
-    controller?.update(1, "concerned", false);
-    expect(face.morphTargetInfluences?.[1]).toBeGreaterThan(0.9);
-    controller?.update(1, "speaking", true);
-    expect(face.morphTargetInfluences?.[0]).toBe(0);
-    controller?.update(1, "listening", true);
-    expect(face.morphTargetInfluences).toEqual([0, 0, 0]);
-  });
-  it("creates a real lip seam that separates when speaking and closes on returning to listening", () => {
-    const { face, root } = downloadedFace();
-    const controller = createCharacterFace(root);
-    if (!controller) throw new Error("Missing face controller");
-    const positions = face.geometry.getAttribute("position");
-    const mouth = face.geometry.morphAttributes.position?.[0];
-    if (!mouth) throw new Error("Missing mouth target");
-    const central = controller.mouthSeams.filter(
-      (edge) => Math.abs(positions.getX(edge.upper)) < 0.015,
+describe("optimized Rocketbox character", () => {
+  it("ships the authored speech shapes below the 3 MB asset budget without rewriting geometry", async () => {
+    expect(readFileSync("apps/web/public/play/rocketbox/business-male-01.glb").length).toBeLessThan(
+      3_000_000,
     );
-    expect(central.length).toBeGreaterThan(2);
-    let largestGap = 0;
-    for (let frame = 0; frame < 90; frame++) {
-      controller.update(1 / 60, "speaking", false);
-      const weight = face.morphTargetInfluences?.[0] ?? 0;
-      for (const edge of central) {
-        expect(positions.getY(edge.upper)).toBeCloseTo(positions.getY(edge.lower), 6);
-        const gap = (mouth.getY(edge.upper) - mouth.getY(edge.lower)) * weight;
-        largestGap = Math.max(largestGap, gap);
-      }
+    const root = await rocketboxAsset();
+    const geometries: Mesh[] = [];
+    root.traverse((object) => {
+      if (object instanceof Mesh) geometries.push(object);
+    });
+    const positions = geometries.map((mesh) =>
+      mesh.geometry.getAttribute("position").array.slice(),
+    );
+    expect(createCharacterFace(root)).not.toBeNull();
+    for (const [index, mesh] of geometries.entries()) {
+      expect(mesh.geometry.getAttribute("position").array).toEqual(positions[index]);
+      expect(mesh.morphTargetDictionary).toHaveProperty("viseme_PP");
+      expect(mesh.morphTargetDictionary).toHaveProperty("viseme_aa");
+      expect(mesh.morphTargetDictionary).toHaveProperty("eyeBlinkLeft");
     }
-    expect(largestGap).toBeGreaterThan(0.01);
-    expect(root.getObjectByName("MrFundMouthInterior")).toBeInstanceOf(Mesh);
-    controller.update(1, "listening", true);
-    expect(face.morphTargetInfluences?.[0]).toBe(0);
+    expect(root.getObjectByName("MrFundMouthInterior")).toBeUndefined();
   });
-  it("does not apply these model-specific coordinates to unrelated assets", () => {
+  it("blends different native lip shapes and returns to neutral when speech stops", async () => {
+    const root = await rocketboxAsset();
+    const face = createCharacterFace(root);
+    const weights = (name: string) => {
+      let sum = 0;
+      root.traverse((object) => {
+        if (object instanceof Mesh)
+          sum += object.morphTargetInfluences?.[object.morphTargetDictionary?.[name] ?? -1] ?? 0;
+      });
+      return sum;
+    };
+    for (let i = 0; i < 12; i++)
+      face?.update(1 / 60, "speaking", false, { id: 1, text: "mmmmmmmmmm", charIndex: null });
+    expect(weights("viseme_PP")).toBeGreaterThan(0.1);
+    for (let i = 0; i < 12; i++)
+      face?.update(1 / 60, "speaking", false, { id: 2, text: "aaaaaaaaaa", charIndex: null });
+    expect(weights("viseme_aa")).toBeGreaterThan(0.1);
+    face?.update(1, "listening", true);
+    expect(weights("viseme_aa")).toBe(0);
+    expect(weights("viseme_PP")).toBe(0);
     expect(createCharacterFace(new Object3D())).toBeNull();
+  });
+  it("keeps the actual seated hands above the desk and away from the laptop", async () => {
+    const root = await rocketboxAsset();
+    const motion = createRealisticCharacterMotion(root, -0.55);
+    expect(motion).not.toBeNull();
+    const bounds = new Box3().setFromObject(root, true);
+    const scale = 3.9 / (bounds.max.y - bounds.min.y);
+    root.scale.setScalar(scale);
+    root.position.y = -bounds.min.y * scale;
+    root.updateMatrixWorld(true);
+    const hips = root.getObjectByName("Hips");
+    if (!hips) throw new Error("Missing hips");
+    root.position.y -= hips.getWorldPosition(new Vector3()).y - 1.05;
+    motion?.update(0.05, 0, true, "calm", 0, { walk: 0, stride: 0, reach: 0, sit: 1 });
+    root.updateMatrixWorld(true);
+    for (const side of ["Left", "Right"]) {
+      const finger = root.getObjectByName(`${side}HandMiddle3`);
+      if (!finger) throw new Error("Missing fingertip");
+      const position = finger.getWorldPosition(new Vector3());
+      expect(position.y).toBeGreaterThan(1.31);
+      expect(position.y).toBeLessThan(1.5);
+      expect(position.z).toBeGreaterThan(0.45);
+      expect(position.x - 0.03).toBeGreaterThan(-0.55);
+    }
+  });
+  it("keeps closures and pauses in the text approximation", () => {
+    expect(textViseme("money", 0)).toBe("PP");
+    expect(textViseme("fund", 0)).toBe("FF");
+    expect(textViseme("a o", 0)).toBe("aa");
+    expect(textViseme("a o", 1)).toBe("sil");
+    expect(textViseme("a o", 2)).toBe("O");
   });
 });

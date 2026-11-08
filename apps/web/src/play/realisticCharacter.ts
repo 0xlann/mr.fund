@@ -17,7 +17,7 @@ const smooth = (value: number) => {
   return t * t * t * (t * (t * 6 - 15) + 10);
 };
 
-export function createRealisticCharacterMotion(root: Object3D) {
+export function createRealisticCharacterMotion(root: Object3D, seatedForearmY = -0.1) {
   const bone = (name: string) => {
     const object = root.getObjectByName(name);
     return object instanceof Bone ? object : undefined;
@@ -73,11 +73,11 @@ export function createRealisticCharacterMotion(root: Object3D) {
   rightForearm.quaternion.copy(forearmRest);
   pointBone(root, rightArm, rightForearm, new Vector3(-0.12, -0.85, 0.5));
   const rightArmSeated = rightArm.quaternion.clone();
-  pointBone(root, rightForearm, rightHand, new Vector3(0.2, -0.1, 1));
+  pointBone(root, rightForearm, rightHand, new Vector3(0.2, seatedForearmY, 1));
   const rightForearmSeated = rightForearm.quaternion.clone();
   pointBone(root, leftArm, leftForearm, new Vector3(0.12, -0.85, 0.5));
   const leftArmSeated = leftArm.quaternion.clone();
-  pointBone(root, leftForearm, leftHand, new Vector3(-0.2, -0.1, 1));
+  pointBone(root, leftForearm, leftHand, new Vector3(-0.2, seatedForearmY, 1));
   const leftForearmSeated = leftForearm.quaternion.clone();
   pointBone(root, leftArm, leftForearm, new Vector3(0.02, -0.85, 0.5));
   const leftArmTyping = leftArm.quaternion.clone();
@@ -179,6 +179,21 @@ export function createRealisticCharacterMotion(root: Object3D) {
       thighSeated,
       kneeSeated,
       footRest: foot?.quaternion.clone(),
+      thighAxis: thigh
+        ? new Vector3(1, 0, 0)
+            .applyQuaternion(root.getWorldQuaternion(new Quaternion()))
+            .applyQuaternion(thigh.getWorldQuaternion(new Quaternion()).invert())
+        : new Vector3(1, 0, 0),
+      kneeAxis: knee
+        ? new Vector3(1, 0, 0)
+            .applyQuaternion(root.getWorldQuaternion(new Quaternion()))
+            .applyQuaternion(knee.getWorldQuaternion(new Quaternion()).invert())
+        : new Vector3(1, 0, 0),
+      footAxis: foot
+        ? new Vector3(1, 0, 0)
+            .applyQuaternion(root.getWorldQuaternion(new Quaternion()))
+            .applyQuaternion(foot.getWorldQuaternion(new Quaternion()).invert())
+        : new Vector3(1, 0, 0),
     };
   });
   // Bone-local X is sideways on this rig. Convert the actor's left/right axis
@@ -274,9 +289,18 @@ export function createRealisticCharacterMotion(root: Object3D) {
         const phase = stride + i * Math.PI;
         const swing = Math.sin(phase);
         const lift = Math.max(0, Math.cos(phase));
-        offset(leg.thigh, leg.thighRest, swing * 0.32 * walk, 0, 0);
-        offset(leg.knee, leg.kneeRest, -lift * 0.5 * walk, 0, 0);
-        offset(leg.foot, leg.footRest, (-swing * 0.18 + lift * 0.2) * walk, 0, 0);
+        if (leg.thigh && leg.thighRest)
+          leg.thigh.quaternion
+            .copy(leg.thighRest)
+            .multiply(rotation.setFromAxisAngle(leg.thighAxis, -swing * 0.32 * walk));
+        if (leg.knee && leg.kneeRest)
+          leg.knee.quaternion
+            .copy(leg.kneeRest)
+            .multiply(rotation.setFromAxisAngle(leg.kneeAxis, lift * 0.5 * walk));
+        if (leg.foot && leg.footRest)
+          leg.foot.quaternion
+            .copy(leg.footRest)
+            .multiply(rotation.setFromAxisAngle(leg.footAxis, (swing * 0.18 - lift * 0.2) * walk));
         if (leg.thigh && leg.thighSeated) leg.thigh.quaternion.slerp(leg.thighSeated, sit);
         if (leg.knee && leg.kneeSeated) leg.knee.quaternion.slerp(leg.kneeSeated, sit);
       }
