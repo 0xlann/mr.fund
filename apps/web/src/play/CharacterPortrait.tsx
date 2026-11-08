@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
@@ -22,7 +22,7 @@ type Props = {
 };
 
 /** A bounded, seated character portrait. The desk and laptop are lightweight scene geometry; no room or furniture GLBs are loaded. */
-export function CharacterPortrait(props: Props) {
+function PortraitScene(props: Props) {
   const host = useRef<HTMLDivElement>(null);
   const live = useRef(props);
   live.current = props;
@@ -380,3 +380,5 @@ export function CharacterPortrait(props: Props) {
     </div>
   );
 }
+
+export const CharacterPortrait = memo(PortraitScene);

@@ -61,6 +61,7 @@ import {
 } from "./demo";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
 import { PositionSummary } from "./PositionSummary";
+import { ReplyText } from "./ReplyText";
 import { panelReveal, playClasses } from "./styles";
 import { VoicePanel } from "./VoicePanel";
 
@@ -219,6 +220,7 @@ export function Playground() {
   const wide = useMedia("(min-width: 1280px)");
   const shortMobile = useMedia("(max-height:600px) and (max-width:767px)") && !wide;
   const [speaking, setSpeaking] = useState(false);
+  const [streamingId, setStreamingId] = useState<number | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("position");
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -271,6 +273,8 @@ export function Playground() {
     if (!wide) setVoiceOpen(false);
   }, [wide, stage, panel, openPanel]);
   const [sound, setSound] = useState(true);
+  const soundRef = useRef(sound);
+  soundRef.current = sound;
   const panelClose = useRef<HTMLButtonElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   useEffect(() => {
@@ -328,11 +332,36 @@ export function Playground() {
   const timeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
   const messageId = useRef(0);
   const speechSequence = useRef(0);
+  const playback = useRef<{
+    id: number;
+    messageId: number;
+    textDone: boolean;
+    audioDone: boolean;
+  } | null>(null);
+  const finishAudio = useCallback((id: number) => {
+    const current = playback.current;
+    if (!current || current.id !== id) return;
+    current.audioDone = true;
+    if (current.textDone) setSpeaking(false);
+  }, []);
+  const finishText = useCallback((id: number) => {
+    const current = playback.current;
+    if (!current || current.messageId !== id) return;
+    current.textDone = true;
+    setStreamingId(null);
+    if (current.audioDone) setSpeaking(false);
+  }, []);
+
+  useEffect(() => {
+    if (panel !== "chat" && streamingId !== null) finishText(streamingId);
+  }, [panel, streamingId, finishText]);
   const receiptId = useRef(0);
   useEffect(() => {
     setNow(Date.now());
     return () => {
       for (const timer of timeouts.current) clearTimeout(timer);
+      speechSequence.current++;
+      playback.current = null;
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     };
   }, []);
@@ -340,9 +369,9 @@ export function Playground() {
     if (panel !== "chat" || messages.length === 0) return;
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
-      behavior: thinking ? "auto" : "smooth",
+      behavior: thinking || streamingId !== null ? "auto" : "smooth",
     });
-  }, [messages, thinking, panel]);
+  }, [messages, thinking, streamingId, panel]);
   useEffect(() => {
     if (!notice) return;
     const timer = setTimeout(() => setNotice(""), 4500);
@@ -419,7 +448,7 @@ export function Playground() {
     }, 650);
   }
   function _ask(text: string) {
-    if (!text.trim() || thinking) return;
+    if (!text.trim() || thinking || streamingId !== null) return;
     openPanel("chat");
     const question = text.trim().slice(0, 500);
     setMessages((prev) => [...prev, { id: ++messageId.current, role: "user", text: question }]);
@@ -429,6 +458,7 @@ export function Playground() {
     const speechId = ++speechSequence.current;
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     later(() => {
+      if (speechSequence.current !== speechId) return;
       const id = ++messageId.current;
       const q = question.toLowerCase();
       const indo = /kalau|harga|aku|berapa|jelas|aman|batas|apa |bayar|utang/.test(q);
@@ -472,31 +502,33 @@ export function Playground() {
       else if (/bitcoin|ethereum|trade|buy|leverage|ignore|10000|10,000/.test(q))
         text =
           "That action is outside this demo's permissions. I can help with the supported Rhea debt and Guardian limits. A chat message never authorizes a transaction.";
+      const canSpeak =
+        soundRef.current &&
+        "speechSynthesis" in window &&
+        typeof SpeechSynthesisUtterance !== "undefined";
+      playback.current = { id: speechId, messageId: id, textDone: false, audioDone: !canSpeak };
       setMessages((prev) => [...prev, { id, role: "assistant", text, ...(kind ? { kind } : {}) }]);
+      setStreamingId(id);
       setThinking(false);
       setSpeaking(true);
-      if (sound && typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
+      if (canSpeak) {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = indo ? "id-ID" : "en-US";
         utterance.rate = 0.95;
-        utterance.onstart = () => setSpeaking(true);
-        utterance.onend = () => {
-          if (speechSequence.current === speechId) setSpeaking(false);
+        utterance.onstart = () => {
+          if (playback.current?.id === speechId && !playback.current.audioDone) setSpeaking(true);
         };
-        utterance.onerror = () => {
-          if (speechSequence.current === speechId) setSpeaking(false);
-        };
-        window.speechSynthesis.speak(utterance);
-      } else {
-        later(
-          () => {
-            if (speechSequence.current === speechId) setSpeaking(false);
-          },
-          Math.min(8000, Math.max(1800, text.length * 24)),
-        );
+        utterance.onend = () => finishAudio(speechId);
+        utterance.onerror = () => finishAudio(speechId);
+        try {
+          window.speechSynthesis.speak(utterance);
+        } catch {
+          finishAudio(speechId);
+        }
+        // Recover if a browser speech service never sends an end/error event.
+        later(() => finishAudio(speechId), Math.min(90000, Math.max(10000, text.length * 110)));
       }
-    }, 900);
+    }, 2000);
   }
   function requestAction(action: Pending) {
     if (!connected) {
@@ -721,7 +753,22 @@ export function Playground() {
     );
     setNotice("Labelled trigger replay completed. No on-chain protection is claimed.");
   }
+  function stopReply() {
+    speechSequence.current++;
+    playback.current = null;
+    setStreamingId(null);
+    setThinking(false);
+    setSpeaking(false);
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  }
+  function clearConversation() {
+    stopReply();
+    setMessages([greeting]);
+    setCardOpen(false);
+    setLastRepay(null);
+  }
   function reset() {
+    stopReply();
     setDebt(1_800_000_000n);
     setWalletBalance(1_000_000_000n);
     setGuardian("inactive");
@@ -1353,11 +1400,7 @@ export function Playground() {
                       type="button"
                       aria-label="Clear conversation"
                       title="Clear conversation"
-                      onClick={() => {
-                        setMessages([greeting]);
-                        setCardOpen(false);
-                        setLastRepay(null);
-                      }}
+                      onClick={clearConversation}
                       className="grid size-9 place-items-center rounded-full border border-white/8 bg-[#25292b] text-[#9b9d9e] hover:bg-[#25292b]"
                     >
                       <MoreHorizontal size={17} />
@@ -1389,7 +1432,16 @@ export function Playground() {
                         <span className="message-label mb-2 block text-[9px] font-medium tracking-[.12em] text-[#8a8c8d]">
                           {message.role === "assistant" ? "MR.FUND" : "YOU"}
                         </span>
-                        <p>{message.text}</p>
+                        {message.role === "assistant" ? (
+                          <ReplyText
+                            id={message.id}
+                            text={message.text}
+                            streaming={streamingId === message.id}
+                            onComplete={finishText}
+                          />
+                        ) : (
+                          <p>{message.text}</p>
+                        )}
                         {message.kind === "scenario" && whatIf.ok && (
                           <div className="scenario-result [border:1px_solid_#313334] bg-[#1c1e1f] p-[13px] mt-[12px] rounded-[9px] [&_.tag]:text-[#a2a4a5] [&_.tag]:border-0 [&_.tag]:p-0 [&>div]:flex [&>div]:gap-[17px] [&>div]:items-center [&>div]:mt-[12px] [&>div>span]:text-[9px] [&>div>span]:flex [&>div>span]:flex-col [&>div>span]:gap-[3px] [&>div>span]:text-[#a2a4a5] [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[22px] [&_b]:text-[#a2a4a5] [&>small]:text-[8px] [&>small]:text-[#a2a4a5] [&>small]:block [&>small]:mt-[10px]">
                             <Tag>SIMULATED WHAT-IF</Tag>
@@ -1576,7 +1628,7 @@ export function Playground() {
                         <ArrowUpRight size={18} />
                       </button>
                     )}
-                    {messages.length > 1 && !thinking && (
+                    {messages.length > 1 && !thinking && streamingId === null && (
                       <div className="follow-up-prompts flex gap-[7px] flex-wrap mt-[14px] [&_button]:bg-transparent [&_button]:[border:1px_solid_#313334] [&_button]:rounded-[6px] [&_button]:p-[7px_8px] [&_button]:text-[8px] [&_button]:flex [&_button]:gap-[5px] [&_button]:items-center">
                         <button type="button" onClick={() => _ask("What if NEAR drops 20%?")}>
                           What if NEAR drops? <ArrowUpRight size={12} />
@@ -1614,7 +1666,8 @@ export function Playground() {
                           !event.nativeEvent.isComposing
                         ) {
                           event.preventDefault();
-                          if (input.trim() && !thinking) event.currentTarget.form?.requestSubmit();
+                          if (input.trim() && !thinking && streamingId === null)
+                            event.currentTarget.form?.requestSubmit();
                         }
                       }}
                       disabled={thinking}
@@ -1636,7 +1689,7 @@ export function Playground() {
                         <button
                           type="submit"
                           aria-label="Send message"
-                          disabled={!input.trim() || thinking}
+                          disabled={!input.trim() || thinking || streamingId !== null}
                           className="grid size-9 place-items-center rounded-full border-0 bg-[#e4d7ba] text-[#26352a] transition-colors hover:bg-[#eee6d3] disabled:bg-[#323435] disabled:text-[#767879]"
                         >
                           {thinking ? (
@@ -1654,7 +1707,13 @@ export function Playground() {
                   </div>
                 </section>
               )}
-              {panel === "voice" && <VoicePanel onSend={_ask} onNotice={setNotice} />}
+              {panel === "voice" && (
+                <VoicePanel
+                  busy={thinking || streamingId !== null}
+                  onSend={_ask}
+                  onNotice={setNotice}
+                />
+              )}
               {panel !== "chat" && panel !== "voice" && toolContent(panel)}
             </aside>
           )}
@@ -1699,6 +1758,7 @@ export function Playground() {
           close={() => setVoiceOpen(false)}
         >
           <VoicePanel
+            busy={thinking || streamingId !== null}
             onSend={(question) => {
               setVoiceOpen(false);
               _ask(question);

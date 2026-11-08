@@ -38,7 +38,7 @@ afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
-const advance = async (ms = 1200) => {
+const advance = async (ms = 2200) => {
   await act(async () => {
     await vi.advanceTimersByTimeAsync(ms);
   });
@@ -204,6 +204,9 @@ describe("/play demo", () => {
     expect(synth.speak).toHaveBeenCalledOnce();
     expect(scene.current?.speaking).toBe(true);
     act(() => synth.speak.mock.calls[0]?.[0].onend?.());
+    // Text and audio are independent: keep talking until the progressive text has finished too.
+    expect(scene.current?.speaking).toBe(true);
+    await advance(10000);
     expect(scene.current?.speaking).toBe(false);
     click("Mute spoken replies");
     expect(screen.getByRole("button", { name: "Enable spoken replies" })).toBeTruthy();

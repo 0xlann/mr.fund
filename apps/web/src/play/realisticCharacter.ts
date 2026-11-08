@@ -150,7 +150,9 @@ export function createRealisticCharacterMotion(root: Object3D) {
     waveStart = Number.NEGATIVE_INFINITY;
   let previousMood = "calm",
     nodStart = Number.NEGATIVE_INFINITY,
-    look = 0;
+    look = 0,
+    thinkingWeight = 0,
+    concernedWeight = 0;
   const rotation = new Quaternion(),
     angles = new Euler();
   const legs = ["Left", "Right"].map((side) => {
@@ -233,6 +235,11 @@ export function createRealisticCharacterMotion(root: Object3D) {
       const wristWeight = reducedMotion
         ? 0
         : smooth((age - 0.75) / 0.35) * (1 - smooth((age - 2.05) / 0.4));
+      const moodBlend = reducedMotion ? 1 : 1 - Math.exp(-delta * 5);
+      thinkingWeight +=
+        ((!reducedMotion && mood === "thinking" ? 1 : 0) - thinkingWeight) * moodBlend;
+      concernedWeight +=
+        ((!reducedMotion && mood === "concerned" ? 1 : 0) - concernedWeight) * moodBlend;
       const breathing = reducedMotion ? 0 : Math.sin(elapsed * 1.12);
       const weightShift = reducedMotion ? 0 : Math.sin(elapsed * 0.38) * 0.006;
       look +=
@@ -246,22 +253,10 @@ export function createRealisticCharacterMotion(root: Object3D) {
       const wristSway = Math.sin((age - 0.8) * 7.4) * 0.16 * wristWeight || 0;
       offset(rightHand, handRest, 0, wristSway * 0.2, wristSway);
       offset(spine, spineRest, breathing * 0.003, 0, weightShift);
-      offset(
-        chest,
-        chestRest,
-        breathing * 0.005 + (!reducedMotion && mood === "thinking" ? 0.012 : 0),
-        0,
-        -weightShift * 0.65,
-      );
+      offset(chest, chestRest, breathing * 0.005 + thinkingWeight * 0.012, 0, -weightShift * 0.65);
       const nodAge = elapsed - nodStart;
       const nod = !reducedMotion && nodAge < 1.5 ? Math.sin((nodAge * Math.PI) / 1.5) * 0.055 : 0;
-      offset(
-        head,
-        headRest,
-        nod + (!reducedMotion && mood === "thinking" ? 0.025 : 0),
-        look,
-        !reducedMotion && mood === "concerned" ? 0.018 : 0,
-      );
+      offset(head, headRest, nod + thinkingWeight * 0.025, look, concernedWeight * 0.018);
       const walk = reducedMotion ? 0 : (travel?.walk ?? 0);
       const reach = reducedMotion ? 0 : (travel?.reach ?? 0);
       const stride = travel?.stride ?? 0;

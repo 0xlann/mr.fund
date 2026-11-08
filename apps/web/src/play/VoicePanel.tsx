@@ -25,9 +25,11 @@ type SpeechWindow = Window & {
 export function VoicePanel({
   onSend,
   onNotice,
+  busy = false,
 }: {
   onSend: (text: string) => void;
   onNotice: (text: string) => void;
+  busy?: boolean;
 }) {
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -168,7 +170,7 @@ export function VoicePanel({
       />
       <button
         type="button"
-        disabled={!transcript.trim() || listening}
+        disabled={!transcript.trim() || listening || busy}
         onClick={() => {
           recognition.current?.abort();
           onSend(transcript);

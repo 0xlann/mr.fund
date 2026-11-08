@@ -53,7 +53,7 @@ Original font/license sources:
 
 ### Consultation facial preview — 2026-11-07
 
-The Jungle Jim Businessman head receives runtime additive geometry morph targets in `src/play/characterFace.ts`: localized mouth, brow and smile offsets calibrated to the original head mesh. These are project-authored procedural modifications to the credited CC BY 4.0 model, not supplied facial animation clips or phoneme lip-sync. The source GLB is unchanged.
+The Jungle Jim Businessman head receives runtime additive geometry morph targets in `src/play/characterFace.ts`: localized mouth, brow and smile offsets calibrated to the original head mesh, a runtime split lip seam, a dark mouth interior and a lower-teeth morph. These are project-authored procedural modifications to the credited CC BY 4.0 model, not supplied facial animation clips or phoneme lip-sync. The source GLB is unchanged.
 
 ### Consultation typography and bounded portrait — 2026-11-07
 
