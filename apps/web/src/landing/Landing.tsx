@@ -11,6 +11,7 @@ import { FeatureArtwork } from "./FeatureArtwork";
 import { landingFigures } from "./figures";
 import { HeroChat } from "./HeroChat";
 import { HeroVideo } from "./HeroVideo";
+import { HowItWorks } from "./HowItWorks";
 import { LandingMotion } from "./LandingMotion";
 import { Mascot } from "./Mascot";
 
@@ -41,7 +42,7 @@ function Nav() {
             <a href="#experience" className={`${navLink} hidden lg:inline-flex`}>
               Meet Mr.Fund
             </a>
-            <a href="#features" className={navLink}>
+            <a href="#how" className={navLink}>
               How it works
             </a>
           </div>
@@ -213,16 +214,16 @@ function Features() {
       className="relative bg-[#0e1110] bg-[url(/landing/grid.svg)] py-20 sm:py-28"
     >
       <div className={shell}>
-        <div data-reveal className="relative mb-12 grid gap-6 pt-6 lg:grid-cols-[1fr_2fr]">
+        <div data-reveal className="relative mb-12 pt-6">
           <span
             data-rule
             aria-hidden="true"
             className="absolute inset-x-0 top-0 h-px origin-left bg-[#343539]"
           />
-          <p className={eyebrow}>01 / A clearer picture</p>
-          <h2 className={`${heading} max-w-[810px]`}>
-            Less dashboard.
-            <br />
+          <h2
+            className={`${display} m-0 whitespace-nowrap text-[clamp(16px,4.3vw,64px)] font-medium leading-[1.1] tracking-[-.045em]`}
+          >
+            Less dashboard.{" "}
             <span className="font-[family-name:var(--font-editorial)] font-normal italic text-[#c7d9bc]">
               More understanding.
             </span>
@@ -450,7 +451,7 @@ function Footer() {
           Built for the NEAR Hackathon 2026
         </span>
         <div className="flex flex-wrap items-center gap-6">
-          <a href="#features" className={`text-[#a5b7aa] ${focus}`}>
+          <a href="#how" className={`text-[#a5b7aa] ${focus}`}>
             How it works
           </a>
           <a href="/play" className={`text-[#a5b7aa] ${focus}`}>
@@ -484,6 +485,7 @@ export function Landing() {
         <Hero />
         <Marquee />
         <Features />
+        <HowItWorks figures={landingFigures()} />
         <GuardianSection />
         <Closing />
       </main>
