@@ -21,6 +21,7 @@ use near_sdk::{
 enum ReceiverMessage {
     Activate {},
     Reserve {},
+    Collateral {},
 }
 
 #[near]
@@ -31,17 +32,25 @@ impl Guardian {
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
-        if env::predecessor_account_id() != self.config.debt_token_id
-            || sender_id != self.config.owner_id
-            || self.in_flight.is_some()
-            || amount.0 == 0
-        {
+        let token_id = env::predecessor_account_id();
+        if sender_id != self.config.owner_id || self.in_flight.is_some() || amount.0 == 0 {
             return PromiseOrValue::Value(amount);
         }
         let Ok(message) = serde_json::from_str::<ReceiverMessage>(&msg) else {
             return PromiseOrValue::Value(amount);
         };
+        // Each message is valid for exactly one configured token.
+        let expected = match message {
+            ReceiverMessage::Collateral {} => &self.config.collateral_token_ids[0],
+            ReceiverMessage::Reserve {} | ReceiverMessage::Activate {} => {
+                &self.config.debt_token_id
+            }
+        };
+        if token_id != *expected {
+            return PromiseOrValue::Value(amount);
+        }
         match message {
+            ReceiverMessage::Collateral {} => self.fund_collateral(amount.0),
             ReceiverMessage::Reserve {} => {
                 let Some(reserve) = self.reserve.checked_add(amount.0) else {
                     return PromiseOrValue::Value(amount);

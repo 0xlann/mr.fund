@@ -10,6 +10,8 @@ mod support;
 use support::encodings;
 #[path = "support/outcomes.rs"]
 mod outcome_recordings;
+#[path = "support/position_flow.rs"]
+mod position_flow;
 
 async fn capture_outcome(
     worker: &near_workspaces::Worker<near_workspaces::network::Sandbox>,
@@ -1540,6 +1542,14 @@ async fn cycle(network: &str) -> Result<()> {
     )
     .await?;
     guardian_imported_checks(
+        &worker,
+        &owner,
+        &attacker,
+        [&lending, &collateral, &debt, &oracle],
+        &metadata,
+    )
+    .await?;
+    position_flow::lifecycle(
         &worker,
         &owner,
         &attacker,

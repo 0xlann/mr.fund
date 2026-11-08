@@ -1114,6 +1114,7 @@ dependencies = [
 name = "guardian"
 version = "0.0.0"
 dependencies = [
+ "guardian-types",
  "near-sdk",
  "near-sys",
  "protocol-trigger",
@@ -1122,6 +1123,17 @@ dependencies = [
 [[package]]
 name = "guardian-factory"
 version = "0.0.0"
+dependencies = [
+ "guardian-types",
+ "near-sdk",
+]
+
+[[package]]
+name = "guardian-types"
+version = "0.0.0"
+dependencies = [
+ "near-sdk",
+]
 
 [[package]]
 name = "hashbrown"

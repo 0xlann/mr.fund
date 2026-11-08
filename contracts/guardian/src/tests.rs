@@ -742,3 +742,6 @@ fn terminal_history_preserves_start_time_after_rejection_flood() {
     assert_eq!(last[0].op_id.0, 0);
     assert_eq!(last[0].at_ns.0, 42);
 }
+
+#[path = "position_tests.rs"]
+mod position_tests;

@@ -9,6 +9,6 @@ function run(command, args) {
   if (result.status !== 0) process.exit(result.status ?? 1);
 }
 for (const network of ["testnet", "mainnet"]) run(process.execPath, ["scripts/probes/fetch-rhea-wasm.mjs", network]);
-for (const manifest of ["contracts/probe/Cargo.toml", "contracts/tests/fixtures/Cargo.toml", "contracts/guardian/Cargo.toml"]) {
+for (const manifest of ["contracts/probe/Cargo.toml", "contracts/tests/fixtures/Cargo.toml", "contracts/guardian/Cargo.toml", "contracts/guardian-factory/Cargo.toml"]) {
   run("cargo", ["near", "build", "non-reproducible-wasm", "--manifest-path", manifest, "--no-abi", "--locked"]);
 }

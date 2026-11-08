@@ -2,6 +2,24 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-07: a failed child creation is atomic, so the design's keyless failed child never exists
+
+- What happened: the factory design assumed a failed initialization could leave a keyless, half-initialized child holding committed funds, and planned phase reporting around it. The sandbox experiment showed create-account, transfer, deploy and `new` in one batch revert together: no child survives, and the whole deposit returns to the factory (the batch receipt's predecessor), not to the owner.
+- Root cause: the failure model was reasoned from multi-step creation instead of measured against the one-receipt batch that the protocol applies atomically.
+- Rule: measure failure phases before designing recovery. The factory forwards the refund to the owner in a checked callback and keeps `claim_refund` for a failed forward. Re-measure if creation is ever split into separate receipts.
+
+### 2026-11-07: a global-contract child was created and grew state with far too little balance
+
+- What happened: in the pinned sandbox (2.14.0) a child using a global contract by hash was created with 0.00086 NEAR against 686 bytes of storage, then accepted a state-growing call. The same funding boundary for stored code held to the exact yocto.
+- Root cause: unknown. The protocol's storage-stake check was not observed to bind for the global-contract child; the exact behavior on testnet is unverified.
+- Rule: never let a contract rely on the runtime to refuse under-funding. The factory enforces its own funding bounds, and the global strategy stays unadopted until a testnet publish and use passes and the behavior is explained.
+
+### 2026-11-07: near-sdk `#[private]` is not enforced when a unit test calls a callback directly
+
+- What happened: a unit test expected a direct call to a factory callback by a foreign account to panic with "private"; it ran the body instead.
+- Root cause: the `#[private]` check lives in the exported wrapper, which direct Rust calls skip. A `Promise` also schedules its receipt only when dropped, so a test that holds the returned value sees no receipt.
+- Rule: prove privacy with a real sandbox call and look for the "private" failure text. Unit tests can only prove checks written in the method body. Drop the promise before reading receipts.
+
 ### 2026-11-07: deployed liquidation event fields differ across Rhea versions
 
 - What happened: the sandbox health-evidence test found `old_discount: "0.0725"` on imported 0.16.2, but the same successful liquidation on 0.11.0 emitted no discount fields.

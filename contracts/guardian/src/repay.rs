@@ -137,6 +137,19 @@ impl Guardian {
 }
 
 impl Guardian {
+    /// The version-specific message Rhea accepts for repaying the caller's own
+    /// debt. `None` means the legacy internal-unit amount overflows. Shared by the
+    /// automatic and the owner-signed manual path so they cannot drift apart.
+    pub(crate) fn repay_message(&self, amount: u128) -> Option<String> {
+        if self.config.lending_version == "0.16.2" {
+            return Some("\"OnlyRepay\"".to_owned());
+        }
+        let internal = amount.checked_mul(10u128.pow(u32::from(self.config.debt_extra_decimals)))?;
+        Some(
+            json!({"Execute":{"actions":[{"Repay":{"token_id":self.config.debt_token_id,"max_amount":internal.to_string()}}]}})
+                .to_string(),
+        )
+    }
     pub(crate) fn allocate_op(&mut self) -> u64 {
         let id = self.next_op_id;
         self.next_op_id = id.checked_add(1).expect("Operation id overflow");
@@ -189,6 +202,7 @@ impl Guardian {
         );
         require!(
             self.pending_reserve.is_none()
+                && self.pending_position.is_none()
                 && self.in_flight.as_ref().is_some_and(|p| p.op_id == op_id)
                 && self.repay_phase.as_ref() == Some(phase),
             "Repay phase mismatch"
