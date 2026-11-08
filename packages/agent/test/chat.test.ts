@@ -356,6 +356,19 @@ describe("runChatTurn output guard", () => {
     expect(findBannedPhrases(result.text)).toEqual([]);
   });
 
+  it("never streams unsupported leading-decimal rates before corrected regeneration", async () => {
+    const p = scripted([reply("Your borrow APR is .99%."), reply("I need current tool data.")]);
+    const events: ChatEvent[] = [];
+    const result = await runChatTurn({
+      message: "What is my borrowing rate?",
+      context: context(),
+      provider: p.provider,
+      emit: (event) => events.push(event),
+    });
+    expect(result.summary).toMatchObject({ via: "model", guardHits: 1, providerCalls: 2 });
+    expect(textOf(events)).toBe("I need current tool data.");
+  });
+
   it("accepts corrected grounded regeneration without streaming the rejected candidate", async () => {
     const p = scripted([
       reply("", [call("read")]),

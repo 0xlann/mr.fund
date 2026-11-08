@@ -2,6 +2,18 @@
 
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
 
+### 2026-11-08: a provenance guard must tokenize leading-decimal amounts
+
+- What happened: final review found that `.99%` bypassed the numeric checker without any tool source. Eight regression cases reproduced the missing rejection, including an actual chat turn that emitted the unsupported rate.
+- Root cause: the tokenizer required an initial digit and prevented matching digits immediately after a decimal separator, so leading-dot and leading-comma amounts disappeared from validation.
+- Rule: parse leading decimals with the same exact-value, sign and unit rules as other numbers. Keep both lexical boundary tests and a consumer-visible no-emission regression; passing ordinary decimal examples does not establish coverage of numerical notation.
+
+### 2026-11-08: a successful gateway response can contain null usage-detail objects
+
+- What happened: the first real chat HTTP smoke reached NEAR AI but returned the sanitized unavailable response. The actual gateway returned `prompt_tokens_details: null`; the provider adapter only accepted absent or object-valued details. A regression reproduced the rejection, then passed after nullish optional metadata was accepted.
+- Root cause: the scripted response fixture covered an object-valued cached-token breakdown, not the nullable shape observed from the gateway.
+- Rule: exercise the actual provider protocol before declaring integration complete. Treat optional metadata separately from required response data, keep errors sanitized, and describe observed usage as incomplete when a request fails or is interrupted.
+
 ### 2026-11-07: a failed child creation is atomic, so the design's keyless failed child never exists
 
 - What happened: the factory design assumed a failed initialization could leave a keyless, half-initialized child holding committed funds, and planned phase reporting around it. The sandbox experiment showed create-account, transfer, deploy and `new` in one batch revert together: no child survives, and the whole deposit returns to the factory (the batch receipt's predecessor), not to the owner.
