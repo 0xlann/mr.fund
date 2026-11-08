@@ -47,6 +47,13 @@ import {
   useState,
 } from "react";
 import { ConsultationTabs, type DetailTab } from "./ConsultationTabs";
+import {
+  ChatBrandAvatar,
+  chatBubbleClass,
+  chatComposerClass,
+  chatInputClass,
+  chatSendClass,
+} from "./chatAppearance";
 import { DetailContent } from "./DetailContent";
 import {
   amount,
@@ -218,14 +225,7 @@ function useMedia(query: string) {
   return matches;
 }
 function ChatAvatar() {
-  return (
-    <span
-      aria-hidden="true"
-      className="grid size-8 shrink-0 place-items-center rounded-full max-md:hidden bg-[#e4d7ba] font-[family-name:var(--font-display)] text-lg font-bold leading-none tracking-[-1.5px] text-[#203327]"
-    >
-      m.
-    </span>
-  );
+  return <ChatBrandAvatar className="max-md:hidden" />;
 }
 
 function Tag({ children, className = "" }: { children: ReactNode; className?: string }) {
@@ -1455,9 +1455,7 @@ export function Playground() {
                           className={`chat-message mb-5 flex items-end gap-2.5 ${message.role === "user" ? "justify-end pl-9 max-md:pl-28" : "pr-4 sm:pr-8 max-md:pl-[88px] max-md:pr-0"}`}
                         >
                           {message.role === "assistant" && <ChatAvatar />}
-                          <div
-                            className={`min-w-0 max-w-[92%] rounded-[22px] px-4 py-3 text-[13px] leading-[1.7] [overflow-wrap:anywhere] [&_p]:whitespace-pre-wrap [&_p]:font-normal [&_p]:leading-[1.7] sm:text-sm ${message.role === "user" ? "rounded-br-[6px] bg-[#bad7c3] text-[#203327]" : "rounded-bl-[6px] bg-[#1f2122] text-[#d6d8d9]"}`}
-                          >
+                          <div className={chatBubbleClass(message.role)}>
                             <span className="sr-only">
                               {message.role === "assistant" ? "MR.FUND" : "YOU"}
                             </span>
@@ -1676,7 +1674,7 @@ export function Playground() {
                     </div>
                   </div>
                   <form
-                    className="chat-composer mb-4 mt-3 flex shrink-0 items-end gap-1 rounded-[28px] border border-white/8 bg-[#1f2122] p-1.5 transition-colors focus-within:border-[#e4d7ba4d]"
+                    className={chatComposerClass}
                     onSubmit={(event: FormEvent) => {
                       event.preventDefault();
                       _ask(input);
@@ -1689,7 +1687,7 @@ export function Playground() {
                         setComposerFocused(false);
                         setKeyboardHeight(null);
                       }}
-                      className="block field-sizing-content min-h-11 max-h-32 min-w-0 flex-1 resize-none border-0 bg-transparent px-3 py-3 font-[family-name:var(--font-body)] text-base leading-5 text-[#eeeef3] outline-none! placeholder:text-[#757778] sm:text-sm"
+                      className={chatInputClass}
                       aria-label="Message Mr.Fund"
                       placeholder="Write a message…"
                       value={input}
@@ -1731,7 +1729,7 @@ export function Playground() {
                         type="submit"
                         aria-label="Send message"
                         disabled={!input.trim() || thinking || streamingId !== null}
-                        className="grid size-9 place-items-center rounded-full border-0 bg-[#e4d7ba] text-[#26352a] transition-colors hover:bg-[#eee6d3] disabled:bg-[#323435] disabled:text-[#767879]"
+                        className={chatSendClass}
                       >
                         {thinking ? (
                           <LoaderCircle size={17} className="animate-spin" />

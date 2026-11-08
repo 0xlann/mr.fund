@@ -2,7 +2,7 @@
 
 ## Scope and status
 
-[I, implementation 2026-11-07] `/play` is a local UI demo on `feat/full-frontend`. The landing route `/` is unchanged. The wallet, Rhea position, approvals, receipts and Guardian actions are explicitly simulated. No live Rhea read or wallet signing is implied. Financial values still come from the existing deterministic engine and bigint fixtures. Browser visual review remains with the user.
+[I, implementation 2026-11-07] `/play` is a local UI demo on `feat/full-frontend`. The landing route `/` is documented separately below. The wallet, Rhea position, approvals, receipts and Guardian actions are explicitly simulated. No live Rhea read or wallet signing is implied. Financial values still come from the existing deterministic engine and bigint fixtures. Browser visual review remains with the user.
 
 ## Experience
 
@@ -107,3 +107,17 @@ Opening Position, Guardian or Activity starts a top-to-bottom content cascade: s
 ### Standing phone composition — 2026-11-08
 
 On phones, the original welcome remains a dark office. After mock connection a 1.1-second camera transition keeps the character standing, places him at the left of the conversation, and hides the room/desk/chair in favour of the shared flat dark texture. The same renderer and GLB stay mounted; standing breathing, head response, wave and facial speech continue. A pure framing function keeps head/feet in view at representative phone ratios and above the composer/dock area. Other tools hide the character scene and occupy the full available panel area. Desktop/tablet retain the seated office consultation.
+
+## Landing page
+
+[I, implementation 2026-11-08] `/` is an animated public landing page in `apps/web/src/landing/`. The user explicitly requested a redesign, superseding the earlier landing freeze. References are [Lusion](https://www.awwwards.com/sites/lusion) for a dominant 3D hero and scroll composition, [Unseen Studio](https://www.awwwards.com/sites/unseen-studio) for transitions/storytelling, and the supplied HeyElsa screenshots for illustrated bento features and a phone demonstration. These inform the composition; their code and artwork are not copied.
+
+The centred oversized hero introduces the actual suited Rocketbox character at a desk, with a floating scripted consultation. Six asymmetric feature cards use original generated transparent illustrations. A three-step consultation journey stacks cards as the reader scrolls. Alternating charcoal, sage and ivory sections reveal the phone experience, Guardian principles and the final consultation action. Repeated explanatory copy and the FAQ were removed. Every section uses solid Tailwind surfaces with original SVG grain/grid textures, without CSS gradients. Landing text utilities are at least 14px.
+
+GSAP ScrollTrigger drives hero pinning, typography parallax, staggered card entries, floating illustrations, a marquee, curtain reveals, scroll progress and the three-card stack. Lenis uses the GSAP ticker as its single scroll clock. Pinning applies only at widths of at least 1024px and heights of at least 760px; smaller displays retain normal vertical document flow. The shared motion toggle releases the scroll engine and restores the static layout. OS reduced motion skips it entirely. Context cleanup removes owned triggers, pins, listeners and ticker callbacks on route exit. Loops pause offscreen or while the document is hidden.
+
+The hero and phone use the actual existing MIT Rocketbox GLB, its native facial shapes and approximate text-driven speech cues. The phone retains a standing live character and chat only, without the product dock or other tools. Shared `play/chatAppearance.tsx` supplies the same bubble/composer appearance as `/play`; its existing finance and interaction logic remains unchanged. The lightweight landing renderer omits the office scene, pauses drawing offscreen, and caps seated rendering at 40fps/DPR 1.5 and standing phone rendering at 24fps/DPR 1.15. These are configured ceilings, not measured browser performance. A labelled fallback covers unavailable WebGL.
+
+Scripted questions cycle through thinking, progressive text and speaking. Browser speech is optional and starts only after user activation. These previews do not call an LLM, Rhea, a wallet or a signing service. Every financial figure comes from `landingFigures()`, using the deterministic engine and the same bigint fixture as `/play`; visible figures retain simulation labels. Generated artwork provenance and the existing character credit are recorded in `apps/web/public/landing/ASSETS.md`. Responsive Next/Image delivery serves the illustrations.
+
+Verification covers deterministic figures, pause/resume and reduced motion, the phone's actual character props, and real GSAP/Lenis initialization and disposal in both desktop and smaller-screen branches. Browser visual review remains with the user, as requested.

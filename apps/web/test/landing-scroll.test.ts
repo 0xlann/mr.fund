@@ -1,0 +1,52 @@
+// @vitest-environment jsdom
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { afterEach, expect, it, vi } from "vitest";
+import { mountLandingMotion } from "../src/landing/motionScene";
+
+afterEach(() => {
+  document.body.innerHTML = "";
+  vi.unstubAllGlobals();
+});
+it.each([false, true])(
+  "initializes GSAP/Lenis and releases scroll resources (desktop: %s)",
+  (desktop) => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query.includes("min-width")
+          ? desktop
+          : query.includes("max-width")
+            ? !desktop
+            : false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.stubGlobal("scrollTo", vi.fn());
+    document.body.innerHTML = `<div id="landing"><div data-hero><span data-hero-word>Money</span><h1 data-hero-title></h1><p data-hero-intro></p><div data-hero-orbit></div><div data-hero-pin><div data-hero-visual><div data-hero-window></div><div data-hero-chat></div></div></div></div><div data-reveal>Visible content</div><article data-feature-card><div data-feature-art></div></article><div data-stack-pin><div data-stack-card></div><div data-stack-card></div><div data-stack-card></div></div><div data-phone-stage></div><div data-curtain></div><div data-float></div><div id="progress"></div></div>`;
+    const root = document.getElementById("landing"),
+      progress = document.getElementById("progress");
+    if (!root) throw new Error("Missing fixture");
+    const before = ScrollTrigger.getAll().length;
+    const dispose = mountLandingMotion(root, progress);
+    expect(ScrollTrigger.getAll().length).toBeGreaterThan(before);
+    expect(document.documentElement.classList.contains("lenis")).toBe(true);
+    expect(root.querySelector<HTMLElement>("[data-hero-word]")?.style.transform).not.toBe("");
+    if (desktop) expect(root.querySelector(".pin-spacer")).not.toBeNull();
+    dispose();
+    expect(root.querySelector(".pin-spacer")).toBeNull();
+    expect(ScrollTrigger.getAll().length).toBe(before);
+    expect(document.documentElement.classList.contains("lenis")).toBe(false);
+  },
+);
