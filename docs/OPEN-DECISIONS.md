@@ -54,7 +54,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 
 ### D16. Tech stack (Open)
 
-Context: Mr.Fund needs a web app with wallet signing, a server boundary that keeps the LLM key secret and runs deterministic tools, a Rust NEAR contract for the Guardian, and a watcher that requests Guardian actions. All versions below were observed live on 2026-11-04 (`npm view`, crates.io API, Rust stable channel manifest, Node release index); sources in [ARCHITECTURE](technical/ARCHITECTURE.md#proposed-stack-open-d16). None was installed or built.
+Context: Mr.Fund needs a web app with wallet signing, a server boundary that keeps the LLM key secret and runs deterministic tools, a Rust NEAR contract for the Guardian, and a watcher that requests Guardian actions. All versions below were observed live on 2026-11-04 (`npm view`, crates.io API, Rust stable channel manifest, Node release index); sources in [ARCHITECTURE](technical/ARCHITECTURE.md#selected-stack-and-historical-alternatives-d16). None was installed or built at that observation date.
 
 Shared core in every viable option: TypeScript 7.0.2 and React 19.3.1; wallet connection `@hot-labs/near-connect` 0.12.0 (what docs.near.org currently teaches) with `near-api-js` 7.4.0 for RPC; Rust `near-sdk` 5.30.0 (MSRV Rust 1.95; current stable 1.99.1), `cargo-near` 0.22.0 (stable; 0.23.0-rc.2 excluded), `near-workspaces` 0.24.0 for sandbox tests; NEAR AI Cloud through the `openai` 7.50.0 client; finance math on native `BigInt`; Vitest 5.1.0; Playwright 1.64.1; Node 24.22.2.
 
@@ -153,6 +153,10 @@ The structure is fixed in PRD "Fees model": activation fee, per-action fee, exec
 
 Live NEAR AI Cloud catalog (`https://cloud-api.near.ai/v1/models`, read 2026-11-04) lists `Qwen/Qwen3.8-27B` (`supported_features: tools, structured_outputs, reasoning`; USD 0.04 per million input tokens, USD 1.35 per million output) and `z-ai/glm-5.3-flash` (tools, structured_outputs, reasoning, json_mode; USD 0.08 per million input, USD 0.50 per million output). Tutorial ids such as `zai-org/GLM-5.1-FP8` were absent from the live catalog. No provider-wide language guarantee exists. Choose by the P3.4 multilingual tool-calling eval; record the winner here.
 
+[V, 2026-11-08] The user selected `z-ai/glm-5.3-flash` for implementation and supplied local access (B6 resolved); this is not acceptance of its quality. The refreshed official catalog and four complete live runs, exact-decimal observed cost estimates and current generation settings are summarized in [CHAT-API](technical/CHAT-API.md#observed-evidence-2026-11-08). Qwen was not inferred against or compared.
+
+**BLOCKER (owner: lead):** the latest complete run produced 34/36 model answers and two guarded comparison fallbacks (`comparison.id`, `comparison.es`). Automated number/card/claim and language-heuristic checks passed, but comparison content failed. Independent assistant review of all 36 exact outputs completed at `2026-11-08T04:44:14.735636Z`: 36/36 correct language, 22 content/honesty approvals and 14 rejections, including provenance uncertainty; this is not human review or provider self-assessment. Findings and the ignored review artifact are summarized in CHAT-API. A later two-case repeat succeeded after rejecting an invented-number/unsupported-assurance candidate; it does not replace the complete dataset. D25/P3.4/OpenSpec 3.3 remain open pending passing full live evidence and independent review, not local test success. No deployment readiness is claimed.
+
 ### D26. Character rendering (Open)
 
 Options under D16. Decided together with the founder's visual references when DESIGN.md is written (D23).
@@ -184,7 +188,7 @@ Live testnet and mainnet `get_assets_paged_detailed` return decimal strings `sup
 | B3 | Gate 2 proof on deployed Rhea code | lead | Open | P0.3, Phase 2 | Contract-owned position completes supply, collateral, borrow, withdraw, repay and release on testnet and in a sandbox with mainnet code imported |
 | B4 | Gate 3: in-contract trigger price source | lead | Open | P0.4, P2.5 | Contract reads a fresh price and computes the same health as the engine, or D27 fallback |
 | B5 | Tech stack (D16) | founder | Resolved 2026-11-05 | P0.7 and every app path | Option A chosen; see D16 |
-| B6 | NEAR AI Cloud API key and credits | founder | Open | P0.6, Phase 3 | Create an account and key at cloud.near.ai or request hackathon credits (link on docs.near.org hackathons page); place the key in local `.env` only |
+| B6 | NEAR AI Cloud API key and credits | founder | Resolved for local inference, 2026-11-08 | P0.6, Phase 3 | Local credential accepted by authenticated gateway; real GLM tool-calling turns exercised. Model acceptance is separate D25/P3.4 evidence; no credential is committed |
 | B7 | Testnet accounts, NEAR and listed test tokens | founder creates or authorizes the lead | Open | P0.2, P0.3, P2.8, P5 | Accounts listed in INTEGRATIONS "NEAR testnet accounts"; faucet NEAR; a way to obtain `usdc.fakes.testnet` [U] |
 | B8 | Watcher host account (D29) | founder | Open | P5.3 | After D16 |
 | B9 | Team members and other entries of 0xlann | 0xlann | Open | P6.3, P6.5 | Confirm the team list and whether 0xlann is on another entry (READMEs must name each other) |
@@ -209,7 +213,7 @@ Unblock evidence: sandbox test showing the Guardian computes health from a live-
 
 ### B6. LLM access
 
-No key exists yet, and none may be committed. Unblock evidence: one tool-calling request against each candidate model (P0.6) with its response saved under `scratch/` (never committed if it contains secrets).
+[V, 2026-11-08] The user supplied a local key and selected `z-ai/glm-5.3-flash` as the initial model. Authenticated gateway access, actual tool-call inference, and local HTTP chat with public Rhea reads succeeded. B6 is resolved for local inference; token/latency/quality evidence belongs to D25/P3.4 and [CHAT-API](technical/CHAT-API.md). Keys remain local and must never be committed or printed.
 
 ### B7. Accounts and tokens
 

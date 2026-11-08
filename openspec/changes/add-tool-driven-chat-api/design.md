@@ -1,6 +1,6 @@
 ## Context
 
-P3.4/P3.5 lack runtime orchestration. Existing tools return exact-number facts and cards; number enforcement supports one regeneration then deterministic fallback. No provider key is available (B6).
+P3.4/P3.5 lack runtime orchestration. Existing tools return exact-number facts and cards; number enforcement supports one regeneration then deterministic fallback. On 2026-11-08 the user supplied local NEAR AI credentials and selected `z-ai/glm-5.3-flash` as the initial candidate. Authenticated non-billable provider access succeeded; actual inference quality, usage and latency still require this change's live evaluation.
 
 ## Goals / Non-Goals
 
@@ -26,6 +26,15 @@ Buffering guarded text delays first prose → stream progress events while check
 
 Implement offline provider harness, then route; missing credentials produce friendly unavailable behavior. Enable live evaluation only with configured B6 access, preserving offline/live result distinction.
 
+### Implementation sequence (2026-11-08)
+
+1. `packages/agent/src/chat-types.ts` defines provider messages, usage, events and turn results; `chat.ts` implements `runChatTurn` against the existing awaitable dispatcher and guards. Behavioral tests precede implementation: forged history, numeric leakage, duplicate ids, parallel budget overflow, deadline/cancellation and failing regeneration.
+2. `apps/web/src/server/chat/` owns the native-fetch provider, bounded HTTP handler and real read-only RPC composition; `apps/web/src/app/api/chat/route.ts` wires the production endpoint. Request-scoped RPC fetches share cancellation and a deadline that begins before context construction. Transport tests cover streaming body bounds, untrusted forwarding headers, rate exhaustion, redacted failures and stream cancellation.
+3. `packages/agent/eval/` owns a fixed, explicitly Simulated snapshot, validated Guardian fixtures, 36 prompts and a scored runner. Offline checks prove the harness, not GLM suitability. An opt-in live runner records synthetic prompt responses, provider usage, latency, guards, semantic outcomes and language review. Results never contain credentials.
+4. Exercise the actual Route Handler, inspect live GLM outputs, run affected tests/typecheck/lint and an independent review, then update BUILD-PLAN and D25 with observed evidence. Merge only verified work into `dev`; no public deployment or chain writes.
+
+One integration owner maintains OpenSpec/docs; orchestration, server and evaluation work have disjoint file ownership. Existing signer-free package boundaries stay unchanged. The final event protocol and environment configuration are documented with the implemented endpoint.
+
 ## Open Questions
 
-D25 remains open until live eval. Full Guardian tool cases depend on add-guardian-client-and-tools; missing evidence must yield refusals.
+D25 records GLM as the requested initial model; acceptance remains conditional on live evaluation. Full Guardian cases use validated tools against explicitly Simulated contract responses until a public instance exists. Missing on-chain evidence must yield a refusal, never a live-success claim. NEAR Auth/NEAR Connect and general token transfers are outside this change.

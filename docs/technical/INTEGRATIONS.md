@@ -3,8 +3,8 @@
 ## TL;DR
 
 - **Exercised:** historical public read-only RPC/catalog/tooling observations (2026-11-04), block-pinned Rhea adapter recordings, and local sandbox probe/Guardian reserve transactions (2026-11-06 onward). Sandbox uses generated local accounts and Simulated prices with imported deployed bytecode; it is not public network execution. Details and dates are recorded below and in BUILD-PLAN.
-- Integration inventory observations from 2026-11-04 are historical; later evidence sections supersede their local implementation/toolchain status. Public account creation, deployment, wallet repayment and inference calls remain unproven.
-- D16 selected Option A on 2026-11-05. Remaining founder inputs: custody (D18), network (D19), NEAR AI key (B6), testnet accounts (B7), watcher host (B8). See [OPEN-DECISIONS](../OPEN-DECISIONS.md#blockers).
+- Integration inventory observations from 2026-11-04 are historical; later evidence sections supersede their local implementation/toolchain status. Local real inference and read-only chat HTTP flows were exercised on 2026-11-08. Public account creation, deployment and wallet repayment remain unproven.
+- D16 selected Option A on 2026-11-05; D18 G1 is decided. The local NEAR AI credential is available (B6 resolved for inference). Remaining external inputs include network (D19), testnet accounts/funding (B7), and watcher host (B8). See [OPEN-DECISIONS](../OPEN-DECISIONS.md#blockers).
 - Secrets live only in each developer's local `.env` (gitignored) or the NEAR CLI keychain. Never in docs, chat, logs or commits.
 
 ## Integration inventory
@@ -17,7 +17,7 @@
 | NEAR RPC (FastNear) | Reads and transaction submission | external | automatic | Free public; numeric quota unpublished | Exercised; docs.near.org/api/rpc/providers |
 | Wallet via NEAR Connect | User signing | user | manual approval per transaction | None | Documented; Meteor and Intear list testnet support in the connector manifest |
 | NEAR testnet accounts | Deployer, factory, watcher, demo user | founder (B7) | manual creation, automatic use | Faucet | Not created |
-| NEAR AI Cloud | LLM with tool calling | founder key (B6) | manual setup, automatic use | Credits required; hackathon credit request link exists | Catalog exercised; no inference |
+| NEAR AI Cloud | LLM with tool calling | founder key (B6) | manual setup, automatic use | Credits required | [V] Real GLM tool-calling inference and local HTTP chat exercised 2026-11-08; model acceptance/limits in D25 and CHAT-API |
 | Rust toolchain, `cargo-near`, `near-workspaces` | Contract build and sandbox tests | lead | automatic | None; sandbox needs Linux, macOS or WSL2 | Versions verified, not installed |
 | Node and package manager | App, engine, watcher | lead | automatic | None | Latest Node 24 line is 24.22.2 (verified); `near-api-js` 7.4.0 needs Node ≥ 22.22.2; skills CLI needs ≥ 22.20.0. Package manager follows D16 |
 | Watcher host | Always-on watcher (Option A) or Cron (Option C) | founder (B8) | manual account, automatic deploy with approval | Railway Hobby USD 5/month; Fly.io about USD 2.19 per 30 days; Cloudflare Workers Paid USD 5/month | Pricing pages read 2026-11-04 |
@@ -46,6 +46,16 @@ P2.1/P2.2 [V]: policy core and reserve lifecycle passed unit and sandbox tests, 
 
 [V, sandbox/recorded replay] Twelve raw outcome recordings now cover both imported Rhea versions, including successful repayment, supplied surplus, successful top-level returns with failed receipts, full refunds and failed fee transfers. Partial refund is explicitly from a sandbox-only NEP-141 receiver. Production read APIs validate the configured RPC network, request FINAL receipt details and reconcile a fresh final position without signing/sending/retrying. Missing post-state cannot create a confirmed repayment or pleased mood. See [REPAY-OUTCOMES](REPAY-OUTCOMES.md) for APIs, bounds and reproduction; B7/D19 public wallet proof and UI remain open.
 
+## Chat runtime evidence (2026-11-08)
+
+[V, local real inference/public reads] `POST /api/chat` was exercised through a running Next.js server against `z-ai/glm-5.3-flash` and public mainnet Rhea views for `brianphan01.near`. English, Indonesian and Spanish requests returned guarded model text with observed usage. No account creation, wallet access, signing, transaction submission or demo-network selection occurred. Initial gateway nullable usage metadata exposed a provider-adapter defect; the failing regression and subsequent live protocol check verified the correction.
+
+[V, local production Next server, 2026-11-08] A separate actual Indonesian HTTP smoke (`scratch/chat-http-production-final.json`) returned HTTP 200 / terminal model status `ok` in 28,281 ms (27,171 ms agent loop), using two tools, four provider calls and one guard hit. The response separated collateral, non-collateral supply and debt from public mainnet reads. No signing, transaction submission or receipts occurred; this is one read-only flow, not full acceptance or public deployment.
+
+The production Next build includes a dynamic `/api/chat` route. Transport, trusted-context construction, pricing prerequisites, provider failures, cancellation, budget and guard boundaries are covered by local tests. The multilingual fixed-snapshot benchmark uses explicitly **Simulated** positions/prices/Guardian responses with real inference; it is separate from the public-read HTTP smoke. Protocol, environment, replay and measured model evidence: [CHAT-API](CHAT-API.md), [D25](../OPEN-DECISIONS.md#d25-llm-model-open-lead).
+
+[V] The latest complete 36-case live-inference run returned 34 model answers and two guard fallbacks. Automated number/card/claim checks and the language heuristic passed on guarded output; comparison-content checks failed. Completed independent assistant review (not human/provider review) found 36/36 correct language but only 22 content/honesty approvals and 14 rejections, including provenance uncertainty. A successful isolated repeat of the two comparisons is diagnostic only. **BLOCKER (owner: lead):** passing full live evidence and independent review are still required by D25/P3.4/OpenSpec 3.3 before chat deployment; B6 access is resolved, not the model gate. Review findings, the four-run evidence table and observed-cost estimates are in [CHAT-API](CHAT-API.md#observed-evidence-2026-11-08).
+
 ## Environment variables (names only)
 
 `.env.example` will list these names with empty values at P0.7. Values never enter git.
@@ -63,6 +73,9 @@ P2.1/P2.2 [V]: policy core and reserve lifecycle passed unit and sandbox tests, 
 | `NEARAI_API_KEY` | chat API only | NEAR AI Cloud bearer key | secret |
 | `NEARAI_BASE_URL` | chat API | `https://cloud-api.near.ai/v1` | public |
 | `NEARAI_MODEL` | chat API | Model id chosen in D25 | public |
+| `FEE_TOKEN_ID`, `FEE_ACTIVATION_ATOMIC`, `FEE_ACTION_ATOMIC`, `FEE_EXECUTION_ATOMIC` | chat API | Complete explicit fee configuration with `FEE_RECIPIENT_ID`; integer token atomic amounts; missing pricing disables drafts | public |
+| `CHAT_PROXY_SECRET` | chat API / trusted edge | Authenticates the edge-overwritten client-IP header; never `NEXT_PUBLIC_*` | secret |
+| `CHAT_PROXY_SECRET_HEADER`, `CHAT_PROXY_IP_HEADER` | chat API / trusted edge | Header names used only with the matching proxy secret; otherwise all direct requests share one IP bucket | public names |
 | `MAX_DATA_AGE_MS` | engine consumers | Freshness limit for advice and cards (default proposal 120000) | public |
 
 ## Step-by-step recipes
@@ -127,11 +140,11 @@ Verification (planned): connect, read the account id, sign a zero-risk view-only
 
 Docs: https://docs.near.ai/cloud/guides/openai-compatibility.md ; https://docs.near.ai/cloud/models.md ; https://docs.near.ai/cloud/quickstart.md ; credit request link on https://docs.near.org/getting-started/hackathons.md (read 2026-11-04).
 
-Human steps (founder): create an account, add credits or request hackathon credits, create an API key, put it in local `.env` as `NEARAI_API_KEY`.
+Human setup [V, resolved locally 2026-11-08]: the user supplied the key and selected GLM for implementation; keep `NEARAI_API_KEY` only in ignored local environment or the deployment secret store. No account creation, login or credit purchase was performed by this change.
 
-Exercised: `GET https://cloud-api.near.ai/v1/models` without auth listed `Qwen/Qwen3.8-27B` and `z-ai/glm-5.3-flash`, both with `tools` in `supported_features`.
+Exercised: the official `GET https://cloud-api.near.ai/v1/models` listed `Qwen/Qwen3.8-27B` and `z-ai/glm-5.3-flash`, both supporting tools. The GLM pricing snapshot was refreshed at `2026-11-08T03:41:46.962164+00:00`; authenticated declared-tool completions and three-language local HTTP requests succeeded. Qwen inference/comparison was not performed.
 
-Agent steps (planned): one chat completion with one declared tool per candidate model; confirm a `tool_calls` response; run the P3.4 multilingual eval. Verification: response contains a tool call with schema-valid arguments. Privacy wording must match the chosen model's tier (own TEE, third-party TEE or provider-hosted).
+Remaining agent gate (owner: lead): obtain passing P3.4 live evaluation and independent review before resolving D25. Four complete GLM runs, a separate two-case diagnostic and the completed assistant review (22 content/honesty approvals, 14 rejections) are documented in CHAT-API; none establishes acceptance. Privacy wording must match the chosen model's tier (own TEE, third-party TEE or provider-hosted); local access alone proves no retention/privacy guarantee.
 
 ### 7. Contract toolchain (P0.3, Phase 2)
 
@@ -205,8 +218,8 @@ Each developer's agent configuration (model routing, worker limits, personal too
 
 ## Manual actions and blockers
 
-1. Founder: decide outstanding D18/D19 from Phase 0 evidence; D16 Option A is already recorded (2026-11-05).
-2. Founder: NEAR AI key or credits (B6) before Phase 3.
+1. Founder: decide outstanding D19 from Phase 0 evidence; D16 Option A and D18 G1 are already resolved.
+2. Lead: resolve D25/P3.4 with passing full live evidence and recorded independent review; B6 local API access is resolved (2026-11-08).
 3. Founder or authorized lead: testnet accounts (B7) before P0.2.
 4. Founder: watcher host account (B8) after D16.
 5. 0xlann: team list and other entries (B9) before P6.3.
