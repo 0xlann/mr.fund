@@ -56,6 +56,10 @@ The production Next build includes a dynamic `/api/chat` route. Transport, trust
 
 [V] The latest complete 36-case live-inference run returned 34 model answers and two guard fallbacks. Automated number/card/claim checks and the language heuristic passed on guarded output; comparison-content checks failed. Completed independent assistant review (not human/provider review) found 36/36 correct language but only 22 content/honesty approvals and 14 rejections, including provenance uncertainty. A successful isolated repeat of the two comparisons is diagnostic only. **BLOCKER (owner: lead):** passing full live evidence and independent review are still required by D25/P3.4/OpenSpec 3.3 before chat deployment; B6 access is resolved, not the model gate. Review findings, the four-run evidence table and observed-cost estimates are in [CHAT-API](CHAT-API.md#observed-evidence-2026-11-08).
 
+## Public position read configuration
+
+[I, interface, 2026-11-09] `readPositionConfig(env)` is the shared web-server public-read configuration boundary: it requires explicit `NEAR_NETWORK_ID` (`testnet` or `mainnet`), credential-free HTTPS `NEAR_RPC_URL` without a fragment, and a syntactically valid, network-matching `RHEA_LENDING_ID`. It never reads browser variables, fees, model keys or factory configuration. Chat retains its optional enrichment configuration separately. The shared account predicate treats `testnet` and `.testnet` descendants as testnet, canonical lowercase 64-hex implicit ids as network-neutral, and other valid named ids as mainnet; syntax does not establish existence or ownership.
+
 ## Environment variables (names only)
 
 `.env.example` will list these names with empty values at P0.7. Values never enter git.

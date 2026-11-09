@@ -1,7 +1,8 @@
 import type { ProposalContext, ToolContext } from "@mrfund/agent";
 import { createGuardianClient } from "@mrfund/guardian-client";
 import { createRheaClient, readPosition } from "@mrfund/rhea";
-import { type FeeSchedule, isValidAccountId } from "@mrfund/shared";
+import type { FeeSchedule } from "@mrfund/shared";
+import { networkAccount, readPositionConfig } from "../position/config";
 import type { ChatRequest } from "./handler";
 import { bindTurnFetch, record } from "./transport";
 
@@ -11,14 +12,6 @@ export interface ChatConfig {
   lendingId: string;
   factoryId?: string;
   fees?: FeeSchedule;
-}
-function networkAccount(value: string, network: ChatConfig["network"]): boolean {
-  return (
-    isValidAccountId(value) &&
-    (network === "testnet"
-      ? value.endsWith(".testnet") || /^[a-f0-9]{64}$/.test(value)
-      : !value.endsWith(".testnet"))
-  );
 }
 function atomic(value: unknown): bigint {
   if (typeof value !== "string" || !/^(0|[1-9][0-9]{0,38})$/.test(value))
@@ -33,18 +26,13 @@ export function readChatConfig(
   env: Readonly<Record<string, string | undefined>>,
 ): ChatConfig | null {
   try {
-    const network = env.NEAR_NETWORK_ID;
-    if (network !== "testnet" && network !== "mainnet") return null;
-    const rpc = new URL(env.NEAR_RPC_URL ?? "");
-    if (rpc.protocol !== "https:" || rpc.username || rpc.password || rpc.hash) return null;
-    const lendingId = env.RHEA_LENDING_ID ?? "";
+    const readConfig = readPositionConfig(env);
+    if (!readConfig) return null;
+    const { network } = readConfig;
     const factoryId = env.GUARDIAN_FACTORY_ID || undefined;
-    if (!networkAccount(lendingId, network) || (factoryId && !networkAccount(factoryId, network)))
-      return null;
+    if (factoryId && !networkAccount(factoryId, network)) return null;
     const config: ChatConfig = {
-      network,
-      rpcUrl: rpc.toString(),
-      lendingId,
+      ...readConfig,
       ...(factoryId ? { factoryId } : {}),
     };
     const tokenId = env.FEE_TOKEN_ID;
