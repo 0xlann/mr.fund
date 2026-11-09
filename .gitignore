@@ -39,3 +39,6 @@ desktop.ini
 
 # Test runner artifacts.
 .vitest/
+
+# Original download archive; the extracted runtime GLB is versioned.
+apps/web/public/businessman-rigged.zip

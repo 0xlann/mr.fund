@@ -1,6 +1,37 @@
 # Mr.Fund: lessons
 
-Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
+Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### 2026-11-08: Keep WebGL resolution stable during CSS layout motion
+
+The portrait's ResizeObserver called renderer.setSize for every animated grid/viewport size change. That repeatedly reallocates the drawing buffer during the camera orbit; a second camera lerp also added a trailing stop. Keep projection responsive but defer buffer allocation until motion settles, and use one eased camera timeline. A 60-frame resize regression verifies one allocation during motion and one final commit. No browser FPS claim is implied.
+
+
+### 2026-11-08: Parse JSX before applying automatic fixes
+
+A programmatic JSX replacement left an extra closing tag. Running Biome with `--write` against that invalid tree applied unrelated partial fixes. Recovered the file and reapplied the bounded feature change, then checked parsing before formatting. After structural JSX edits, run the checker without writes first; resolve parse errors before allowing automatic fixes.
+
+### 2026-11-08: Speech needs authored lip shapes, not just a gap
+
+The Jungle Jim model has a closed face without speech shapes. Splitting its lip seam made a measurable opening but the user found the resulting motion unnatural. The Rocketbox trial retains its authored visemes instead, without replacing head topology. Validate model capabilities and user-visible articulation separately from geometry tests; a measured gap does not prove natural speech. Rocketbox also uses different bone axes, so walking leg rotations must use the actor's axis transformed into each bone's rest frame.
+
+### 2026-11-07: Calibrate a seated desk against finger geometry
+
+A table placed by appearance intersected the seated model's torso and hands. The table rear edge extended through the body, the top sat above the wrist/finger height, and source palms remained edge-on. Calibrate the back edge and height from the actual seated rig; rotate palms, account for finger thickness and keep the laptop out of their footprint. The CPU regression fails at the former 1.5175 table height and passes at the corrected pose/placement. Browser visual confirmation remains separate.
+
+### 2026-11-07: arm swing must use the actor's axis, not bone-local X
+
+The downloaded Businessman arm bones use local axes that differ from the actor's axes. Applying an X Euler offset after the resting arm rotation swung the hands sideways. The walking controller now converts the actor's left/right axis into each resting arm's coordinates, then applies the fore/aft swing about that calibrated axis. The arms move opposite their matching leg. A regression on the actual downloaded skeleton failed before the fix and passes for both forward-facing and 90°-turned actors.
+
+### 2026-11-07: a safe's zero rotation is not its closed pose
+
+The downloaded safe is authored with an open door and geometry baked relative to its hinge. Resetting local Z rotation to zero left the door open and made the entry animation close it. CPU checks on the original mesh identified -90° as the closed position: the door spans the cabinet front and its depth ends flush with the body. Calibrate hinge endpoints against actual geometry, then test the default, open and restored states rather than assuming zero means closed. The regression fails with the old zero-angle pose and passes at the calibrated angle.
+
+### YYYY-MM-DD: headline`, followed by bullets: what happened, root cause with evidence, and the rule going forward. Update this file in the same commit as the related behavior change.
+
+### 2026-11-07: floating decoration can block pointer access to wall tools
+
+- What happened: the user reported missing Position and Activity hover feedback. The hit-test stopped at the first scene intersection, including decorative floating objects in front of interactive boards.
+- Root cause: decorative geometry and real occluders shared the same pointer policy. A noninteractive first hit returned null before checking the board behind it.
+- Rule: explicitly mark pointer-transparent decorations and share one target resolver between hover and click. Three regression tests cover decoration passthrough to both boards, genuine wall occlusion, nested prop surfaces and the character. Typecheck passed; browser inspection remains with the user.
 
 ### 2026-11-08: generation guards cannot undo wallet SDK side effects
 
