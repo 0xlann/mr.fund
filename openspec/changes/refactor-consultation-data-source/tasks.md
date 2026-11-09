@@ -19,7 +19,8 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
   Evidence [V, 2026-11-10]: stream tests first failed on the missing adapter; `pnpm exec vitest run apps/web/test`: 204 passed, including protocol events and cancellation before/mid-stream. Workspace typecheck and Biome (210 files) pass. UI timing is unchanged pending 3.1 cutover.
 - [x] 2.5 Extract mock wallet connection and the four outcomes into the demo `session` and `execution` ports; test cancel/failure/partial/success keep or change balances exactly as before.
   Evidence [V, 2026-11-10]: execution tests first failed on missing adapters; `pnpm exec vitest run apps/web/test`: 209 passed, including all four outcomes, connection progress and cancellation before settlement. Workspace typecheck and Biome (213 files) pass. UI cutover follows at 3.1.
-- [ ] 2.6 Extract simulated Guardian lifecycle, over-limit rejection, replay, reserve and receipts into the demo `guardian` port.
+- [x] 2.6 Extract simulated Guardian lifecycle, over-limit rejection, replay, reserve and receipts into the demo `guardian` port.
+  Evidence [V, 2026-11-10]: Guardian tests first failed on missing composition; all 211 web tests passed, including separate debts, unchanged rejected reserve, cooldown, offline/paused blocking and owner withdrawal. Focused Guardian tests (2), workspace typecheck and Biome (216 files) passed after retaining the original bigint reduction form. UI cutover follows at 3.1.
 
 ## 3. Hook and component split
 
