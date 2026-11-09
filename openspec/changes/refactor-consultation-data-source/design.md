@@ -7,7 +7,7 @@ The 16 tests in `apps/web/test/playground.test.ts` exercise behavior through the
 ## Decisions
 
 - **Ports by capability, not one big object.** `session`, `position`, `chat`, `execution`, `guardian`. Live changes replace one port at a time; a mixed configuration (live session, simulated position) stays legal and honest because each port reports its own provenance. A single "demo vs live" boolean would hide mixed states.
-- **Provenance is data, not CSS.** Every port exposes `provenance`. Components render a visible label from it ("Simulated" for demo, network name for live). A component cannot render an unlabelled value from a simulated port: the label is part of the shared surface components (`ProvenanceTag`), tested.
+- **Provenance is data, not CSS.** Every port exposes `provenance`. Existing simulation labels render through `ProvenanceTag`, which rejects simulated provenance with an absent/non-simulation label and omits simulation copy for live ports. The known unlabelled surfaces below remain unchanged in this refactor.
 - **State is read through one hook.** `useConsultation(source)` returns a view model (state + intents) built with `useSyncExternalStore`-compatible subscriptions where a port is external, and plain reducers for the demo. Presentation components receive view-model slices; they never import `demo.ts`.
 - **Intents, not setters.** The UI calls `connect()`, `sendMessage()`, `executeCard(id)`, `guardian.pause()`; it never calls `setDebt` or `setReserve`. The demo implements intents by updating its fixture with the same engine calls as today.
 - **Chat is an async event stream.** The chat port returns an `AsyncIterable<ChatEvent>` with the same event kinds as `/api/chat` (`progress`, `text`, `card`, `error`, `done`). The demo emits scripted equivalents, so the later live adapter is a drop-in and the UI is written once against the real protocol. The existing two-second thinking and progressive reveal stay in the presentation layer.
@@ -34,6 +34,8 @@ Final interface [I, task 2.1]: all stateful ports expose cached `getSnapshot`/`s
 
 - A refactor of this size can silently change rendering order or focus behavior. Mitigation: one extraction per commit, tests after each, and explicit render comparison at the end. Focus management and the entrance sequencing tests are the likeliest to fail and are checked after every step.
 - Moving code inflates diffs past the 50–350 line commit rule. Mitigation: extraction commits are split by component; pure moves are reviewed with `git diff --color-moved`; if a single move cannot be split below 350 lines, the commit message says it is a pure move and the follow-up edit is a separate commit.
+
+Known gap [V, baseline browser captures, 2026-11-10]: chat greeting/recommendation has no visible Simulated label; the desktop Position stats simulation label is CSS-hidden at 360 px, leaving mobile chat unlabelled. This is a pre-existing honesty gap, not evidence that fixture data is live. The parent explicitly prioritized zero visible change for this refactor. Adding visible labels is therefore deferred to `add-live-wallet-session-ui` task 2.1, where the demo entry is labelled; section 5 of tasks.md keeps that deliberate visible change unchecked.
 - This change does not verify browser performance or visual fidelity beyond the render comparison; the user keeps visual QA, as in every previous frontend change.
 - No guarantee about live data, wallet or chain behavior: nothing live exists yet.
 

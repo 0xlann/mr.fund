@@ -2,12 +2,12 @@
 
 ### Requirement: Capability ports with declared provenance
 
-The consultation UI SHALL obtain session, position, chat, execution and Guardian data only through typed ports. Every port MUST declare `provenance` as `simulated` or `live`. The UI MUST NOT import fixture or simulation modules directly.
+The consultation UI SHALL obtain session, position, chat, execution and Guardian data only through typed ports. Every port MUST declare `provenance` as `simulated` or `live`. The UI MUST NOT import fixture or simulation modules directly. This behavior-preserving refactor retains the known unlabelled baseline surfaces documented in design.md; it does not silently add visible copy.
 
 #### Scenario: Demo source is fully simulated
 
 - **WHEN** the consultation renders with the demo source
-- **THEN** every port reports `simulated` and every surface showing a port's values displays a visible simulation label
+- **THEN** every port reports `simulated` and every surface that carries a label today renders it through `ProvenanceTag`; unlabelled surfaces are listed as known gaps in design.md
 
 #### Scenario: Mixed provenance stays visible
 

@@ -69,6 +69,7 @@ import {
 } from "./demo";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
 import { PositionSummary } from "./PositionSummary";
+import { ProvenanceTag } from "./ProvenanceTag";
 import { ReplyText } from "./ReplyText";
 import { panelReveal, playClasses } from "./styles";
 import { VoicePanel } from "./VoicePanel";
@@ -950,7 +951,10 @@ export function Playground() {
               Meet your Guardian <ArrowUpRight size={17} />
             </button>
             <p data-panel-enter="4" className="mt-3! text-center text-[10px] text-[#808c84]">
-              Opt-in · Simulated policy preview
+              <ProvenanceTag
+                port={{ provenance: "simulated" }}
+                label="Opt-in · Simulated policy preview"
+              />
             </p>
           </div>
         ) : (
@@ -1280,9 +1284,11 @@ export function Playground() {
                       {dataState === "fresh" && debt > 0n ? `$${amount(debt)}` : "—"}
                     </b>
                   </span>
-                  <span className="col-span-2 text-xs text-[#a2a4a5] 2xl:col-span-1">
-                    SIMULATED · PnL unavailable
-                  </span>
+                  <ProvenanceTag
+                    port={{ provenance: "simulated" }}
+                    label="SIMULATED · PnL unavailable"
+                    className="col-span-2 text-xs text-[#a2a4a5] 2xl:col-span-1"
+                  />
                 </section>
               )}
               <button
@@ -1847,7 +1853,10 @@ export function Playground() {
           >
             <span className="mt-5 inline-flex items-center gap-2 text-[9px] font-medium tracking-[.08em] text-[#a2a4a5]">
               <span aria-hidden="true" className="size-1.5 rounded-full bg-[#bad7c3]" />
-              NETWORK · TESTNET · SIMULATED
+              <ProvenanceTag
+                port={{ provenance: "simulated" }}
+                label="NETWORK · TESTNET · SIMULATED"
+              />
             </span>
             <p className="mt-4! max-w-[320px] text-[13px] leading-[1.8] text-[#a2a4a5]">
               {connected

@@ -11,7 +11,8 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
 
 - [x] 2.1 Define `ConsultationSource`, port types and `ChatEvent`/`ExecutionEvent` in `apps/web/src/play/source/types.ts`, reusing `@mrfund/shared` types; unit-test the type-level contract with a minimal fake.
   Evidence [V, 2026-11-10]: web typecheck first failed on missing source types, then `pnpm typecheck` passed; `pnpm exec vitest run apps/web/test`: 194 passed; `pnpm lint`: 204 files clean. Final interface recorded in design.md.
-- [ ] 2.2 Implement `ProvenanceTag` and the surface rule that a simulated port always shows a label; test simulated-with-label, live-without-label and mixed configurations, plus the negative case (simulated surface without label fails).
+- [x] 2.2 Implement `ProvenanceTag` for existing labels; test simulated-with-label, live-without-label and mixed configurations, plus the negative case (simulated label absent/invalid fails). Known unlabelled surfaces remain section 5.
+  Evidence [V, 2026-11-10]: provenance tests first failed on the missing component; all 199 web tests now pass, workspace typecheck and Biome (206 files) pass. Parent explicitly preserved visible copy and deferred missing chat/mobile labels.
 - [ ] 2.3 Extract the position/engine fixture logic to the demo source `position` port (no UI change).
 - [ ] 2.4 Extract scripted chat into the demo `chat` port as an `AsyncIterable<ChatEvent>`; keep the two-second thinking and progressive reveal in the UI; test abort leaves no stale event.
 - [ ] 2.5 Extract mock wallet connection and the four outcomes into the demo `session` and `execution` ports; test cancel/failure/partial/success keep or change balances exactly as before.
@@ -28,3 +29,7 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
 - [ ] 4.1 Run the unmodified `playground.test.ts` plus new tests, full `pnpm test`, `pnpm typecheck`, `pnpm lint` and production build; compare against the task 1.1 baseline (same text and numbers in every panel).
 - [ ] 4.2 Run `next dev`, exercise welcome → connect → ask → repay → Guardian activation → over-limit rejection → deactivate; record the observed result. Browser visual QA stays with the user.
 - [ ] 4.3 Update BUILD-PLAN P4.4 (progress note only, no checkbox) and `docs/DESIGN.md` (module map); no feature or evidence claim beyond what ran.
+
+## 5. Known honesty gap (deliberate visible change)
+
+- [ ] 5.1 Add visible Simulated labels to chat and 360 px surfaces; deliberate visible change, to be done with `add-live-wallet-session-ui` task 2.1 where the demo entry is labelled.
