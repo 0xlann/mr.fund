@@ -13,7 +13,7 @@ import type {
 } from "./source/types";
 export type Panel = "chat" | "voice" | "position" | "guardian" | "activity";
 type Modal = "wallet" | "settings" | "setup" | "help" | null;
-type Message = {
+export type Message = {
   id: number;
   role: "user" | "assistant";
   text: string;

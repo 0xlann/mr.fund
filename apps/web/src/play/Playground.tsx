@@ -30,22 +30,16 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { type FormEvent, type ReactNode, useState } from "react";
+import { ChatMessages } from "./ChatMessages";
 import { ConsultationTabs, type DetailTab } from "./ConsultationTabs";
-import {
-  ChatBrandAvatar,
-  chatBubbleClass,
-  chatComposerClass,
-  chatInputClass,
-  chatSendClass,
-} from "./chatAppearance";
+import { chatComposerClass, chatInputClass, chatSendClass } from "./chatAppearance";
 import { DetailContent } from "./DetailContent";
-import { amount, percent } from "./display";
+import { amount } from "./display";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
 import { ModalFrame } from "./ModalFrame";
 import { PositionSummary } from "./PositionSummary";
 import { ProvenanceTag, Tag } from "./ProvenanceTag";
 import { RecommendationCard } from "./RecommendationCard";
-import { ReplyText } from "./ReplyText";
 import { createDemoSource } from "./source/demoSource";
 import type { ConsultationSource, DataState, PolicyFields, WalletOutcome } from "./source/types";
 import { panelReveal, playClasses } from "./styles";
@@ -66,22 +60,6 @@ const CharacterPortrait = dynamic(
     ),
   },
 );
-const prompts = [
-  {
-    label: "Find my smartest move",
-    text: "Should I repay or earn yield?",
-  },
-  {
-    label: "What if NEAR drops 20%?",
-    text: "What if NEAR drops 20%?",
-  },
-  { label: "Meet my Guardian", text: "What can Guardian do for me?" },
-  { label: "Explain my position", text: "Explain my position" },
-];
-function ChatAvatar() {
-  return <ChatBrandAvatar className="max-md:hidden" />;
-}
-
 export function Playground({ source }: { source?: ConsultationSource } = {}) {
   const [defaultSource] = useState(() => source ?? createDemoSource());
   const activeSource = source ?? defaultSource;
@@ -793,68 +771,15 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
                     aria-busy={thinking}
                   >
                     <div className="flex min-h-full flex-col justify-end">
-                      {messages.map((message) => (
-                        <div
-                          key={message.id}
-                          className={`chat-message mb-5 flex items-end gap-2.5 ${message.role === "user" ? "justify-end pl-9 max-md:pl-28" : "pr-4 sm:pr-8 max-md:pl-[88px] max-md:pr-0"}`}
-                        >
-                          {message.role === "assistant" && <ChatAvatar />}
-                          <div className={chatBubbleClass(message.role)}>
-                            <span className="sr-only">
-                              {message.role === "assistant" ? "MR.FUND" : "YOU"}
-                            </span>
-                            {message.role === "assistant" ? (
-                              <ReplyText
-                                id={message.id}
-                                text={message.text}
-                                streaming={streamingId === message.id}
-                                onComplete={finishText}
-                              />
-                            ) : (
-                              <p>{message.text}</p>
-                            )}
-                            {message.kind === "scenario" && whatIf.ok && (
-                              <div className="scenario-result [border:1px_solid_#313334] bg-[#1c1e1f] p-[13px] mt-[12px] rounded-[9px] [&_.tag]:text-[#a2a4a5] [&_.tag]:border-0 [&_.tag]:p-0 [&>div]:flex [&>div]:gap-[17px] [&>div]:items-center [&>div]:mt-[12px] [&>div>span]:text-[9px] [&>div>span]:flex [&>div>span]:flex-col [&>div>span]:gap-[3px] [&>div>span]:text-[#a2a4a5] [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[22px] [&_b]:text-[#a2a4a5] [&>small]:text-[8px] [&>small]:text-[#a2a4a5] [&>small]:block [&>small]:mt-[10px]">
-                                <Tag>SIMULATED WHAT-IF</Tag>
-                                <div>
-                                  <span>
-                                    NEAR price <b>−20%</b>
-                                  </span>
-                                  <ArrowRight size={19} />
-                                  <span>
-                                    Health <b>{percent(whatIf.value.value.healthBps)}</b>
-                                  </span>
-                                </div>
-                                <small>Engine calculation · no action executed</small>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                      {messages.length === 1 && (
-                        <div className="prompt-grid mb-6 ml-[42px] max-md:ml-[88px] flex flex-wrap gap-2 [&_button]:inline-flex [&_button]:items-center [&_button]:gap-2 [&_button]:rounded-full [&_button]:border [&_button]:border-[#313334] [&_button]:bg-transparent [&_button]:px-3.5 [&_button]:py-2.5 [&_button]:text-left [&_button]:text-[11px] [&_button]:font-medium [&_button]:text-[#a2a4a5] [&_button]:transition-colors [&_button:hover]:bg-[#1f2122] [&_button:hover]:text-[#edf3f5]">
-                          {prompts.map((p) => (
-                            <button type="button" key={p.label} onClick={() => sendMessage(p.text)}>
-                              <span>{p.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      {thinking && (
-                        <div className="mb-5 flex items-end gap-2.5 max-md:pl-[88px]" role="status">
-                          <ChatAvatar />
-                          <div className="flex items-center gap-1.5 rounded-[22px] rounded-bl-[6px] bg-[#1f2122] px-4 py-4">
-                            {[0, 150, 300].map((delay) => (
-                              <span
-                                key={delay}
-                                aria-hidden="true"
-                                className={`size-1.5 rounded-full bg-[#a2a4a5] motion-safe:animate-pulse ${delay === 150 ? "[animation-delay:150ms]" : delay === 300 ? "[animation-delay:300ms]" : ""}`}
-                              />
-                            ))}
-                            <span className="sr-only">Checking the numbers…</span>
-                          </div>
-                        </div>
-                      )}
+                      <ChatMessages
+                        messages={messages}
+                        streamingId={streamingId}
+                        thinking={thinking}
+                        whatIf={whatIf}
+                        finishText={finishText}
+                        sendMessage={sendMessage}
+                        port={activeSource.position}
+                      />
                       {cardOpen && (
                         <RecommendationCard
                           card={card}
