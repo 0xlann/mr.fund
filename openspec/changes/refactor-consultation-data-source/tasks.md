@@ -1,0 +1,27 @@
+Gate summary: no external gate. No D19, B7, D24, credentials or network access is needed. Commit contract: one extraction per commit, 50–350 changed lines (pure moves are labelled as such and reviewed with `git diff --color-moved`); every commit passes `pnpm lint`, `pnpm typecheck` and the playground tests.
+
+## 1. Baseline
+
+- [ ] 1.1 Record the current baseline: `pnpm test` summary, `pnpm --filter @mrfund/web build`, and rendered text of the welcome, wallet dialog, chat reply, position, Guardian and activity panels captured from `next dev` at one desktop and one 360 px viewport. Store captures only in ignored `scratch/`.
+- [ ] 1.2 List behaviors in `Playground.tsx` that no existing test covers (receipt detail, partial wallet batch, Guardian replay, data-state switch in Demo settings, voice sample). Add characterization tests for each before moving code; they must pass on the unmodified file.
+
+## 2. Ports and demo source
+
+- [ ] 2.1 Define `ConsultationSource`, port types and `ChatEvent`/`ExecutionEvent` in `apps/web/src/play/source/types.ts`, reusing `@mrfund/shared` types; unit-test the type-level contract with a minimal fake.
+- [ ] 2.2 Implement `ProvenanceTag` and the surface rule that a simulated port always shows a label; test simulated-with-label, live-without-label and mixed configurations, plus the negative case (simulated surface without label fails).
+- [ ] 2.3 Extract the position/engine fixture logic to the demo source `position` port (no UI change).
+- [ ] 2.4 Extract scripted chat into the demo `chat` port as an `AsyncIterable<ChatEvent>`; keep the two-second thinking and progressive reveal in the UI; test abort leaves no stale event.
+- [ ] 2.5 Extract mock wallet connection and the four outcomes into the demo `session` and `execution` ports; test cancel/failure/partial/success keep or change balances exactly as before.
+- [ ] 2.6 Extract simulated Guardian lifecycle, over-limit rejection, replay, reserve and receipts into the demo `guardian` port.
+
+## 3. Hook and component split
+
+- [ ] 3.1 Add `useConsultation(source)` and move state and intents into it; `Playground` renders from the view model only.
+- [ ] 3.2 Extract `WalletDialog`, `ChatPanel`, `PositionPanel`, `GuardianPanel`, `ActivityPanel` and `ReceiptDetail` one per commit; no style or copy change.
+- [ ] 3.3 Mount `demoSource` from `app/play/page.tsx`; verify the landing route's bundle does not include `play/source/`.
+
+## 4. Verification
+
+- [ ] 4.1 Run the unmodified `playground.test.ts` plus new tests, full `pnpm test`, `pnpm typecheck`, `pnpm lint` and production build; compare against the task 1.1 baseline (same text and numbers in every panel).
+- [ ] 4.2 Run `next dev`, exercise welcome → connect → ask → repay → Guardian activation → over-limit rejection → deactivate; record the observed result. Browser visual QA stays with the user.
+- [ ] 4.3 Update BUILD-PLAN P4.4 (progress note only, no checkbox) and `docs/DESIGN.md` (module map); no feature or evidence claim beyond what ran.
