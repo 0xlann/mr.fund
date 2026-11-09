@@ -9,7 +9,7 @@ import {
   type TurnSummary,
 } from "@mrfund/agent";
 import { isValidAccountId } from "@mrfund/shared";
-import { readBoundedBody, record } from "./transport";
+import { readBoundedBody, record } from "../transport";
 
 /** The account is a public-read selector, never an authenticated/signed-in identity. */
 export interface ChatRequest {

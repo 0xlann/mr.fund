@@ -1,5 +1,5 @@
 import { MAX_DATA_AGE_MS } from "@mrfund/engine";
-import { readBoundedBody } from "../chat/transport";
+import { readBoundedBody } from "../transport";
 import { networkAccount, type PositionConfig } from "./config";
 import { positionError } from "./errors";
 import { createPositionLoader, type PositionRead, PositionReadError } from "./loader";

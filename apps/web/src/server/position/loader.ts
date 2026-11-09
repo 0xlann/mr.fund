@@ -1,6 +1,6 @@
 import { createRheaClient, type RheaClient, readPosition } from "@mrfund/rhea";
 import type { PositionSnapshot } from "@mrfund/shared";
-import { bindTurnFetch, record } from "../chat/transport";
+import { bindTurnFetch, record } from "../transport";
 import { networkAccount, type PositionConfig } from "./config";
 
 export class PositionReadError extends Error {

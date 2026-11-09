@@ -3,8 +3,8 @@ import { createGuardianClient } from "@mrfund/guardian-client";
 import type { FeeSchedule } from "@mrfund/shared";
 import { networkAccount, readPositionConfig } from "../position/config";
 import { createPositionLoader } from "../position/loader";
+import { record } from "../transport";
 import type { ChatRequest } from "./handler";
-import { record } from "./transport";
 
 export interface ChatConfig {
   network: "testnet" | "mainnet";

@@ -1,5 +1,5 @@
 import { isValidAccountId } from "@mrfund/shared";
-import { record } from "../chat/transport";
+import { record } from "../transport";
 
 export interface PositionSelectors {
   accountId: string;
