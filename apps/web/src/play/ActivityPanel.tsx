@@ -15,7 +15,7 @@ export function ActivityPanel({ receipts, port, setSelectedReceipt, sendMessage 
       <div data-panel-enter="0" className="flex items-center justify-end">
         <Tag>
           <History size={13} />
-          {receipts.length} demo events
+          {receipts.length} {port.provenance === "simulated" ? "demo events" : "events"}
         </Tag>
       </div>
       {receipts.length ? (
@@ -34,7 +34,12 @@ export function ActivityPanel({ receipts, port, setSelectedReceipt, sendMessage 
               <span>
                 <b>{r.title}</b>
                 <small>
-                  <ProvenanceTag port={port} label={`Simulated · ${r.at} · ${r.status}`} />
+                  {port.provenance === "simulated" && (
+                    <>
+                      <ProvenanceTag port={port} label="Simulated" /> ·{" "}
+                    </>
+                  )}
+                  {r.at} · {r.status}
                 </small>
               </span>
               <ArrowUpRight size={19} />
@@ -48,7 +53,11 @@ export function ActivityPanel({ receipts, port, setSelectedReceipt, sendMessage 
         >
           <History size={38} strokeWidth={1.3} />
           <h3>A clean slate.</h3>
-          <p>Your demo receipts will land here after you try a repayment or set up Guardian.</p>
+          <p>
+            {port.provenance === "simulated"
+              ? "Your demo receipts will land here after you try a repayment or set up Guardian."
+              : "Your receipts will land here after you try a repayment or set up Guardian."}
+          </p>
           <button
             type="button"
             className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-[#203327]! [&:hover]:bg-[#a7c8b1]"
@@ -60,10 +69,12 @@ export function ActivityPanel({ receipts, port, setSelectedReceipt, sendMessage 
           </button>
         </div>
       )}
-      <p className="fine-print text-[9px] leading-[1.8] text-[#a2a4a5] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
-        Demo receipts document local UI state. Real transaction hashes and explorer links only
-        appear in the future live integration.
-      </p>
+      {port.provenance === "simulated" && (
+        <p className="fine-print text-[9px] leading-[1.8] text-[#a2a4a5] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
+          Demo receipts document local UI state. Real transaction hashes and explorer links only
+          appear in the future live integration.
+        </p>
+      )}
     </section>
   );
 }

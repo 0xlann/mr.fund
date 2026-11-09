@@ -12,7 +12,11 @@ interface Props {
 }
 export function ReceiptDetail({ receipt, port, close, openActivity }: Props) {
   return (
-    <ModalFrame eyebrow="A RECORD, NOT A PROMISE" title="Your demo receipt." close={() => close()}>
+    <ModalFrame
+      eyebrow="A RECORD, NOT A PROMISE"
+      title={port.provenance === "simulated" ? "Your demo receipt." : "Your receipt."}
+      close={() => close()}
+    >
       <div className={playClasses(`receipt-banner ${receipt.status}`)}>
         <span>
           {receipt.status === "confirmed" ? <BadgeCheck size={27} /> : <AlertTriangle size={27} />}
@@ -20,10 +24,13 @@ export function ReceiptDetail({ receipt, port, close, openActivity }: Props) {
         <div>
           <b>{receipt.title}</b>
           <small>
-            <ProvenanceTag
-              port={port}
-              label={`${receipt.status.toUpperCase()} · SIMULATED · ${receipt.at}`}
-            />
+            {receipt.status.toUpperCase()} ·{" "}
+            {port.provenance === "simulated" && (
+              <>
+                <ProvenanceTag port={port} label="SIMULATED" /> ·{" "}
+              </>
+            )}
+            {receipt.at}
           </small>
         </div>
       </div>
@@ -43,21 +50,27 @@ export function ReceiptDetail({ receipt, port, close, openActivity }: Props) {
       <div className="receipt-metadata mt-[16px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:p-[12px_0] [&>div]:[border-bottom:1px_solid_#313334] [&>div]:text-[10px] [&_span]:text-[#a2a4a5] [&_b]:text-[9px] [&~.button]:mt-[22px]">
         <div>
           <span>Reference</span>
-          <b>DEMO-{String(receipt.id).padStart(4, "0")}</b>
+          <b>
+            {port.provenance === "simulated"
+              ? `DEMO-${String(receipt.id).padStart(4, "0")}`
+              : String(receipt.id)}
+          </b>
         </div>
         <div>
           <span>Network</span>
-          <b>Local simulation</b>
+          <b>{port.provenance === "simulated" ? "Local simulation" : port.networkLabel}</b>
         </div>
         <div>
           <span>Transaction hash</span>
-          <b>Not submitted</b>
+          <b>{receipt.chain.txHashes.join(", ") || "Not submitted"}</b>
         </div>
       </div>
-      <p className="fine-print text-[9px] leading-[1.8] text-[#a2a4a5] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
-        No explorer link: this is a local UI simulation. The result is computed from the updated
-        demo fixture, not observed on-chain.
-      </p>
+      {port.provenance === "simulated" && (
+        <p className="fine-print text-[9px] leading-[1.8] text-[#a2a4a5] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
+          No explorer link: this is a local UI simulation. The result is computed from the updated
+          demo fixture, not observed on-chain.
+        </p>
+      )}
       <button
         type="button"
         className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-[#203327]! [&:hover]:bg-[#a7c8b1] full-width w-full"

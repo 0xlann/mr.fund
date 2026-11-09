@@ -27,9 +27,13 @@ export function GuardianPanel({ view, port, ownerAction, replay, setup }: Props)
           {guardian === "inactive"
             ? "Not configured"
             : guardian === "active"
-              ? "Active · demo"
+              ? port.provenance === "simulated"
+                ? "Active · demo"
+                : "Active"
               : guardian === "paused"
-                ? "Paused · demo"
+                ? port.provenance === "simulated"
+                  ? "Paused · demo"
+                  : "Paused"
                 : "Deactivated"}
         </span>
       </div>
@@ -52,7 +56,7 @@ export function GuardianPanel({ view, port, ownerAction, replay, setup }: Props)
         <p className="mt-3! text-[12px] leading-[1.8] text-[#9da6a1]">
           {guardian === "inactive"
             ? "Choose when to repay and how much. Review every limit before you switch it on."
-            : `Reserve ${amount(reserve)} USDC · Spendable ${amount(spendable)} USDC. A separate, simulated Guardian-held loan.`}
+            : `Reserve ${amount(reserve)} USDC · Spendable ${amount(spendable)} USDC. ${port.provenance === "simulated" ? "A separate, simulated Guardian-held loan." : "A separate Guardian-held loan."}`}
         </p>
       </div>
       {guardian === "inactive" ? (

@@ -2,11 +2,12 @@ import { AlertTriangle, ArrowRight, LockKeyhole, Shield } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { ModalFrame } from "./ModalFrame";
 import { PolicyField } from "./PolicyField";
-import { Tag } from "./ProvenanceTag";
-import type { PolicyFields } from "./source/types";
+import { ProvenanceTag, Tag } from "./ProvenanceTag";
+import type { PolicyFields, Port } from "./source/types";
 import { playClasses } from "./styles";
 
 interface Props {
+  port: Port;
   policyFields: PolicyFields;
   setPolicyFields: Dispatch<SetStateAction<PolicyFields>>;
   setupReview: boolean;
@@ -16,6 +17,7 @@ interface Props {
   close: () => void;
 }
 export function GuardianSetupDialog({
+  port,
   policyFields,
   setPolicyFields,
   setupReview,
@@ -58,15 +60,20 @@ export function GuardianSetupDialog({
         <i />
         <span className={playClasses(setupReview ? "current" : "")}>02 Review</span>
         <i />
-        <span>03 Mock approval</span>
+        <span>{port.provenance === "simulated" ? "03 Mock approval" : "03 Approval"}</span>
       </div>
       <div className="setup-position flex items-center gap-[11px] bg-[#1c1e1f] p-[15px] [border:1px_solid_#313334] rounded-[9px] mt-[23px] [&>span]:flex-1 [&>span]:min-w-0 [&_b]:block [&_b]:text-[11px] [&_small]:block [&_small]:text-[8px] [&_small]:leading-[1.6] [&_small]:mt-[5px] [&_small]:text-[#a2a4a5] [&_.tag]:text-[7px] [&_.tag]:text-[#a2a4a5] [&_.tag]:[border-color:#d6dfc7] max-[620px]:p-[12px] max-[620px]:gap-[8px] max-[620px]:[&_b]:text-[9px] max-[620px]:[&_small]:text-[7px] max-[620px]:[&_.tag]:hidden">
         <Shield size={20} />
         <span>
           <b>Guardian-held loan · NEAR / USDC</b>
-          <small>Separate simulated position. Your wallet loan stays where it is.</small>
+          <small>
+            <ProvenanceTag
+              port={port}
+              label="Separate simulated position. Your wallet loan stays where it is."
+            />
+          </small>
         </span>
-        <Tag>G1 DEMO</Tag>
+        {port.provenance === "simulated" && <Tag>G1 DEMO</Tag>}
       </div>
       {!setupReview ? (
         <>
@@ -109,9 +116,11 @@ export function GuardianSetupDialog({
       ) : (
         <div className="policy-summary pt-[20px] [&_p]:text-[13px] [&_p]:leading-[1.9] [&_p]:text-[#a2a4a5] [&_p]:mt-[13px] [&_b]:text-[var(--ink)] [&_b]:font-bold max-[620px]:[&_p]:text-[12px]">
           <p>
-            When the simulated Guardian loan's health falls below <b>{policyFields.trigger}%</b>, it
-            may repay up to <b>{policyFields.max} USDC</b> per action, with at least{" "}
-            <b>{policyFields.cooldown} minutes</b> between actions.
+            {port.provenance === "simulated"
+              ? "When the simulated Guardian loan's health falls below"
+              : "When the Guardian loan's health falls below"}{" "}
+            <b>{policyFields.trigger}%</b>, it may repay up to <b>{policyFields.max} USDC</b> per
+            action, with at least <b>{policyFields.cooldown} minutes</b> between actions.
           </p>
           <p>
             It will keep at least <b>{policyFields.floor} USDC</b> in reserve and spend no more than{" "}
@@ -123,28 +132,35 @@ export function GuardianSetupDialog({
             )}
           </p>
           <p>
-            You deposit <b>{policyFields.deposit} USDC</b> into the demo reserve. Pause or
-            deactivate whenever you want, and withdraw unused reserve.
+            You deposit <b>{policyFields.deposit} USDC</b> into the{" "}
+            {port.provenance === "simulated" ? "demo reserve" : "reserve"}. Pause or deactivate
+            whenever you want, and withdraw unused reserve.
           </p>
         </div>
       )}
-      <div className="fee-box bg-[#1c1e1f] rounded-[9px] p-[15px] mt-[23px] flex flex-col gap-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:text-[10px] [&>div]:gap-[8px] [&>div>span]:flex [&>div>span]:items-center [&>div>span]:gap-[8px] [&_.tag]:text-[6px] [&_.tag]:text-[#a2a4a5] [&_.tag]:p-[3px_4px] [&_b]:text-[10px] [&_b]:whitespace-nowrap [&>small]:text-[8px] [&>small]:text-[#a2a4a5] [&>small]:leading-[1.7] max-[620px]:p-[12px] max-[620px]:[&_.tag]:text-[5px] max-[620px]:[&_.tag]:tracking-[0] max-[620px]:[&>div]:text-[8px] max-[620px]:[&_b]:text-[8px] max-[620px]:[&>small]:text-[7px]">
-        <div>
-          <span>
-            Activation fee <Tag>EXAMPLE PRICING</Tag>
-          </span>
-          <b>1.00 test USDC</b>
-        </div>
-        <div>
-          <span>Per-action fee</span>
-          <b>0.00 test USDC</b>
-        </div>
-        <small>Recipient: fees.demo.testnet · Demo pricing only; live pricing is undecided.</small>
-      </div>
-      <p className="fine-print text-[9px] leading-[1.8] text-[#a2a4a5] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
-        This flow simulates a separate Guardian account and loan. No account is created and no
-        tokens move on-chain. Protection cannot prevent liquidation.
-      </p>
+      {port.provenance === "simulated" && (
+        <>
+          <div className="fee-box bg-[#1c1e1f] rounded-[9px] p-[15px] mt-[23px] flex flex-col gap-[11px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:text-[10px] [&>div]:gap-[8px] [&>div>span]:flex [&>div>span]:items-center [&>div>span]:gap-[8px] [&_.tag]:text-[6px] [&_.tag]:text-[#a2a4a5] [&_.tag]:p-[3px_4px] [&_b]:text-[10px] [&_b]:whitespace-nowrap [&>small]:text-[8px] [&>small]:text-[#a2a4a5] [&>small]:leading-[1.7] max-[620px]:p-[12px] max-[620px]:[&_.tag]:text-[5px] max-[620px]:[&_.tag]:tracking-[0] max-[620px]:[&>div]:text-[8px] max-[620px]:[&_b]:text-[8px] max-[620px]:[&>small]:text-[7px]">
+            <div>
+              <span>
+                Activation fee <Tag>EXAMPLE PRICING</Tag>
+              </span>
+              <b>1.00 test USDC</b>
+            </div>
+            <div>
+              <span>Per-action fee</span>
+              <b>0.00 test USDC</b>
+            </div>
+            <small>
+              Recipient: fees.demo.testnet · Demo pricing only; live pricing is undecided.
+            </small>
+          </div>
+          <p className="fine-print text-[9px] leading-[1.8] text-[#a2a4a5] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
+            This flow simulates a separate Guardian account and loan. No account is created and no
+            tokens move on-chain. Protection cannot prevent liquidation.
+          </p>
+        </>
+      )}
       <div className="modal-actions flex gap-[10px] justify-end mt-[25px] [&_.button]:flex-1 [&_.button]:text-[10px]! max-[620px]:gap-[8px] max-[620px]:[&_.button]:text-[9px]! max-[620px]:[&_.button]:p-[12px_9px] max-[620px]:[&_.button]:gap-[6px]">
         <button
           type="button"
@@ -159,7 +175,11 @@ export function GuardianSetupDialog({
           disabled={!!policyError}
           onClick={setupReview ? activate : () => setSetupReview(true)}
         >
-          {setupReview ? "Approve in mock wallet" : "Review my rules"}
+          {setupReview
+            ? port.provenance === "simulated"
+              ? "Approve in mock wallet"
+              : "Approve in wallet"
+            : "Review my rules"}
           <ArrowRight size={17} />
         </button>
       </div>

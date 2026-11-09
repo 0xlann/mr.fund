@@ -524,6 +524,7 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
         {modal === "help" && <HelpDialog close={() => setModal(null)} />}
         {modal === "setup" && (
           <GuardianSetupDialog
+            port={activeSource.guardian}
             policyFields={policyFields}
             setPolicyFields={setPolicyFields}
             setupReview={setupReview}
