@@ -9,7 +9,8 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
 
 ## 2. Ports and demo source
 
-- [ ] 2.1 Define `ConsultationSource`, port types and `ChatEvent`/`ExecutionEvent` in `apps/web/src/play/source/types.ts`, reusing `@mrfund/shared` types; unit-test the type-level contract with a minimal fake.
+- [x] 2.1 Define `ConsultationSource`, port types and `ChatEvent`/`ExecutionEvent` in `apps/web/src/play/source/types.ts`, reusing `@mrfund/shared` types; unit-test the type-level contract with a minimal fake.
+  Evidence [V, 2026-11-10]: web typecheck first failed on missing source types, then `pnpm typecheck` passed; `pnpm exec vitest run apps/web/test`: 194 passed; `pnpm lint`: 204 files clean. Final interface recorded in design.md.
 - [ ] 2.2 Implement `ProvenanceTag` and the surface rule that a simulated port always shows a label; test simulated-with-label, live-without-label and mixed configurations, plus the negative case (simulated surface without label fails).
 - [ ] 2.3 Extract the position/engine fixture logic to the demo source `position` port (no UI change).
 - [ ] 2.4 Extract scripted chat into the demo `chat` port as an `AsyncIterable<ChatEvent>`; keep the two-second thinking and progressive reveal in the UI; test abort leaves no stale event.

@@ -28,6 +28,8 @@ interface GuardianPort extends Port { read(signal); control(action, signal): Asy
 
 `PositionView` carries exact decimal strings and engine outputs (health, liquidation price, data age), never floating-point money. Types reuse `@mrfund/shared` (`PositionSnapshot`, `Card`, `CardReceipt`).
 
+Final interface [I, task 2.1]: all stateful ports expose cached `getSnapshot`/`subscribe` for `useSyncExternalStore`; position also exposes `advice(amount)` and demo-state/refresh intents. Session owns identity and available balance; execution owns receipts and the last repayment transition. Execution and Guardian prepare an opaque approval id with display text, never a UI callback; only `execution.execute(id, outcome, signal)` applies it. Guardian owns policy validation, lifecycle, replay and watcher simulation. `ChatEvent` is the existing type from `@mrfund/agent` (including its shared `Card`); receipts retain shared `CardReceipt` plus presentation metadata and a separate local rejected status. `reset` resets the local domain without disconnecting, as before. No live implementation is added.
+
 ## Risks and limits
 
 - A refactor of this size can silently change rendering order or focus behavior. Mitigation: one extraction per commit, tests after each, and explicit render comparison at the end. Focus management and the entrance sequencing tests are the likeliest to fail and are checked after every step.
