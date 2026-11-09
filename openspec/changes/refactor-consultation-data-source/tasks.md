@@ -13,7 +13,8 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
   Evidence [V, 2026-11-10]: web typecheck first failed on missing source types, then `pnpm typecheck` passed; `pnpm exec vitest run apps/web/test`: 194 passed; `pnpm lint`: 204 files clean. Final interface recorded in design.md.
 - [x] 2.2 Implement `ProvenanceTag` for existing labels; test simulated-with-label, live-without-label and mixed configurations, plus the negative case (simulated label absent/invalid fails). Known unlabelled surfaces remain section 5.
   Evidence [V, 2026-11-10]: provenance tests first failed on the missing component; all 199 web tests now pass, workspace typecheck and Biome (206 files) pass. Parent explicitly preserved visible copy and deferred missing chat/mobile labels.
-- [ ] 2.3 Extract the position/engine fixture logic to the demo source `position` port (no UI change).
+- [x] 2.3 Extract the position/engine fixture logic to the demo source `position` port (no UI change).
+  Evidence [V, 2026-11-10]: position tests first failed on the missing adapter; `pnpm exec vitest run apps/web/test`: 201 passed, including original health, repayment, cached subscription and stale advice checks. Workspace typecheck and Biome (208 files) pass. UI cutover follows at 3.1.
 - [ ] 2.4 Extract scripted chat into the demo `chat` port as an `AsyncIterable<ChatEvent>`; keep the two-second thinking and progressive reveal in the UI; test abort leaves no stale event.
 - [ ] 2.5 Extract mock wallet connection and the four outcomes into the demo `session` and `execution` ports; test cancel/failure/partial/success keep or change balances exactly as before.
 - [ ] 2.6 Extract simulated Guardian lifecycle, over-limit rejection, replay, reserve and receipts into the demo `guardian` port.
