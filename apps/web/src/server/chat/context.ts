@@ -1,9 +1,10 @@
 import type { ProposalContext, ToolContext } from "@mrfund/agent";
 import { createGuardianClient } from "@mrfund/guardian-client";
-import { createRheaClient, readPosition } from "@mrfund/rhea";
-import { type FeeSchedule, isValidAccountId } from "@mrfund/shared";
+import type { FeeSchedule } from "@mrfund/shared";
+import { networkAccount, readPositionConfig } from "../position/config";
+import { createPositionLoader } from "../position/loader";
+import { record } from "../transport";
 import type { ChatRequest } from "./handler";
-import { bindTurnFetch, record } from "./transport";
 
 export interface ChatConfig {
   network: "testnet" | "mainnet";
@@ -11,14 +12,6 @@ export interface ChatConfig {
   lendingId: string;
   factoryId?: string;
   fees?: FeeSchedule;
-}
-function networkAccount(value: string, network: ChatConfig["network"]): boolean {
-  return (
-    isValidAccountId(value) &&
-    (network === "testnet"
-      ? value.endsWith(".testnet") || /^[a-f0-9]{64}$/.test(value)
-      : !value.endsWith(".testnet"))
-  );
 }
 function atomic(value: unknown): bigint {
   if (typeof value !== "string" || !/^(0|[1-9][0-9]{0,38})$/.test(value))
@@ -33,18 +26,13 @@ export function readChatConfig(
   env: Readonly<Record<string, string | undefined>>,
 ): ChatConfig | null {
   try {
-    const network = env.NEAR_NETWORK_ID;
-    if (network !== "testnet" && network !== "mainnet") return null;
-    const rpc = new URL(env.NEAR_RPC_URL ?? "");
-    if (rpc.protocol !== "https:" || rpc.username || rpc.password || rpc.hash) return null;
-    const lendingId = env.RHEA_LENDING_ID ?? "";
+    const readConfig = readPositionConfig(env);
+    if (!readConfig) return null;
+    const { network } = readConfig;
     const factoryId = env.GUARDIAN_FACTORY_ID || undefined;
-    if (!networkAccount(lendingId, network) || (factoryId && !networkAccount(factoryId, network)))
-      return null;
+    if (factoryId && !networkAccount(factoryId, network)) return null;
     const config: ChatConfig = {
-      network,
-      rpcUrl: rpc.toString(),
-      lendingId,
+      ...readConfig,
       ...(factoryId ? { factoryId } : {}),
     };
     const tokenId = env.FEE_TOKEN_ID;
@@ -73,27 +61,12 @@ export function readChatConfig(
 export function createContextLoader(config: ChatConfig, fetchImpl: typeof fetch = fetch) {
   return async (input: ChatRequest, signal: AbortSignal): Promise<ToolContext> => {
     try {
-      signal.throwIfAborted();
-      if (!networkAccount(input.accountId, config.network)) throw new Error();
-      const boundFetch = bindTurnFetch(fetchImpl, signal);
-      const status = await boundFetch(config.rpcUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: "chat-network", method: "status", params: [] }),
-        signal: AbortSignal.timeout(10_000),
-      });
-      const chain: unknown = await status.json();
-      if (!record(chain) || !record(chain.result) || chain.result.chain_id !== config.network)
-        throw new Error();
-      const client = createRheaClient(config.rpcUrl, boundFetch);
-      const result = await readPosition(
-        client,
-        { network: config.network, lendingId: config.lendingId },
-        input.accountId,
-      );
-      signal.throwIfAborted();
-      if (!result.ok) throw new Error();
-      const context: ToolContext = { snapshot: result.value, nowMs: Date.now() };
+      const { snapshot, client, boundFetch } = await createPositionLoader(
+        config,
+        fetchImpl,
+        false,
+      )(input.accountId, signal);
+      const context: ToolContext = { snapshot, nowMs: Date.now() };
       if (config.factoryId) {
         // Actual repository ABI: get_guardian, not an invented get_latest_guardian method.
         const lookup = await client.view(config.factoryId, "get_guardian", {
