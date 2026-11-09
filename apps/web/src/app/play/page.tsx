@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 export default function PlayPage() {
   return (
     <div className={`${bodyFont.variable} ${displayFont.variable}`}>
-      <PlayViewport />
+      <PlayViewport source="demo" />
     </div>
   );
 }

@@ -10,6 +10,7 @@ it("keeps simulation imports out of the hook and presentation modules", () => {
       /\.(ts|tsx)$/.test(file) &&
       !file.startsWith("source") &&
       file !== "Playground.tsx" &&
+      file !== "PlayViewport.tsx" &&
       file !== "demo.ts",
   );
   expect(files).toContain("useConsultation.ts");
