@@ -1,4 +1,5 @@
 import { comparison, draft, metrics, scenario, snapshot } from "../demo";
+import { demoDelay } from "./demoDelay";
 import type { DataState, PositionPort, PositionView } from "./types";
 
 export interface DemoPosition {
@@ -52,7 +53,7 @@ export function createDemoPosition(balance: () => bigint): DemoPosition {
       signal?.throwIfAborted();
       dataState = "loading";
       publish();
-      await new Promise<void>((resolve) => setTimeout(resolve, 650));
+      await demoDelay(650, signal);
       signal?.throwIfAborted();
       dataState = "fresh";
       publish();

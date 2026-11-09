@@ -1,3 +1,4 @@
+import { demoDelay } from "./demoDelay";
 import type { SessionPort, SessionView } from "./types";
 
 export interface DemoSession {
@@ -27,8 +28,7 @@ export function createDemoSession(): DemoSession {
         signal?.throwIfAborted();
         update({ connecting: true });
         try {
-          // ES2022 target does not provide Promise.withResolvers.
-          await new Promise<void>((resolve) => setTimeout(resolve, 700));
+          await demoDelay(700, signal);
           signal?.throwIfAborted();
           update({ connected: true });
         } finally {

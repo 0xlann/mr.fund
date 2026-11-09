@@ -1,5 +1,6 @@
 import { DEMO_FEE } from "../demo";
 import { amount, percent } from "../display";
+import { demoDelay } from "./demoDelay";
 import type { DemoPosition } from "./demoPosition";
 import type { DemoSession } from "./demoSession";
 import type { Approval, ExecutionEvent, ExecutionPort, ExecutionView, Receipt } from "./types";
@@ -101,7 +102,7 @@ export function createDemoExecution(session: DemoSession, position: DemoPosition
       const action = pending;
       if (!action || action.approval.id !== id) throw new Error("Unknown demo approval");
       pending = null;
-      await new Promise<void>((resolve) => setTimeout(resolve, 1100));
+      await demoDelay(1100, signal);
       signal.throwIfAborted();
       const previous = state.receipts[0];
       if (outcome === "cancel")
