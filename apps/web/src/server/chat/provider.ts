@@ -1,5 +1,5 @@
 import type { ChatProvider, ProviderReply, ProviderToolCall } from "@mrfund/agent";
-import { readBoundedBody, record } from "./transport";
+import { readBoundedBody, record } from "../transport";
 
 /** Bounded GLM reasoning; the evaluator records these exact runtime settings. */
 export const CHAT_GENERATION_SETTINGS = {

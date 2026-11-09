@@ -1,4 +1,5 @@
 import type { ChatProvider } from "@mrfund/agent";
+import { readProxyConfig } from "../../../server/admission";
 import { createContextLoader, readChatConfig } from "../../../server/chat/context";
 import { type ChatHandler, createChatHandler } from "../../../server/chat/handler";
 import { createNearAIProvider } from "../../../server/chat/provider";
@@ -22,19 +23,7 @@ export function POST(request: Request): Promise<Response> {
     } catch {
       // A bad credential destination is unavailable, never a request to an alternative host.
     }
-    const secret = process.env.CHAT_PROXY_SECRET;
-    const secretHeader = process.env.CHAT_PROXY_SECRET_HEADER;
-    const ipHeader = process.env.CHAT_PROXY_IP_HEADER;
-    const headerName = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
-    const proxy =
-      secret &&
-      secretHeader &&
-      ipHeader &&
-      headerName.test(secretHeader) &&
-      headerName.test(ipHeader) &&
-      secretHeader.toLowerCase() !== ipHeader.toLowerCase()
-        ? { secret, secretHeader, ipHeader }
-        : undefined;
+    const proxy = readProxyConfig(process.env);
     handler = createChatHandler({
       ...(provider ? { provider } : {}),
       loadContext: config
