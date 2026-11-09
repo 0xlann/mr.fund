@@ -90,7 +90,7 @@ Custody, network, pricing and production renderer decisions remain governed by t
 
 ### Observed evidence and limits
 
-[V] Baseline 936 tests passed with 3 skipped; final full suite 967 passed with 3 skipped. Typecheck, Biome and production build passed. Existing tests were not edited. All twelve desktop/360 px key-panel text captures matched; mobile chat was captured at the same progressive-reveal phase as the baseline. Evidence stays in ignored `scratch/`, not in shipped assets.
+[V] Baseline 936 tests passed with 3 skipped; final full suite 979 passed with 3 skipped. Typecheck, Biome (240 files) and production build passed. Independent review found no remaining issues after regression-tested corrections to invalid-draft recovery, mixed-label semantics, timer cleanup and streamed-card identity binding. Existing tests were not edited. All twelve desktop/360 px key-panel text captures matched; mobile chat was captured at the same progressive-reveal phase as the baseline. Evidence stays in ignored `scratch/`, not in shipped assets.
 
 [V] A managed Chromium `next dev` run completed connect, scripted ask, simulated repay, Guardian activation, over-limit rejection with unchanged reserve and deactivation. These were local UI/domain effects, not wallet signatures or chain transactions.
 
