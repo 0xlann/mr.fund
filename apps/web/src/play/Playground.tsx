@@ -14,7 +14,6 @@ import {
   LockKeyhole,
   MessageCircle,
   Mic,
-  MoreHorizontal,
   Pause,
   Play,
   Plus,
@@ -29,10 +28,10 @@ import {
   X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { type FormEvent, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
+import { ChatComposer } from "./ChatComposer";
 import { ChatMessages } from "./ChatMessages";
 import { ConsultationTabs, type DetailTab } from "./ConsultationTabs";
-import { chatComposerClass, chatInputClass, chatSendClass } from "./chatAppearance";
 import { DetailContent } from "./DetailContent";
 import { amount } from "./display";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
@@ -828,72 +827,17 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
                       )}
                     </div>
                   </div>
-                  <form
-                    className={chatComposerClass}
-                    onSubmit={(event: FormEvent) => {
-                      event.preventDefault();
-                      sendMessage(input);
-                    }}
-                  >
-                    <textarea
-                      rows={1}
-                      onFocus={() => setComposerFocused(true)}
-                      onBlur={() => {
-                        setComposerFocused(false);
-                        setKeyboardHeight(null);
-                      }}
-                      className={chatInputClass}
-                      aria-label="Message Mr.Fund"
-                      placeholder="Write a message…"
-                      value={input}
-                      maxLength={500}
-                      onChange={(event) => setInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (
-                          event.key === "Enter" &&
-                          !event.shiftKey &&
-                          !event.nativeEvent.isComposing
-                        ) {
-                          event.preventDefault();
-                          if (input.trim() && !thinking && streamingId === null)
-                            event.currentTarget.form?.requestSubmit();
-                        }
-                      }}
-                      disabled={thinking}
-                    />
-                    <div className="flex shrink-0 items-center gap-0.5 pb-1 pr-1 sm:gap-1">
-                      <button
-                        type="button"
-                        aria-label="Clear conversation"
-                        title="Clear conversation"
-                        onClick={clearConversation}
-                        className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#a2a4a5] transition-colors hover:bg-[#2b2d2e] hover:text-[#edf3f5]"
-                      >
-                        <MoreHorizontal size={17} />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="Open voice input"
-                        title="Voice input"
-                        onClick={() => openPanel("voice")}
-                        className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#a2a4a5] transition-colors hover:bg-[#2b2d2e] hover:text-[#edf3f5]"
-                      >
-                        <Mic size={17} />
-                      </button>
-                      <button
-                        type="submit"
-                        aria-label="Send message"
-                        disabled={!input.trim() || thinking || streamingId !== null}
-                        className={chatSendClass}
-                      >
-                        {thinking ? (
-                          <LoaderCircle size={17} className="animate-spin" />
-                        ) : (
-                          <ArrowUpRight size={20} />
-                        )}
-                      </button>
-                    </div>
-                  </form>
+                  <ChatComposer
+                    input={input}
+                    thinking={thinking}
+                    streamingId={streamingId}
+                    setInput={setInput}
+                    sendMessage={sendMessage}
+                    setComposerFocused={setComposerFocused}
+                    setKeyboardHeight={setKeyboardHeight}
+                    clearConversation={clearConversation}
+                    openPanel={openPanel}
+                  />
                 </section>
               )}
               {panel === "voice" && (
