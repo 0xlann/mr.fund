@@ -1,10 +1,10 @@
 import type { ProposalContext, ToolContext } from "@mrfund/agent";
 import { createGuardianClient } from "@mrfund/guardian-client";
-import { createRheaClient, readPosition } from "@mrfund/rhea";
 import type { FeeSchedule } from "@mrfund/shared";
 import { networkAccount, readPositionConfig } from "../position/config";
+import { createPositionLoader } from "../position/loader";
 import type { ChatRequest } from "./handler";
-import { bindTurnFetch, record } from "./transport";
+import { record } from "./transport";
 
 export interface ChatConfig {
   network: "testnet" | "mainnet";
@@ -61,27 +61,12 @@ export function readChatConfig(
 export function createContextLoader(config: ChatConfig, fetchImpl: typeof fetch = fetch) {
   return async (input: ChatRequest, signal: AbortSignal): Promise<ToolContext> => {
     try {
-      signal.throwIfAborted();
-      if (!networkAccount(input.accountId, config.network)) throw new Error();
-      const boundFetch = bindTurnFetch(fetchImpl, signal);
-      const status = await boundFetch(config.rpcUrl, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jsonrpc: "2.0", id: "chat-network", method: "status", params: [] }),
-        signal: AbortSignal.timeout(10_000),
-      });
-      const chain: unknown = await status.json();
-      if (!record(chain) || !record(chain.result) || chain.result.chain_id !== config.network)
-        throw new Error();
-      const client = createRheaClient(config.rpcUrl, boundFetch);
-      const result = await readPosition(
-        client,
-        { network: config.network, lendingId: config.lendingId },
-        input.accountId,
-      );
-      signal.throwIfAborted();
-      if (!result.ok) throw new Error();
-      const context: ToolContext = { snapshot: result.value, nowMs: Date.now() };
+      const { snapshot, client, boundFetch } = await createPositionLoader(
+        config,
+        fetchImpl,
+        false,
+      )(input.accountId, signal);
+      const context: ToolContext = { snapshot, nowMs: Date.now() };
       if (config.factoryId) {
         // Actual repository ABI: get_guardian, not an invented get_latest_guardian method.
         const lookup = await client.view(config.factoryId, "get_guardian", {

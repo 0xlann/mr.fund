@@ -60,6 +60,8 @@ The production Next build includes a dynamic `/api/chat` route. Transport, trust
 
 [I, interface, 2026-11-09] `readPositionConfig(env)` is the shared web-server public-read configuration boundary: it requires explicit `NEAR_NETWORK_ID` (`testnet` or `mainnet`), credential-free HTTPS `NEAR_RPC_URL` without a fragment, and a syntactically valid, network-matching `RHEA_LENDING_ID`. It never reads browser variables, fees, model keys or factory configuration. Chat retains its optional enrichment configuration separately. The shared account predicate treats `testnet` and `.testnet` descendants as testnet, canonical lowercase 64-hex implicit ids as network-neutral, and other valid named ids as mainnet; syntax does not establish existence or ownership.
 
+[I, interface, 2026-11-09] `createPositionLoader(config, fetch, verifyProvenance)` is request-scoped and checks RPC chain identity before delegating all snapshot parsing to unchanged `createRheaClient`/`readPosition`. Strict position reads intercept the config anchor, request `get_version` at that hash, accept only `0.11.0`/`0.16.2`, and preserve source hash/height/version plus typed failures. Chat explicitly disables that additional gate to preserve its existing optional proposal-version behavior. No factory, fee, model, retry or fixture fallback is involved in the public snapshot loader.
+
 ## Environment variables (names only)
 
 `.env.example` will list these names with empty values at P0.7. Values never enter git.
