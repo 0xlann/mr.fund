@@ -1,6 +1,6 @@
 import { MAX_DATA_AGE_MS } from "@mrfund/engine";
 import { createAdmission, edgeIp, type ProxyConfig, type RateLimit } from "../admission";
-import { readBoundedBody } from "../transport";
+import { abortable, readBoundedBody } from "../transport";
 import { networkAccount, type PositionConfig } from "./config";
 import { positionError } from "./errors";
 import { createPositionLoader, type PositionRead, PositionReadError } from "./loader";
@@ -27,7 +27,7 @@ export function createPositionHandler(deps: PositionHandlerDependencies): Positi
   const load =
     deps.loadPosition ??
     (deps.config ? createPositionLoader(deps.config, deps.fetchImpl ?? fetch, true) : undefined);
-  return async (request: Request): Promise<Response> => {
+  const execute = async (request: Request, signal: AbortSignal): Promise<Response> => {
     const network = deps.config?.network ?? null;
     const limited = () =>
       positionError("rate_limited", network, {
@@ -42,6 +42,8 @@ export function createPositionHandler(deps: PositionHandlerDependencies): Positi
     let selectors: PositionSelectors;
     try {
       const url = new URL(request.url);
+      if (new TextEncoder().encode(url.search.slice(1)).byteLength > 512)
+        return positionError("request_too_large", network);
       if (request.method === "POST") {
         if (
           request.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() !==
@@ -49,13 +51,11 @@ export function createPositionHandler(deps: PositionHandlerDependencies): Positi
         )
           return positionError("invalid_content_type", network);
         if (url.search) return positionError("invalid_input", network);
-        selectors = parsePositionSelectors(
-          await readBoundedBody(request.body, 1024, request.signal),
-        );
+        selectors = parsePositionSelectors(await readBoundedBody(request.body, 1024, signal));
       } else selectors = parsePositionSelectors(url.searchParams);
     } catch (error) {
       return positionError(
-        request.signal.aborted
+        signal.aborted
           ? "cancelled"
           : error instanceof RangeError
             ? "request_too_large"
@@ -70,7 +70,9 @@ export function createPositionHandler(deps: PositionHandlerDependencies): Positi
       return positionError("network_mismatch", network);
     if (!allow([`account:${network}:${selectors.accountId}`])) return limited();
     try {
-      const { snapshot, source } = await load(selectors.accountId, request.signal);
+      signal.throwIfAborted();
+      const { snapshot, source } = await load(selectors.accountId, signal);
+      signal.throwIfAborted();
       if (
         !source ||
         snapshot.accountId !== selectors.accountId ||
@@ -83,13 +85,38 @@ export function createPositionHandler(deps: PositionHandlerDependencies): Positi
       });
     } catch (error) {
       return positionError(
-        request.signal.aborted
+        signal.aborted
           ? "cancelled"
           : error instanceof PositionReadError
             ? error.code
             : "rpc_unavailable",
         network,
       );
+    }
+  };
+  return async (request) => {
+    const controller = new AbortController();
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 15000);
+    const disconnect = () => controller.abort();
+    request.signal.addEventListener("abort", disconnect, { once: true });
+    if (request.signal.aborted) disconnect();
+    try {
+      controller.signal.throwIfAborted();
+      const response = await abortable(execute(request, controller.signal), controller.signal);
+      controller.signal.throwIfAborted();
+      return response;
+    } catch {
+      return positionError(
+        timedOut ? "timeout" : controller.signal.aborted ? "cancelled" : "rpc_unavailable",
+        deps.config?.network ?? null,
+      );
+    } finally {
+      clearTimeout(timer);
+      request.signal.removeEventListener("abort", disconnect);
     }
   };
 }

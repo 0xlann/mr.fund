@@ -160,4 +160,24 @@ describe("public position HTTP boundary", () => {
       });
     },
   );
+  it("performs a new final-block read after each success without caching fetches", async () => {
+    const remote = rpc({
+      get_price_no_older_than: {
+        price: "100000000",
+        expo: -8,
+        conf: "0",
+        publish_time: NOW / 1000,
+      },
+    });
+    const cacheModes: (RequestCache | undefined)[] = [];
+    const fetchImpl: typeof fetch = async (target, init) => {
+      cacheModes.push(init?.cache);
+      return remote.fetchImpl(target, init);
+    };
+    const handle = createPositionHandler({ config, fetchImpl });
+    expect((await handle(get())).status).toBe(200);
+    expect((await handle(get())).status).toBe(200);
+    expect(remote.calls.filter((c) => c.method === "get_config")).toHaveLength(2);
+    expect(cacheModes.every((mode) => mode === "no-store")).toBe(true);
+  });
 });

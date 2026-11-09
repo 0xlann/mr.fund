@@ -1,5 +1,17 @@
 const encoder = new TextEncoder();
 
+/** Race non-cooperative dependencies as well as propagating physical cancellation. */
+export function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+  // ES2022 does not expose Promise.withResolvers.
+  let abort!: () => void;
+  const stopped = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    if (signal.aborted) abort();
+  });
+  return Promise.race([pending, stopped]).finally(() => signal.removeEventListener("abort", abort));
+}
+
 /** Count actual streamed bytes, not Content-Length; cancellation also interrupts body reads. */
 export async function readBoundedBody(
   body: ReadableStream<Uint8Array> | null,
@@ -46,7 +58,10 @@ export function bindTurnFetch(fetchImpl: typeof fetch, signal: AbortSignal): typ
   return async (target, init) => {
     const combined = init?.signal ? AbortSignal.any([signal, init.signal]) : signal;
     combined.throwIfAborted();
-    const response = await fetchImpl(target, { ...init, signal: combined, redirect: "error" });
+    const response = await abortable(
+      fetchImpl(target, { ...init, signal: combined, redirect: "error", cache: "no-store" }),
+      combined,
+    );
     if (!response.ok) {
       await response.body?.cancel();
       throw new Error("RPC unavailable");

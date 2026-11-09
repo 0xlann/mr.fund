@@ -8,7 +8,7 @@ import {
 } from "@mrfund/agent";
 import { isValidAccountId } from "@mrfund/shared";
 import { createAdmission, edgeIp, type ProxyConfig, type RateLimit } from "../admission";
-import { readBoundedBody, record } from "../transport";
+import { abortable, readBoundedBody, record } from "../transport";
 
 /** The account is a public-read selector, never an authenticated/signed-in identity. */
 export interface ChatRequest {
@@ -66,16 +66,6 @@ function parseRequest(value: unknown): ChatRequest {
     ...(value.guardianId === undefined ? {} : { guardianId: value.guardianId as string }),
     ...(value.history === undefined ? {} : { history }),
   };
-}
-function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
-  signal.throwIfAborted();
-  // This workspace targets ES2022, before Promise.withResolvers is available.
-  let abort!: () => void;
-  const stopped = new Promise<never>((_resolve, reject) => {
-    abort = () => reject(new Error("Turn interrupted"));
-    signal.addEventListener("abort", abort, { once: true });
-  });
-  return Promise.race([pending, stopped]).finally(() => signal.removeEventListener("abort", abort));
 }
 
 export type ChatHandler = (request: Request) => Promise<Response>;
