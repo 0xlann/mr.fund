@@ -1,5 +1,6 @@
 import { type GuardianPolicy, validatePolicy } from "@mrfund/shared";
-import { amount, atomic, DEMO_FEE } from "../demo";
+import { atomic, DEMO_FEE } from "../demo";
+import { amount } from "../display";
 import type { DemoExecution } from "./demoExecution";
 import type { DemoSession } from "./demoSession";
 import type { GuardianPort, GuardianView, PolicyFields } from "./types";

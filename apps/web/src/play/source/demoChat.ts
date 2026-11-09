@@ -1,5 +1,5 @@
 import { assembleCard } from "@mrfund/engine";
-import { amount, percent } from "../demo";
+import { amount, percent } from "../display";
 import type { Advice, ChatEvent, ChatPort, GuardianView, PositionView, Receipt } from "./types";
 
 interface ChatContext {

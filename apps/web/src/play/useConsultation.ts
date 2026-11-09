@@ -1,20 +1,16 @@
 "use client";
 import { mood as computeMood } from "@mrfund/engine";
-import { type GuardianPolicy, validatePolicy } from "@mrfund/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { DetailTab } from "./ConsultationTabs";
-import {
-  amount,
-  atomic,
-  comparison,
-  type DataState,
-  DEMO_FEE,
-  draft,
-  metrics,
-  percent,
-  scenario,
-  snapshot,
-} from "./demo";
+import { percent } from "./display";
+import type {
+  Approval,
+  ConsultationSource,
+  OwnerAction,
+  PolicyFields,
+  Receipt,
+  WalletOutcome,
+} from "./source/types";
 export type Panel = "chat" | "voice" | "position" | "guardian" | "activity";
 type Modal = "wallet" | "settings" | "setup" | "help" | null;
 type Message = {
@@ -22,35 +18,6 @@ type Message = {
   role: "user" | "assistant";
   text: string;
   kind?: "recommendation" | "scenario";
-};
-type Receipt = {
-  id: number;
-  title: string;
-  detail: string;
-  status: "confirmed" | "rejected" | "failed" | "partial";
-  at: string;
-  atMs: number;
-  before?: string;
-  after?: string;
-};
-type Pending = { title: string; description: string; amount: string; apply: () => void };
-export type PolicyFields = {
-  max: string;
-  cap: string;
-  floor: string;
-  deposit: string;
-  trigger: string;
-  target: string;
-  cooldown: string;
-};
-const initialFields: PolicyFields = {
-  max: "100",
-  cap: "400",
-  floor: "100",
-  deposit: "500",
-  trigger: "120",
-  target: "150",
-  cooldown: "5",
 };
 const greeting: Message = {
   id: 0,
@@ -70,7 +37,42 @@ function useMedia(query: string) {
   }, [query]);
   return matches;
 }
-export function useConsultation() {
+export function useConsultation(source: ConsultationSource) {
+  const session = useSyncExternalStore(
+    source.session.subscribe,
+    source.session.getSnapshot,
+    source.session.getSnapshot,
+  );
+  const position = useSyncExternalStore(
+    source.position.subscribe,
+    source.position.getSnapshot,
+    source.position.getSnapshot,
+  );
+  const execution = useSyncExternalStore(
+    source.execution.subscribe,
+    source.execution.getSnapshot,
+    source.execution.getSnapshot,
+  );
+  const guardianState = useSyncExternalStore(
+    source.guardian.subscribe,
+    source.guardian.getSnapshot,
+    source.guardian.getSnapshot,
+  );
+  const { connected, connecting, walletBalance } = session;
+  const { dataState, debt, now, snapshot: s, current } = position;
+  const { receipts, lastRepay, lastChange } = execution;
+  const {
+    guardian,
+    reserve,
+    guardianSpent,
+    guardianDebt,
+    savedFields,
+    watcherOnline,
+    spendable,
+    remaining,
+  } = guardianState;
+  const turn = useRef<AbortController | null>(null);
+  const operation = useRef<AbortController | null>(null);
   const [stage, setStage] = useState<"welcome" | "consult">("welcome");
   const [panel, setPanel] = useState<Panel | null>("chat");
   const wide = useMedia("(min-width: 1280px)");
@@ -148,13 +150,7 @@ export function useConsultation() {
       previousFocus.current?.focus();
     };
   }, [panel, openPanel]);
-  const [connected, setConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
   const [modal, setModal] = useState<Modal>(null);
-  const [dataState, setDataState] = useState<DataState>("fresh");
-  const [debt, setDebt] = useState(1_800_000_000n);
-  const [walletBalance, setWalletBalance] = useState(1_000_000_000n);
-  const [now, setNow] = useState(0);
   const [messages, setMessages] = useState<Message[]>([greeting]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
@@ -162,28 +158,13 @@ export function useConsultation() {
   const [repayAmount, setRepayAmount] = useState("100");
   const [adjusting, setAdjusting] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
-  const [lastRepay, setLastRepay] = useState<Receipt | null>(null);
-  const [lastChange, setLastChange] = useState<{
-    repaid: string;
-    before: string;
-    after: string;
-  } | null>(null);
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
-  const [pending, setPending] = useState<Pending | null>(null);
+  const [pending, setPending] = useState<Approval | null>(null);
   const [signing, setSigning] = useState(false);
-  const [walletOutcome, setWalletOutcome] = useState("success");
-  const [guardian, setGuardian] = useState<"inactive" | "active" | "paused" | "deactivated">(
-    "inactive",
-  );
-  const [reserve, setReserve] = useState(0n);
-  const [guardianSpent, setGuardianSpent] = useState(0n);
-  const [guardianDebt, setGuardianDebt] = useState(1_800_000_000n);
-  const [policyFields, setPolicyFields] = useState<PolicyFields>(initialFields);
-  const [savedFields, setSavedFields] = useState<PolicyFields>(initialFields);
+  const [walletOutcome, setWalletOutcome] = useState<WalletOutcome>("success");
+  const [policyFields, setPolicyFields] = useState<PolicyFields>(() => ({ ...savedFields }));
   const [setupReview, setSetupReview] = useState(false);
   const [comfort, setComfort] = useState("150");
-  const [watcherOnline, setWatcherOnline] = useState(true);
   const [notice, setNotice] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const timeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -217,10 +198,10 @@ export function useConsultation() {
   useEffect(() => {
     if (panel !== "chat" && streamingId !== null) finishText(streamingId);
   }, [panel, streamingId, finishText]);
-  const receiptId = useRef(0);
   useEffect(() => {
-    setNow(Date.now());
     return () => {
+      turn.current?.abort();
+      operation.current?.abort();
       for (const timer of timeouts.current) clearTimeout(timer);
       speechSequence.current++;
       playback.current = null;
@@ -239,8 +220,6 @@ export function useConsultation() {
     const timer = setTimeout(() => setNotice(""), 4500);
     return () => clearTimeout(timer);
   }, [notice]);
-  const s = snapshot(debt, now, dataState);
-  const current = metrics(s, now);
   const recent = receipts[0];
   const computed = computeMood(
     s,
@@ -268,49 +247,32 @@ export function useConsultation() {
       : dataState === "error"
         ? "concerned"
         : computed.state;
-  const card = draft(s, repayAmount, walletBalance, now);
-  const comp = comparison(s, card?.ok ? card.value.amount : 100_000_000n, now);
-  const whatIf = scenario(s, now);
+  const { card, comp, whatIf } = source.position.advice(repayAmount);
   const unavailable = dataState !== "fresh";
-  const max = atomic(savedFields.max) ?? 0n,
-    floor = atomic(savedFields.floor) ?? 0n,
-    cap = atomic(savedFields.cap) ?? 0n;
-  const spendable = reserve > floor ? reserve - floor : 0n;
-  const remaining = cap > guardianSpent ? cap - guardianSpent : 0n;
   function later(fn: () => void, ms: number) {
     const timer = setTimeout(fn, ms);
     timeouts.current.push(timer);
   }
-  function addReceipt(
-    title: string,
-    detail: string,
-    status: Receipt["status"] = "confirmed",
-    before?: string,
-    after?: string,
-  ) {
-    const item: Receipt = {
-      id: ++receiptId.current,
-      title,
-      detail,
-      status,
-      at: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
-      atMs: Date.now(),
-      ...(before ? { before } : {}),
-      ...(after ? { after } : {}),
-    };
-    setReceipts((prev) => [item, ...prev]);
-    return item;
+  async function refresh() {
+    const controller = new AbortController();
+    operation.current?.abort();
+    operation.current = controller;
+    try {
+      await source.position.refresh(controller.signal);
+      if (!controller.signal.aborted) setNotice("Simulated position refreshed.");
+    } catch (error) {
+      if (!controller.signal.aborted)
+        setNotice(error instanceof Error ? error.message : String(error));
+    }
   }
-  function refresh() {
-    setDataState("loading");
-    later(() => {
-      setNow(Date.now());
-      setDataState("fresh");
-      setNotice("Simulated position refreshed.");
-    }, 650);
-  }
-  function _ask(text: string) {
-    if (!text.trim() || thinking || streamingId !== null) return;
+  function sendMessage(text: string) {
+    if (!text.trim()) return;
+    const previousReply = streamingId;
+    stopReply();
+    if (previousReply !== null)
+      setMessages((prev) => prev.filter((message) => message.id !== previousReply));
+    const controller = new AbortController();
+    turn.current = controller;
     openPanel("chat");
     const question = text.trim().slice(0, 500);
     setMessages((prev) => [...prev, { id: ++messageId.current, role: "user", text: question }]);
@@ -319,51 +281,42 @@ export function useConsultation() {
     setSpeaking(false);
     const speechId = ++speechSequence.current;
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    later(() => {
-      if (speechSequence.current !== speechId) return;
+    const events = source.chat.send({ message: question, amount: repayAmount }, controller.signal);
+    later(async () => {
+      if (speechSequence.current !== speechId || controller.signal.aborted) return;
       const id = ++messageId.current;
-      const q = question.toLowerCase();
-      const indo = /kalau|harga|aku|berapa|jelas|aman|batas|apa |bayar|utang/.test(q);
-      let text =
-        "I can explain your Rhea position, compare repaying with earning yield, run a price-drop scenario, or explain Guardian. Try one of the prompts below.";
+      const indo = /kalau|harga|aku|berapa|jelas|aman|batas|apa |bayar|utang/.test(
+        question.toLowerCase(),
+      );
+      let text = "";
       let kind: Message["kind"];
-      if (unavailable)
-        text =
-          dataState === "empty"
-            ? "There isn't a lending position in this demo state. Switch back to Fresh in Demo settings to explore the full flow. A real position would be opened on Rhea."
-            : "I need fresh position data before giving you numbers. Refresh the position first; I won't guess.";
-      else if (/what if|drops|drop|turun|kalau/.test(q) && whatIf.ok) {
-        text = indo
-          ? `Skenario simulasi: kalau harga NEAR turun 20%, health factor menjadi ${percent(whatIf.value.value.healthBps)}. Batas likuidasi Rhea adalah 100%. Masih di atas batas pada skenario ini, tetapi risikonya tetap ada.`
-          : `In this simulated 20% NEAR price drop, your health becomes ${percent(whatIf.value.value.healthBps)}. Rhea's liquidation line is 100%. You stay above it in this scenario, with less room for another drop.`;
-        kind = "scenario";
-      } else if (/guardian|batas|reserve|protect|limit|what did|why didn/.test(q)) {
-        if (guardian === "inactive")
-          text = indo
-            ? "Guardian menggunakan cadangan untuk membayar utang sesuai batas yang kamu tentukan. Pinjaman yang dilindungi harus berada di akun Guardian. Coba setup demo melalui panel Guardian."
-            : "Think of Guardian as your rules, on watch. It can repay a Guardian-held loan from a reserve, within your caps and cooldown. Your existing wallet loan stays separate. Open the setup to try it.";
-        else if (/what did|today|history/.test(q))
-          text = `Guardian is ${guardian}. ${receipts.filter((r) => /Guardian|request|reserve/.test(r.title)).length} demo events are in Activity. Every attempt has a simulated receipt there, including rejected requests.`;
-        else if (/why didn/.test(q))
-          text = !watcherOnline
-            ? "The simulated watcher is offline. No automatic action can be requested while it's offline."
-            : guardian !== "active"
-              ? `Guardian is ${guardian}; automatic requests are blocked.`
-              : "No automatic repay is needed at the current demo health. You can run a labelled trigger replay from the Guardian panel.";
-        else
-          text = `Guardian is ${guardian}. Reserve: ${amount(reserve)} USDC; spendable above your floor: ${amount(spendable)} USDC. Each action is capped at ${savedFields.max} USDC, lifetime spend at ${savedFields.cap} USDC, with a ${savedFields.cooldown}-minute cooldown. Trigger: health below ${savedFields.trigger}%. Activation fee: 1.00 test USDC; action fee: 0.00. Watcher: ${watcherOnline ? "online" : "offline"}. It reduces risk within your limits; it cannot prevent liquidation. Pause, deactivate, or withdraw from the Guardian panel.`;
-      } else if (/repay|yield|smartest|bayar|interest/.test(q) && comp.ok) {
-        text = indo
-          ? `Dengan ${amount(comp.value.value.amountUsed)} USDC, membayar utang menghemat sekitar ${amount(comp.value.value.repaySaves)} USDC per tahun. Supply menghasilkan sekitar ${amount(comp.value.value.yieldEarns)} USDC. Dalam contoh ini, bayar utang lebih menguntungkan sebelum biaya.`
-          : `Let's put that cash to work on your debt. Repaying ${amount(comp.value.value.amountUsed)} USDC avoids an estimated ${amount(comp.value.value.repaySaves)} USDC in yearly interest. Supplying it earns ${amount(comp.value.value.yieldEarns)} USDC. Repaying wins before fees.`;
-        kind = "recommendation";
-        setCardOpen(true);
-        setLastRepay(null);
-      } else if (/position|health|utang|jelas/.test(q))
-        text = `Your demo position has 1,000 NEAR in collateral and ${amount(debt)} USDC in debt. Health: ${current.health === null ? "unavailable" : percent(current.health)}. Borrow APR is 21.00%; supply APR is 14.01%. These are illustrative inputs, refreshed for this demo. Below 100% health, Rhea can liquidate a position.`;
-      else if (/bitcoin|ethereum|trade|buy|leverage|ignore|10000|10,000/.test(q))
-        text =
-          "That action is outside this demo's permissions. I can help with the supported Rhea debt and Guardian limits. A chat message never authorizes a transaction.";
+      try {
+        for await (const event of events) {
+          if (controller.signal.aborted || speechSequence.current !== speechId) return;
+          if (event.type === "text") text += event.text;
+          else if (event.type === "progress" && event.tool === "what_if_price") kind = "scenario";
+          else if (event.type === "card") {
+            kind = "recommendation";
+            setCardOpen(true);
+            source.execution.clearRecommendation();
+          } else if (event.type === "error") {
+            setNotice(event.code);
+            setThinking(false);
+            return;
+          }
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setNotice(error instanceof Error ? error.message : String(error));
+          setThinking(false);
+        }
+        return;
+      }
+      if (controller.signal.aborted || speechSequence.current !== speechId) return;
+      if (!text) {
+        setThinking(false);
+        return;
+      }
       const canSpeak =
         soundRef.current &&
         "speechSynthesis" in window &&
@@ -397,230 +350,72 @@ export function useConsultation() {
       }
     }, 2000);
   }
-  function requestAction(action: Pending) {
+  function requestAction(action: Approval | string | null) {
     if (!connected) {
       setModal("wallet");
       setNotice("Connect the mock wallet, then try the action again.");
       return;
     }
+    if (typeof action === "string") {
+      setNotice(action);
+      return;
+    }
+    if (!action) return;
     setWalletOutcome("success");
     setPending(action);
   }
-  function confirmPending() {
+  async function confirmPending() {
     if (!pending || signing) return;
     setSigning(true);
-    later(() => {
-      if (walletOutcome === "cancel")
-        setNotice("You cancelled. Nothing changed; your draft is ready to retry.");
-      else if (walletOutcome === "failure") {
-        addReceipt(
-          pending.title,
-          "Simulated transaction failed. No balance changed. Retry when ready.",
-          "failed",
-        );
-        setNotice("Demo transaction failed. No funds moved.");
-      } else if (walletOutcome === "partial") {
-        addReceipt(
-          pending.title,
-          "Simulated batch stopped before applying the action. Fee and action steps were not applied. Review and retry.",
-          "partial",
-        );
-        setNotice("Partial demo batch. No balance change was applied.");
-      } else {
-        pending.apply();
+    const controller = new AbortController();
+    operation.current?.abort();
+    operation.current = controller;
+    try {
+      for await (const event of source.execution.execute(
+        pending.id,
+        walletOutcome,
+        controller.signal,
+      )) {
+        if (controller.signal.aborted) return;
+        if (event.type === "notice") setNotice(event.text);
+        else if (event.type === "done" && event.applied) {
+          if (pending.title === "Activate Guardian") {
+            setModal(null);
+            setSetupReview(false);
+          } else if (cardOpen && source.execution.getSnapshot().lastRepay !== lastRepay)
+            setCardOpen(false);
+        }
       }
-      setSigning(false);
-      setPending(null);
-    }, 1100);
+    } catch (error) {
+      if (!controller.signal.aborted)
+        setNotice(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (!controller.signal.aborted) {
+        setSigning(false);
+        setPending(null);
+      }
+    }
   }
-  function executeRepay() {
-    if (!card?.ok || unavailable) return;
-    const value = card.value;
-    requestAction({
-      title: `Repay ${amount(value.amount)} USDC`,
-      description:
-        "Mock approval for a repayment from your wallet. Execution fee: 0.10 test USDC to fees.demo.testnet. No transaction will be sent.",
-      amount: `${amount(value.amount + DEMO_FEE.executionFee)} test USDC`,
-      apply: () => {
-        const before = current.health === null ? "Unavailable" : percent(current.health);
-        const nextDebt = debt - value.amount;
-        const next = metrics(snapshot(nextDebt, Date.now()), Date.now());
-        setDebt(nextDebt);
-        setWalletBalance((balance) => balance - value.amount - DEMO_FEE.executionFee);
-        setNow(Date.now());
-        const receipt = addReceipt(
-          `Repaid ${amount(value.amount)} USDC`,
-          "Simulated wallet repayment. Fee: 0.10 test USDC to fees.demo.testnet. Result computed from the updated demo fixture; no chain confirmation.",
-          "confirmed",
-          before,
-          next.health === null ? "Unavailable" : percent(next.health),
-        );
-        setLastRepay(receipt);
-        setLastChange({
-          repaid: amount(value.amount),
-          before,
-          after: next.health === null ? "Unavailable" : percent(next.health),
-        });
-        setCardOpen(false);
-        setNotice("Repayment simulated. Your demo position has been updated.");
-      },
-    });
-  }
-  function policyValidation() {
-    const maxPerAction = atomic(policyFields.max),
-      lifetimeCap = atomic(policyFields.cap),
-      reserveFloor = atomic(policyFields.floor),
-      deposit = atomic(policyFields.deposit);
-    if (maxPerAction === null || lifetimeCap === null || reserveFloor === null || deposit === null)
-      return "Use positive token amounts with up to 6 decimals.";
-    const policy: GuardianPolicy = {
-      maxPerAction,
-      lifetimeCap,
-      reserveFloor,
-      triggerHfBps: Math.round(Number(policyFields.trigger) * 100),
-      targetHfBps: policyFields.target ? Math.round(Number(policyFields.target) * 100) : null,
-      cooldownSec: Number(policyFields.cooldown) * 60,
-      actionFee: 0n,
-    };
-    if (
-      !Number.isFinite(Number(policyFields.trigger)) ||
-      !Number.isFinite(Number(policyFields.target))
-    )
-      return "Enter a valid health threshold.";
-    const result = validatePolicy(policy);
-    if (!result.ok)
-      return "Trigger must be ≥105%, target above trigger, cooldown ≥5 minutes, and lifetime cap ≥ a positive action maximum.";
-    if (deposit < maxPerAction + reserveFloor)
-      return "Reserve deposit must cover the action maximum plus the reserve floor.";
-    if (deposit + DEMO_FEE.activationFee > walletBalance)
-      return "Your mock wallet cannot cover this reserve and activation fee.";
-    return null;
+  function executeCard() {
+    requestAction(source.execution.prepareRepay(repayAmount));
   }
   function activate() {
-    if (policyValidation()) return;
-    const deposit = atomic(policyFields.deposit) ?? 0n;
-    requestAction({
-      title: "Activate Guardian",
-      description:
-        "Simulate creating a separate Guardian-held loan and funding its reserve. Your wallet loan is not moved. Includes a 1.00 test USDC activation fee to fees.demo.testnet.",
-      amount: `${amount(deposit + DEMO_FEE.activationFee)} test USDC`,
-      apply: () => {
-        setGuardian("active");
-        setSavedFields({ ...policyFields });
-        setReserve(deposit);
-        setGuardianSpent(0n);
-        setGuardianDebt(1_800_000_000n);
-        setWalletBalance((balance) => balance - deposit - DEMO_FEE.activationFee);
-        setModal(null);
-        setSetupReview(false);
-        addReceipt(
-          "Guardian activated",
-          `Simulated reserve ${amount(deposit)} USDC; activation fee 1.00 test USDC. Separate Guardian-held loan fixture. No contract was created.`,
-        );
-        setNotice("Your demo Guardian is on watch.");
-      },
-    });
+    requestAction(source.guardian.prepare("activate", policyFields));
   }
-  function ownerAction(action: "pause" | "resume" | "deactivate" | "withdraw" | "topup") {
-    if (action === "withdraw" && reserve === 0n) {
-      setNotice("There is no reserve left to withdraw.");
-      return;
-    }
-    const topup = 50_000_000n;
-    if (action === "topup" && walletBalance < topup) {
-      setNotice("The mock wallet needs 50 USDC for this top-up.");
-      return;
-    }
-    const titles = {
-      pause: "Pause Guardian",
-      resume: "Resume Guardian",
-      deactivate: "Deactivate Guardian",
-      withdraw: "Withdraw reserve",
-      topup: "Top up reserve",
-    };
-    requestAction({
-      title: titles[action],
-      amount:
-        action === "withdraw"
-          ? `${amount(reserve)} test USDC`
-          : action === "topup"
-            ? "50.00 test USDC"
-            : "No token transfer",
-      description:
-        action === "deactivate"
-          ? "Stops future demo automation. Past actions stay in history, and unused reserve can still be withdrawn."
-          : action === "withdraw"
-            ? "Returns all unlocked demo reserve to your mock wallet. The floor limits automation, not owner withdrawals."
-            : "Simulated owner approval. No transaction or contract call is sent.",
-      apply: () => {
-        if (action === "withdraw") {
-          setWalletBalance((b) => b + reserve);
-          setReserve(0n);
-        } else if (action === "topup") {
-          setWalletBalance((b) => b - topup);
-          setReserve((r) => r + topup);
-        } else
-          setGuardian(
-            action === "pause" ? "paused" : action === "resume" ? "active" : "deactivated",
-          );
-        addReceipt(
-          titles[action],
-          "Owner control simulated with mock-wallet approval. No chain transaction.",
-        );
-        setNotice(`${titles[action]} simulated.`);
-      },
-    });
+  function ownerAction(action: OwnerAction) {
+    requestAction(source.guardian.prepare(action, policyFields));
   }
   function replay(overLimit = false) {
-    if (overLimit) {
-      addReceipt(
-        "Over-limit request rejected",
-        `Simulated operator test: requested ${amount(max + 1_000_000n)} USDC; your per-action limit is ${savedFields.max} USDC. Reason: AboveMaxPerAction. Reserve unchanged.`,
-        "rejected",
-      );
-      setNotice("Over-limit demo request rejected. Reserve unchanged.");
-      return;
-    }
-    if (guardian !== "active" || !watcherOnline) {
-      setNotice(
-        !watcherOnline
-          ? "Watcher is offline. Replay blocked."
-          : "Guardian must be active for a trigger replay.",
-      );
-      return;
-    }
-    const lastAction = receipts.some((r) => r.title === "Guardian repay replayed");
-    if (lastAction) {
-      addReceipt(
-        "Guardian request rejected",
-        `Simulated cooldown is ${savedFields.cooldown} minutes. Reset the demo to replay again.`,
-        "rejected",
-      );
-      setNotice("Cooldown blocks another demo replay.");
-      return;
-    }
-    const value = [max, spendable, remaining, guardianDebt].reduce((a, b) => {
-      if (a < b) return a;
-      return b;
-    });
-    if (value <= 0n) {
-      addReceipt(
-        "Guardian request rejected",
-        "Reserve floor, lifetime cap, or remaining debt prevents another action.",
-        "rejected",
-      );
-      return;
-    }
-    setReserve((r) => r - value);
-    setGuardianSpent((v) => v + value);
-    setGuardianDebt((d) => d - value);
-    addReceipt(
-      "Guardian repay replayed",
-      `SIMULATED trigger crossing: replay repaid ${amount(value)} USDC from the separate Guardian reserve. Action fee: 0.00. Reserve, floor, and lifetime cap enforced by local demo code only.`,
-    );
-    setNotice("Labelled trigger replay completed. No on-chain protection is claimed.");
+    const message = source.guardian.replay(overLimit);
+    if (message) setNotice(message);
+  }
+  function disconnect() {
+    source.session.disconnect();
+    setModal(null);
+    setNotice("Mock wallet disconnected.");
   }
   function stopReply() {
+    turn.current?.abort();
     speechSequence.current++;
     playback.current = null;
     setStreamingId(null);
@@ -632,23 +427,14 @@ export function useConsultation() {
     stopReply();
     setMessages([greeting]);
     setCardOpen(false);
-    setLastRepay(null);
+    source.execution.clearRecommendation();
   }
   function reset() {
     stopReply();
-    setDebt(1_800_000_000n);
-    setWalletBalance(1_000_000_000n);
-    setGuardian("inactive");
-    setReserve(0n);
-    setGuardianSpent(0n);
-    setGuardianDebt(1_800_000_000n);
-    setReceipts([]);
+    operation.current?.abort();
+    source.reset();
     setMessages([greeting]);
     setCardOpen(false);
-    setLastRepay(null);
-    setLastChange(null);
-    setDataState("fresh");
-    setNow(Date.now());
     setModal(null);
     setNotice("Demo reset. A fresh start for your money.");
   }
@@ -660,23 +446,29 @@ export function useConsultation() {
     if (connected) enterConsultation();
     else setModal("wallet");
   }
-  function connectDemoWallet() {
+  async function connect() {
     if (connecting) return;
-    setConnecting(true);
-    later(() => {
-      setConnecting(false);
-      setConnected(true);
+    const controller = new AbortController();
+    operation.current?.abort();
+    operation.current = controller;
+    try {
+      await source.session.connect(controller.signal);
+      if (controller.signal.aborted) return;
       setModal(null);
       setWave((v) => v + 1);
       setNotice("Mock wallet connected. Welcome to the office.");
       if (stage === "welcome") enterConsultation();
-    }, 700);
+    } catch (error) {
+      if (!controller.signal.aborted)
+        setNotice(error instanceof Error ? error.message : String(error));
+    }
   }
   const healthText =
     current.health === null || dataState === "error" || dataState === "loading"
       ? "—"
       : percent(current.health);
   return {
+    source,
     stage,
     panel,
     speaking,
@@ -693,15 +485,14 @@ export function useConsultation() {
     sound,
     setSound,
     connected,
-    setConnected,
+    disconnect,
     connecting,
     modal,
     setModal,
     dataState,
-    setDataState,
+    selectDataState: source.position.selectDataState,
     debt,
     walletBalance,
-    setNow,
     messages,
     input,
     setInput,
@@ -735,7 +526,7 @@ export function useConsultation() {
     comfort,
     setComfort,
     watcherOnline,
-    setWatcherOnline,
+    setWatcherOnline: source.guardian.setWatcherOnline,
     notice,
     setNotice,
     wide,
@@ -756,17 +547,17 @@ export function useConsultation() {
     spendable,
     remaining,
     refresh,
-    _ask,
+    sendMessage,
     confirmPending,
-    executeRepay,
-    policyValidation,
+    executeCard,
+    policyError: source.guardian.validate(policyFields),
     activate,
     ownerAction,
     replay,
     clearConversation,
     reset,
     startConsultation,
-    connectDemoWallet,
+    connect,
     healthText,
   };
 }

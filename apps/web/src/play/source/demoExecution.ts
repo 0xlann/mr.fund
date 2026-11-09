@@ -1,4 +1,5 @@
-import { amount, DEMO_FEE, percent } from "../demo";
+import { DEMO_FEE } from "../demo";
+import { amount, percent } from "../display";
 import type { DemoPosition } from "./demoPosition";
 import type { DemoSession } from "./demoSession";
 import type { Approval, ExecutionEvent, ExecutionPort, ExecutionView, Receipt } from "./types";

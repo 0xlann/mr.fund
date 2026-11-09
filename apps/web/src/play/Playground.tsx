@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
-import { type FormEvent, type ReactNode, useEffect, useId, useRef } from "react";
+import { type FormEvent, type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { ConsultationTabs, type DetailTab } from "./ConsultationTabs";
 import {
   ChatBrandAvatar,
@@ -44,13 +44,15 @@ import {
   chatSendClass,
 } from "./chatAppearance";
 import { DetailContent } from "./DetailContent";
-import { amount, type DataState, percent } from "./demo";
+import { amount, percent } from "./display";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
 import { PositionSummary } from "./PositionSummary";
 import { ProvenanceTag } from "./ProvenanceTag";
 import { ReplyText } from "./ReplyText";
+import { createDemoSource } from "./source/demoSource";
+import type { ConsultationSource, DataState, PolicyFields, WalletOutcome } from "./source/types";
 import { panelReveal, playClasses } from "./styles";
-import { type Panel, type PolicyFields, useConsultation } from "./useConsultation";
+import { type Panel, useConsultation } from "./useConsultation";
 import { VoicePanel } from "./VoicePanel";
 
 const CharacterPortrait = dynamic(
@@ -157,7 +159,9 @@ function Tag({ children, className = "" }: { children: ReactNode; className?: st
   return <span className={playClasses(`tag ${className}`)}>{children}</span>;
 }
 
-export function Playground() {
+export function Playground({ source }: { source?: ConsultationSource } = {}) {
+  const [defaultSource] = useState(() => source ?? createDemoSource());
+  const activeSource = source ?? defaultSource;
   const {
     stage,
     panel,
@@ -175,15 +179,14 @@ export function Playground() {
     sound,
     setSound,
     connected,
-    setConnected,
+    disconnect,
     connecting,
     modal,
     setModal,
     dataState,
-    setDataState,
+    selectDataState,
     debt,
     walletBalance,
-    setNow,
     messages,
     input,
     setInput,
@@ -238,19 +241,19 @@ export function Playground() {
     spendable,
     remaining,
     refresh,
-    _ask,
+    sendMessage,
     confirmPending,
-    executeRepay,
-    policyValidation,
+    executeCard,
+    policyError,
     activate,
     ownerAction,
     replay,
     clearConversation,
     reset,
     startConsultation,
-    connectDemoWallet,
+    connect,
     healthText,
-  } = useConsultation();
+  } = useConsultation(activeSource);
   const field = (
     name: keyof PolicyFields,
     label: string,
@@ -364,7 +367,7 @@ export function Playground() {
             </button>
             <p data-panel-enter="4" className="mt-3! text-center text-[10px] text-[#808c84]">
               <ProvenanceTag
-                port={{ provenance: "simulated" }}
+                port={activeSource.guardian}
                 label="Opt-in · Simulated policy preview"
               />
             </p>
@@ -553,7 +556,7 @@ export function Playground() {
               type="button"
               className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-[#203327]! [&:hover]:bg-[#a7c8b1]"
               onClick={() => {
-                _ask("Should I repay or earn yield?");
+                sendMessage("Should I repay or earn yield?");
               }}
             >
               Find my first move <ArrowRight size={17} />
@@ -580,7 +583,7 @@ export function Playground() {
         change={lastChange}
         onRefresh={refresh}
         onSettings={() => setModal("settings")}
-        onExplain={() => _ask("Explain my position")}
+        onExplain={() => sendMessage("Explain my position")}
       />
     );
   }
@@ -593,7 +596,7 @@ export function Playground() {
           {guardianContent()}
           <button
             type="button"
-            onClick={() => _ask("What are my Guardian limits?")}
+            onClick={() => sendMessage("What are my Guardian limits?")}
             data-panel-enter="5"
             className="mt-4 flex w-full items-center justify-between rounded-xl border border-[#313334] bg-[#1c1e1f] px-4 py-3 text-xs font-semibold"
           >
@@ -697,7 +700,7 @@ export function Playground() {
                     </b>
                   </span>
                   <ProvenanceTag
-                    port={{ provenance: "simulated" }}
+                    port={activeSource.position}
                     label="SIMULATED · PnL unavailable"
                     className="col-span-2 text-xs text-[#a2a4a5] 2xl:col-span-1"
                   />
@@ -908,7 +911,7 @@ export function Playground() {
                       {messages.length === 1 && (
                         <div className="prompt-grid mb-6 ml-[42px] max-md:ml-[88px] flex flex-wrap gap-2 [&_button]:inline-flex [&_button]:items-center [&_button]:gap-2 [&_button]:rounded-full [&_button]:border [&_button]:border-[#313334] [&_button]:bg-transparent [&_button]:px-3.5 [&_button]:py-2.5 [&_button]:text-left [&_button]:text-[11px] [&_button]:font-medium [&_button]:text-[#a2a4a5] [&_button]:transition-colors [&_button:hover]:bg-[#1f2122] [&_button:hover]:text-[#edf3f5]">
                           {prompts.map((p) => (
-                            <button type="button" key={p.label} onClick={() => _ask(p.text)}>
+                            <button type="button" key={p.label} onClick={() => sendMessage(p.text)}>
                               <span>{p.label}</span>
                             </button>
                           ))}
@@ -1023,7 +1026,7 @@ export function Playground() {
                                 <button
                                   type="button"
                                   className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-[#203327]! [&:hover]:bg-[#a7c8b1] small"
-                                  onClick={executeRepay}
+                                  onClick={executeCard}
                                   disabled={unavailable}
                                 >
                                   Execute now <ArrowUpRight size={15} />
@@ -1078,12 +1081,15 @@ export function Playground() {
                       )}
                       {messages.length > 1 && !thinking && streamingId === null && (
                         <div className="follow-up-prompts flex gap-[7px] flex-wrap mt-[14px] [&_button]:bg-transparent [&_button]:[border:1px_solid_#313334] [&_button]:rounded-[6px] [&_button]:p-[7px_8px] [&_button]:text-[8px] [&_button]:flex [&_button]:gap-[5px] [&_button]:items-center">
-                          <button type="button" onClick={() => _ask("What if NEAR drops 20%?")}>
+                          <button
+                            type="button"
+                            onClick={() => sendMessage("What if NEAR drops 20%?")}
+                          >
                             What if NEAR drops? <ArrowUpRight size={12} />
                           </button>
                           <button
                             type="button"
-                            onClick={() => _ask("What are my Guardian limits?")}
+                            onClick={() => sendMessage("What are my Guardian limits?")}
                           >
                             My Guardian limits <ArrowUpRight size={12} />
                           </button>
@@ -1095,7 +1101,7 @@ export function Playground() {
                     className={chatComposerClass}
                     onSubmit={(event: FormEvent) => {
                       event.preventDefault();
-                      _ask(input);
+                      sendMessage(input);
                     }}
                   >
                     <textarea
@@ -1162,7 +1168,7 @@ export function Playground() {
               {panel === "voice" && (
                 <VoicePanel
                   busy={thinking || streamingId !== null}
-                  onSend={_ask}
+                  onSend={sendMessage}
                   onNotice={setNotice}
                 />
               )}
@@ -1215,7 +1221,7 @@ export function Playground() {
             busy={thinking || streamingId !== null}
             onSend={(question) => {
               setVoiceOpen(false);
-              _ask(question);
+              sendMessage(question);
             }}
             onNotice={setNotice}
           />
@@ -1265,10 +1271,7 @@ export function Playground() {
           >
             <span className="mt-5 inline-flex items-center gap-2 text-[9px] font-medium tracking-[.08em] text-[#a2a4a5]">
               <span aria-hidden="true" className="size-1.5 rounded-full bg-[#bad7c3]" />
-              <ProvenanceTag
-                port={{ provenance: "simulated" }}
-                label="NETWORK · TESTNET · SIMULATED"
-              />
+              <ProvenanceTag port={activeSource.session} label="NETWORK · TESTNET · SIMULATED" />
             </span>
             <p className="mt-4! max-w-[320px] text-[13px] leading-[1.8] text-[#a2a4a5]">
               {connected
@@ -1301,7 +1304,7 @@ export function Playground() {
                   type="button"
                   className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] outline-button [border:1px_solid_#313334] bg-transparent [&:hover]:bg-[#ffffff40] full-width w-full"
                   onClick={() => {
-                    setConnected(false);
+                    disconnect();
                     setModal(null);
                     setNotice("Mock wallet disconnected.");
                   }}
@@ -1317,7 +1320,7 @@ export function Playground() {
                   aria-label={connecting ? "Connecting demo wallet" : "Connect demo wallet"}
                   className="group relative mt-7 flex w-full flex-col items-stretch gap-6 overflow-hidden rounded-[22px] border-0 bg-[#d3e5d7] p-5 text-left text-[#203327] transition-colors hover:bg-[#e1efe4] disabled:cursor-wait sm:p-6"
                   disabled={connecting}
-                  onClick={connectDemoWallet}
+                  onClick={connect}
                 >
                   <div className="flex items-start justify-between">
                     {connecting ? (
@@ -1393,8 +1396,7 @@ export function Playground() {
               <select
                 value={dataState}
                 onChange={(e) => {
-                  setDataState(e.target.value as DataState);
-                  setNow(Date.now());
+                  selectDataState(e.target.value as DataState);
                 }}
               >
                 <option value="fresh">Fresh — ready to explore</option>
@@ -1568,13 +1570,13 @@ export function Playground() {
                   )}
                   {field("cooldown", "Time between actions", "min", "Minimum 5 minutes.")}
                 </div>
-                {policyValidation() && (
+                {policyError && (
                   <p
                     className="field-error flex items-start gap-[6px] text-[#ffb18c] text-[10px] leading-[1.7] mt-[18px]!"
                     role="alert"
                   >
                     <AlertTriangle size={15} />
-                    {policyValidation()}
+                    {policyError}
                   </p>
                 )}
               </>
@@ -1630,7 +1632,7 @@ export function Playground() {
               <button
                 type="button"
                 className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-[#203327]! [&:hover]:bg-[#a7c8b1]"
-                disabled={!!policyValidation()}
+                disabled={!!policyError}
                 onClick={setupReview ? activate : () => setSetupReview(true)}
               >
                 {setupReview ? "Approve in mock wallet" : "Review my rules"}
@@ -1660,7 +1662,7 @@ export function Playground() {
               <select
                 disabled={signing}
                 value={walletOutcome}
-                onChange={(e) => setWalletOutcome(e.target.value)}
+                onChange={(e) => setWalletOutcome(e.target.value as WalletOutcome)}
               >
                 <option value="success">Confirmed — apply demo action</option>
                 <option value="cancel">Wallet rejection — keep draft</option>

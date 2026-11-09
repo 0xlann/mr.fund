@@ -2,7 +2,7 @@
 
 ### Requirement: Capability ports with declared provenance
 
-The consultation UI SHALL obtain session, position, chat, execution and Guardian data only through typed ports. Every port MUST declare `provenance` as `simulated` or `live`. The UI MUST NOT import fixture or simulation modules directly. This behavior-preserving refactor retains the known unlabelled baseline surfaces documented in design.md; it does not silently add visible copy.
+The consultation UI SHALL obtain session, position, chat, execution and Guardian data only through typed ports. Every port MUST declare `provenance` as `simulated` or `live`. Presentation components and `useConsultation` MUST NOT import fixture or simulation modules directly. The `Playground` composition root MAY lazily create a demo source when its optional source is absent; the page supplies its explicit source. This behavior-preserving refactor retains the known unlabelled baseline surfaces documented in design.md; it does not silently add visible copy.
 
 #### Scenario: Demo source is fully simulated
 

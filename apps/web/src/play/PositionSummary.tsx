@@ -7,7 +7,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Image from "next/image";
-import type { DataState } from "./demo";
+import type { DataState } from "./source/types";
 
 type Props = {
   state: DataState;

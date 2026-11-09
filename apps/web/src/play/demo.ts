@@ -1,10 +1,8 @@
 import { healthBps, liquidationPrice, repayCard, repayVsYield, whatIfPrice } from "@mrfund/engine";
-import {
-  decimalString,
-  type FeeSchedule,
-  type PositionSnapshot,
-  usdPerWholeToken,
-} from "@mrfund/shared";
+import { type FeeSchedule, type PositionSnapshot, usdPerWholeToken } from "@mrfund/shared";
+import type { DataState } from "./source/types";
+
+export { amount, percent } from "./display";
 
 export const USDC = "usdc.fakes.testnet";
 export const NEAR = "wrap.testnet";
@@ -15,7 +13,6 @@ export const DEMO_FEE: FeeSchedule = {
   actionFee: 0n,
   executionFee: 100_000n,
 };
-export type DataState = "fresh" | "loading" | "stale" | "empty" | "error";
 export function snapshot(debt: bigint, atMs: number, state: DataState = "fresh"): PositionSnapshot {
   const readAtMs = state === "stale" ? atMs - 300_000 : atMs;
   return {
@@ -57,13 +54,6 @@ export function atomic(input: string): bigint | null {
   const [whole = "0", fraction = ""] = input.split(".");
   const result = BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, "0"));
   return result <= (1n << 128n) - 1n ? result : null;
-}
-export function amount(value: bigint, digits = 2): string {
-  const [whole = "0", fraction = ""] = decimalString(value, 6).split(".");
-  return `${BigInt(whole).toLocaleString("en-US")}${digits ? `.${fraction.padEnd(digits, "0").slice(0, digits)}` : ""}`;
-}
-export function percent(bps: number | "no_debt"): string {
-  return bps === "no_debt" ? "No debt" : `${(bps / 100).toFixed(2)}%`;
 }
 export function metrics(s: PositionSnapshot, now: number) {
   const health = healthBps(s, now);

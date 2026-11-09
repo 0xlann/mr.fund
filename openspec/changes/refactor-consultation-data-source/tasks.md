@@ -24,7 +24,8 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
 
 ## 3. Hook and component split
 
-- [ ] 3.1 Add `useConsultation(source)` and move state and intents into it; `Playground` renders from the view model only.
+- [x] 3.1 Add `useConsultation(source)` and move state and intents into it; `Playground` renders from the view model only.
+  Evidence [V, 2026-11-10]: hook contract first failed typecheck before injection existed. After cutover `pnpm exec vitest run apps/web/test`: 214 passed, including unchanged interaction tests, eight baseline characterizations, abort/replacement hook tests and fixture-import guard; workspace typecheck and Biome (220 files) passed. Parent approved one atomic state-cutover commit-size exception and the composition-root default.
 - [ ] 3.2 Extract `WalletDialog`, `ChatPanel`, `PositionPanel`, `GuardianPanel`, `ActivityPanel` and `ReceiptDetail` one per commit; no style or copy change.
 - [ ] 3.3 Mount `demoSource` from `app/play/page.tsx`; verify the landing route's bundle does not include `play/source/`.
 
