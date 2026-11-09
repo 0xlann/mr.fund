@@ -52,6 +52,50 @@ The existing engine-driven repay-versus-yield comparison, what-if scenario, adju
 
 Custody, network, pricing and production renderer decisions remain governed by their existing OPEN-DECISIONS entries. No UI simulation proves contract enforcement or live availability.
 
+
+## Consultation module map — 2026-11-10
+
+[V, local implementation and checks] The source refactor preserves the existing consultation layout, copy, styles, focus sequence and CharacterPortrait dynamic loading. It changes where state lives, not what the product claims to execute.
+
+### Composition roots
+
+- `app/play/page.tsx` selects the serializable `source="demo"` mode.
+- `play/PlayViewport.tsx` owns the selected client source and preserves the existing `ssr: false` dynamic playground.
+- `play/Playground.tsx` composes scene, responsive layout, panels and dialogs from the hook view model. Its optional source has a lazy demo default for the unchanged no-prop regression entry.
+- The landing route imports no module from `play/source/`; its existing labelled illustrative figures remain separate.
+
+### Capability and state ownership
+
+| Module | Responsibility |
+| --- | --- |
+| `play/source/types.ts` | Five typed ports, independent provenance, cached subscription snapshots and opaque approvals; shared snapshot/card/receipt contracts are reused |
+| `play/source/demoSource.ts` | One in-memory source per consultation; composes the five simulated adapters |
+| `play/source/demoSession.ts` | Mock connection and available wallet balance |
+| `play/source/demoPosition.ts` | Fixture debt, data state, financial display figures and engine advice |
+| `play/source/demoChat.ts` | Existing scripted replies as progress/text/card/error/done-compatible events, cancelled with AbortSignal |
+| `play/source/demoExecution.ts` | Opaque approval settlement, four outcomes, receipts and last-repay transition |
+| `play/source/demoGuardian.ts` | Policy validation, lifecycle, reserve, separate protected debt, owner controls and bounded replay |
+| `play/useConsultation.ts` | Port subscriptions and user intents; draft, transcript, entrance/focus, speech and reveal coordination |
+| `play/display.ts` | Neutral bigint amount/percentage formatting, without importing fixtures |
+| `play/ProvenanceTag.tsx` | Existing authored simulation labels, independent for mixed ports; invalid simulated label text is rejected |
+
+### Focused presentation
+
+- `WalletDialog` renders session state and connection/disconnection intents.
+- `ChatPanel` composes `ChatMessages`, `RecommendationCard` and `ChatComposer`; no financial setter crosses into these modules.
+- `PositionPanel` renders position-port figures and refresh/explanation intents; the obsolete `PositionSummary` export/path was removed.
+- `GuardianPanel` composes `GuardianDetails`; `GuardianSetupDialog` and `PolicyField` render only the editable draft/review.
+- `ActivityPanel` lists source-owned receipts; `ReceiptDetail` renders selection details and activity navigation.
+- `ApprovalDialog`, `SettingsDialog`, `HelpDialog` and shared `ModalFrame` keep outcome controls, settings and native dialog focus behavior separate from scene composition.
+
+### Observed evidence and limits
+
+[V] Baseline 936 tests passed with 3 skipped; final full suite 979 passed with 3 skipped. Typecheck, Biome (240 files) and production build passed. Independent review found no remaining issues after regression-tested corrections to invalid-draft recovery, mixed-label semantics, timer cleanup and streamed-card identity binding. Existing tests were not edited. All twelve desktop/360 px key-panel text captures matched; mobile chat was captured at the same progressive-reveal phase as the baseline. Evidence stays in ignored `scratch/`, not in shipped assets.
+
+[V] A managed Chromium `next dev` run completed connect, scripted ask, simulated repay, Guardian activation, over-limit rejection with unchanged reserve and deactivation. These were local UI/domain effects, not wallet signatures or chain transactions.
+
+[U] Visual polish, performance and real-wallet/live-source correctness were not assessed. The pre-existing unlabelled chat/mobile simulation surfaces were deliberately not changed; task 5.1 of `refactor-consultation-data-source` defers visible labels to `add-live-wallet-session-ui` task 2.1. This is an explicit honesty gap, not permission to present fixtures as live.
+
 ## Verification
 
 Verification evidence is recorded in BUILD-PLAN as local demo progress. Browser visual QA remains with the user. Asset attribution and licenses are recorded in `public/play/ASSETS.md` and linked from How it works.

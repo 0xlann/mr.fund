@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-10: Preserve recommendation intent independently of card validity
+
+- What happened: independent review found that dismissing a zero-amount draft then asking about repay again lost the baseline's adjustment recovery card. A new DOM characterization failed on the missing Adjust amount action.
+- Root cause: the port cutover opened recommendations only on a valid protocol Card event; baseline code opened the recommendation whenever comparison succeeded, including invalid drafts.
+- Rule: represent recommendation intent with the existing progress/tool event independently of the validated card payload. Never manufacture an invalid executable Card to preserve a recovery surface. The new regression passes while existing tests remain unchanged.
+
 ### 2026-11-10: Validate non-collateral source timestamps before presentation
 
 - What happened: a new negative case showed a future-dated supplied-token quote could appear in a successful position response while health ignored that non-collateral token.
