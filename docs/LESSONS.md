@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-10: Clone nested shared snapshot fixtures before mutation
+
+- What happened: a presenter negative test changed a shared asset's APR and contaminated the next freshness test, which then refused the mutated numeric field.
+- Root cause: the existing engine fixture factory spreads overrides but reuses nested asset/price objects. Its snapshot object is new, its nested records are not.
+- Rule: tests that mutate nested snapshot data must structured-clone the fixture first; the isolated presenter suite passes all eight cases.
+
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### 2026-11-08: Keep WebGL resolution stable during CSS layout motion
 
 The portrait's ResizeObserver called renderer.setSize for every animated grid/viewport size change. That repeatedly reallocates the drawing buffer during the camera orbit; a second camera lerp also added a trailing stop. Keep projection responsive but defer buffer allocation until motion settles, and use one eased camera timeline. A 60-frame resize regression verifies one allocation during motion and one final commit. No browser FPS claim is implied.

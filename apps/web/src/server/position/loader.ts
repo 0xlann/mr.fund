@@ -10,6 +10,8 @@ export class PositionReadError extends Error {
       | "rpc_unavailable"
       | "untrusted_data"
       | "unsupported_protocol_version"
+      | "stale_data"
+      | "no_position"
       | "timeout",
   ) {
     super(code);
