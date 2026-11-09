@@ -7,10 +7,13 @@ import {
   TrendingUp,
 } from "lucide-react";
 import Image from "next/image";
-import type { DataState } from "./source/types";
+import { ProvenanceTag } from "./ProvenanceTag";
+import type { DataState, Port, PositionView } from "./source/types";
 
 type Props = {
   state: DataState;
+  port: Port;
+  figures: PositionView["figures"];
   health: string;
   debt: string;
   liquidation: string;
@@ -23,8 +26,8 @@ type Props = {
   onExplain: () => void;
 };
 
-/** Display values come from the demo's existing deterministic calculations. */
-export function PositionSummary(props: Props) {
+/** Render only values and recovery intents supplied by the position view. */
+export function PositionPanel(props: Props) {
   const empty = props.state === "empty";
   const error = props.state === "error";
   return (
@@ -112,7 +115,7 @@ export function PositionSummary(props: Props) {
                   name: "NEAR",
                   description: "Collateral",
                   delta: null,
-                  amount: "$5,000.00",
+                  amount: `$${props.figures.collateralUsd}`,
                   icon: "bg-[#f1f2f0] p-[9px]",
                   line: "#3fe08a",
                   points: "0,20 10,18 18,21 28,14 36,16 46,9 56,13 66,7 78,11 90,4 100,6",
@@ -187,14 +190,16 @@ export function PositionSummary(props: Props) {
               data-panel-enter="3"
               className="mt-3! px-1 text-[10px] leading-relaxed text-[#757778]"
             >
-              Trend lines are illustrative shapes, not price history. Amounts come from the
-              simulated position.
+              <ProvenanceTag
+                port={props.port}
+                label="Trend lines are illustrative shapes, not price history. Amounts come from the simulated position."
+              />
             </p>
             <dl data-panel-enter="4" className="mt-5 space-y-3 px-1 text-[11px]">
               {[
                 ["Est. NEAR liquidation price", props.liquidation],
-                ["Borrow APR", "21.00%"],
-                ["Supply APR", "14.01%"],
+                ["Borrow APR", props.figures.borrowApr],
+                ["Supply APR", props.figures.supplyApr],
               ].map(([label, value]) => (
                 <div key={label} className="flex justify-between gap-4">
                   <dt className="text-[#898b8c]">{label}</dt>

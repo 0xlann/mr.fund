@@ -13,7 +13,14 @@ export function createDemoPosition(balance: () => bigint): DemoPosition {
   function view(): PositionView {
     const now = Date.now();
     const value = snapshot(debt, now, dataState);
-    return { debt, now, dataState, snapshot: value, current: metrics(value, now) };
+    return {
+      debt,
+      now,
+      dataState,
+      snapshot: value,
+      current: metrics(value, now),
+      figures: { collateralUsd: "5,000.00", borrowApr: "21.00%", supplyApr: "14.01%" },
+    };
   }
   let current = view();
   function publish() {

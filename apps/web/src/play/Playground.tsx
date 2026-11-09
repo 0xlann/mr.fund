@@ -35,7 +35,7 @@ import { DetailContent } from "./DetailContent";
 import { amount } from "./display";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
 import { ModalFrame } from "./ModalFrame";
-import { PositionSummary } from "./PositionSummary";
+import { PositionPanel } from "./PositionPanel";
 import { ProvenanceTag, Tag } from "./ProvenanceTag";
 import { createDemoSource } from "./source/demoSource";
 import type { ConsultationSource, DataState, PolicyFields, WalletOutcome } from "./source/types";
@@ -131,6 +131,7 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
     speechCue,
     finishText,
     current,
+    figures,
     characterMood,
     card,
     comp,
@@ -471,7 +472,9 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
 
   function positionContent() {
     return (
-      <PositionSummary
+      <PositionPanel
+        port={activeSource.position}
+        figures={figures}
         state={dataState}
         health={healthText}
         debt={amount(debt)}

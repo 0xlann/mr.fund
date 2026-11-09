@@ -59,7 +59,7 @@ export function useConsultation(source: ConsultationSource) {
     source.guardian.getSnapshot,
   );
   const { connected, connecting, walletBalance } = session;
-  const { dataState, debt, now, snapshot: s, current } = position;
+  const { dataState, debt, now, snapshot: s, current, figures } = position;
   const { receipts, lastRepay, lastChange } = execution;
   const {
     guardian,
@@ -539,6 +539,7 @@ export function useConsultation(source: ConsultationSource) {
     speechCue,
     finishText,
     current,
+    figures,
     characterMood,
     card,
     comp,

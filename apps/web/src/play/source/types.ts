@@ -48,6 +48,7 @@ export interface PositionView {
   dataState: DataState;
   snapshot: PositionSnapshot;
   current: { health: number | "no_debt" | null; liquidation: string | null };
+  figures: { collateralUsd: string; borrowApr: string; supplyApr: string };
 }
 export interface Advice {
   card: Result<CardDraft, EngineError> | null;
