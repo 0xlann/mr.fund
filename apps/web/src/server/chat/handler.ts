@@ -1,5 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
-import { isIP } from "node:net";
 import {
   type ChatEvent,
   type ChatProvider,
@@ -9,6 +7,7 @@ import {
   type TurnSummary,
 } from "@mrfund/agent";
 import { isValidAccountId } from "@mrfund/shared";
+import { createAdmission, edgeIp, type ProxyConfig, type RateLimit } from "../admission";
 import { readBoundedBody, record } from "../transport";
 
 /** The account is a public-read selector, never an authenticated/signed-in identity. */
@@ -22,8 +21,8 @@ export interface ChatRequest {
 export interface ChatHandlerDependencies {
   provider?: ChatProvider;
   loadContext: (input: ChatRequest, signal: AbortSignal) => Promise<ToolContext>;
-  rateLimit?: { requests: number; windowMs: number; maxEntries: number };
-  proxy?: { secret: string; secretHeader: string; ipHeader: string };
+  rateLimit?: RateLimit;
+  proxy?: ProxyConfig;
 }
 function parseRequest(value: unknown): ChatRequest {
   if (
@@ -68,21 +67,6 @@ function parseRequest(value: unknown): ChatRequest {
     ...(value.history === undefined ? {} : { history }),
   };
 }
-function edgeIp(request: Request, proxy: ChatHandlerDependencies["proxy"]): string {
-  if (proxy?.secret) {
-    const supplied = new TextEncoder().encode(request.headers.get(proxy.secretHeader) ?? "");
-    const expected = new TextEncoder().encode(proxy.secret);
-    const ip = request.headers.get(proxy.ipHeader) ?? "";
-    if (
-      supplied.byteLength === expected.byteLength &&
-      timingSafeEqual(supplied, expected) &&
-      isIP(ip)
-    )
-      return ip;
-  }
-  // Next's Web Request has no authoritative peer address. Never trust x-forwarded-for by default.
-  return "direct-client";
-}
 function abortable<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
   signal.throwIfAborted();
   // This workspace targets ES2022, before Promise.withResolvers is available.
@@ -98,32 +82,7 @@ export type ChatHandler = (request: Request) => Promise<Response>;
 
 export function createChatHandler(dependencies: ChatHandlerDependencies): ChatHandler {
   const limit = dependencies.rateLimit ?? { requests: 10, windowMs: 60_000, maxEntries: 4096 };
-  const buckets = new Map<string, { used: number; expires: number }>();
-  if (
-    !Number.isSafeInteger(limit.requests) ||
-    limit.requests < 1 ||
-    !Number.isSafeInteger(limit.windowMs) ||
-    limit.windowMs < 1 ||
-    !Number.isSafeInteger(limit.maxEntries) ||
-    limit.maxEntries < 2
-  )
-    throw new Error("Invalid rate configuration");
-  const allow = (keys: string[]): boolean => {
-    const now = Date.now();
-    for (const [key, bucket] of buckets) if (bucket.expires <= now) buckets.delete(key);
-    const missing = keys.filter((key) => !buckets.has(key)).length;
-    if (
-      buckets.size + missing > limit.maxEntries ||
-      keys.some((key) => (buckets.get(key)?.used ?? 0) >= limit.requests)
-    )
-      return false;
-    for (const key of keys) {
-      const bucket = buckets.get(key) ?? { used: 0, expires: now + limit.windowMs };
-      bucket.used++;
-      buckets.set(key, bucket);
-    }
-    return true;
-  };
+  const allow = createAdmission(limit);
   return async (request) => {
     const started = Date.now();
     const controller = new AbortController();

@@ -1,3 +1,4 @@
+import { readProxyConfig } from "../../../server/admission";
 import { readPositionConfig } from "../../../server/position/config";
 import { createPositionHandler, type PositionHandler } from "../../../server/position/handler";
 
@@ -5,7 +6,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 let handler: PositionHandler | undefined;
 function handle(request: Request): Promise<Response> {
+  const proxy = readProxyConfig(process.env);
   handler ??= createPositionHandler({
+    ...(proxy ? { proxy } : {}),
     config: readPositionConfig(process.env),
     ...(process.env.MAX_DATA_AGE_MS === undefined
       ? {}
