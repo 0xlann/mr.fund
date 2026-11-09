@@ -2,16 +2,11 @@
 import {
   ArrowUpRight,
   BarChart3,
-  CircleHelp,
   History,
   Info,
   MessageCircle,
   Mic,
-  Settings2,
   ShieldCheck,
-  Volume2,
-  VolumeX,
-  Wallet,
   X,
 } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -19,6 +14,7 @@ import { type ReactNode, useState } from "react";
 import { ActivityPanel } from "./ActivityPanel";
 import { ApprovalDialog } from "./ApprovalDialog";
 import { ChatPanel } from "./ChatPanel";
+import { ConsultationHeader } from "./ConsultationHeader";
 import { ConsultationTabs, type DetailTab } from "./ConsultationTabs";
 import { DetailContent } from "./DetailContent";
 import { amount } from "./display";
@@ -28,7 +24,6 @@ import { HelpDialog } from "./HelpDialog";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
 import { ModalFrame } from "./ModalFrame";
 import { PositionPanel } from "./PositionPanel";
-import { ProvenanceTag } from "./ProvenanceTag";
 import { ReceiptDetail } from "./ReceiptDetail";
 import { SettingsDialog } from "./SettingsDialog";
 import { createDemoSource } from "./source/demoSource";
@@ -263,98 +258,22 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
       <h1 className="sr-only">Mr.Fund — your personal DeFi companion</h1>
       <div className="absolute inset-0 flex flex-col">
         {stage === "consult" && (
-          <header
-            inert={!chatRevealed}
-            aria-hidden={!chatRevealed}
-            className={`relative z-20 mx-auto flex h-[76px] w-full max-w-[1920px] shrink-0 items-center justify-between gap-3 px-4 md:h-[88px] md:px-8 transition-opacity duration-500 ${chatRevealed ? "opacity-100" : "opacity-0"} ${phone || keyboardHeight || shortMobile ? "h-14!" : ""}`}
-          >
-            <div className="flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-xl bg-[#e4d7ba] font-[family-name:var(--font-display)] text-2xl font-bold tracking-[-2px] text-[#1f2122]">
-                m.
-              </span>
-              <span className="font-[family-name:var(--font-display)] text-[22px] font-semibold tracking-[-1px]">
-                mr.fund<span className="ml-1 align-top text-[9px] text-[#999b9c]">®</span>
-              </span>
-              <span className="ml-3 hidden border-l border-white/10 pl-4 text-[10px] text-[#818384] 2xl:block">
-                A little clarity for your money.
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {stage === "consult" && (
-                <section
-                  aria-label="Position stats"
-                  className="mr-3 hidden grid-cols-2 items-center gap-x-5 gap-y-1 text-sm lg:grid 2xl:grid-cols-[auto_auto_auto]"
-                >
-                  <span className="text-[#8f9192]">
-                    Health{" "}
-                    <b className="ml-2 text-base font-semibold text-[#d7f8a4] tabular-nums">
-                      {healthText}
-                    </b>
-                  </span>
-                  <span className="text-[#8f9192]">
-                    Debt{" "}
-                    <b className="ml-2 text-base font-semibold text-[#e4dfed] tabular-nums">
-                      {dataState === "fresh" && debt > 0n ? `$${amount(debt)}` : "—"}
-                    </b>
-                  </span>
-                  <ProvenanceTag
-                    port={activeSource.position}
-                    label="SIMULATED · PnL unavailable"
-                    className="col-span-2 text-xs text-[#a2a4a5] 2xl:col-span-1"
-                  />
-                </section>
-              )}
-              <button
-                type="button"
-                aria-label="Demo settings"
-                onClick={() => setModal("settings")}
-                className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b]"
-              >
-                <Settings2 size={17} />
-              </button>
-              <button
-                type="button"
-                aria-label={sound ? "Mute spoken replies" : "Enable spoken replies"}
-                aria-pressed={sound}
-                onClick={() => {
-                  if (!("speechSynthesis" in window)) {
-                    setNotice(
-                      "Spoken replies aren't supported by this browser. Text chat still works.",
-                    );
-                    return;
-                  }
-                  setSound((value) => !value);
-                  window.speechSynthesis.cancel();
-                }}
-                className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b]"
-              >
-                {sound ? <Volume2 size={17} /> : <VolumeX size={17} />}
-              </button>
-              <button
-                type="button"
-                aria-label="How it works"
-                onClick={() => setModal("help")}
-                className="hidden size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b] sm:grid"
-              >
-                <CircleHelp size={17} />
-              </button>
-              {stage === "consult" && (
-                <button
-                  type="button"
-                  onClick={() => setModal("wallet")}
-                  className="ml-1 flex min-h-10 items-center gap-2 rounded-full border border-white/10 bg-[#202223] px-3 text-[11px] font-medium text-[#d8d5e0]"
-                >
-                  <Wallet size={15} />
-                  <span className="hidden sm:block">
-                    {connected ? "you.demo.testnet" : "Connect wallet"}
-                  </span>
-                  <span className="sr-only sm:hidden">
-                    {connected ? "you.demo.testnet" : "Connect wallet"}
-                  </span>
-                </button>
-              )}
-            </div>
-          </header>
+          <ConsultationHeader
+            stage={stage}
+            chatRevealed={chatRevealed}
+            phone={phone}
+            keyboardHeight={keyboardHeight}
+            shortMobile={shortMobile}
+            healthText={healthText}
+            dataState={dataState}
+            debt={debt}
+            port={activeSource.position}
+            sound={sound}
+            setSound={setSound}
+            setNotice={setNotice}
+            connected={connected}
+            setModal={setModal}
+          />
         )}
         <div
           className={`mx-auto grid min-h-0 w-full max-w-[1920px] flex-1 ${phone ? "grid-cols-1 grid-rows-[minmax(0,1fr)] gap-0 px-0 pb-[96px]" : `gap-4 px-4 md:gap-5 md:px-8 ${keyboardHeight || shortMobile ? `grid-cols-1 grid-rows-[minmax(0,1fr)] ${keyboardHeight ? "pb-4" : "pb-[88px]"}` : "grid-rows-[164px_minmax(0,1fr)] pb-[100px] md:grid-cols-[.7fr_1.3fr] md:grid-rows-1 xl:grid-cols-[.8fr_1.45fr_1fr] xl:pb-6"}`}`}
