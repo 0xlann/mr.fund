@@ -61,6 +61,22 @@ describe("checkNumbers", () => {
     if (!r.ok) expect(r.violations).toEqual(["7.3%"]);
   });
 
+  it.each([".99%", ",99%", "-.99%", "−,99%", "$.99", ".99 USDC"])(
+    "rejects unsupported leading-decimal claims: %s",
+    (claim) => {
+      expect(checkNumbers(`The quoted amount is ${claim}.`, []).ok).toBe(false);
+    },
+  );
+
+  it("matches leading decimals against the same exact value and unit", () => {
+    expect(checkNumbers("Rate: .99%.", [src("0.99", "%")]).ok).toBe(true);
+    expect(checkNumbers("Rate: ,99%.", [src("0.99", "%")]).ok).toBe(true);
+    expect(checkNumbers("Rate: -.99%.", [src("-0.99", "%")]).ok).toBe(true);
+    expect(checkNumbers("Rate: -.99%.", [src("0.99", "%")]).ok).toBe(false);
+    expect(checkNumbers("Price: $.99.", [src("0.99", "USD")]).ok).toBe(true);
+    expect(checkNumbers("Debt: .99 USDC.", [src("99", "USDC")]).ok).toBe(false);
+  });
+
   it("passes Indonesian formatting", () => {
     const r = checkNumbers("Utangmu 1.234,57 USDC.", sources);
     expect(r.ok).toBe(true);

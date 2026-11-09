@@ -4,7 +4,7 @@
 
 - **Decided by the founder on 2026-11-04:** D1 to D15 and D17 (verbatim table below), plus D20 to D23: 0xlann submits and owns `github.com/0xlann/mr.fund`; project skills are committed; `main` plus a `dev` branch; `docs/DESIGN.md` waits for frontend work.
 - **Decided 2026-11-05:** D16 tech stack, Option A (Next.js + Rust Guardian + Node watcher).
-- **Open, founder-owned, needed by the Phase 0 gate (2026-11-06):** D18 Guardian custody model (lead recommends G1 Guardian-held loan), D19 demo network (founder leans testnet; lead recommends the testnet-first ladder).
+- **Custody decided, network still open:** user selected D18 **G1 Guardian-held loan** on 2026-11-07. D19 demo network remains founder-owned and open (founder leans testnet; lead recommends the testnet-first ladder).
 - **The finding that changed the plan:** Rhea lending has **no repay-on-behalf** in its published source, so a Guardian cannot automatically repay a loan that lives in the user's wallet (D18, B1). Rhea's testnet lending contract exists, but its stablecoin price feeds returned `null` (D19, B2).
 - **Work that can proceed before those decisions:** the deterministic finance engine and Rhea read adapter are TypeScript under every viable stack option (BUILD-PLAN P1.1 to P1.5), and Phase 0 probes are read-only or testnet-only.
 
@@ -38,7 +38,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 
 | Id | Decision | Owner | Status | Needed by | Resolution |
 | --- | --- | --- | --- | --- | --- |
-| D18 | Guardian custody model | founder | Open (founder, 2026-11-04: "make it open decisions") | Phase 0 gate 2026-11-06 | Lead recommends G1 Guardian-held loan |
+| D18 | Guardian custody model | founder | Decided G1, 2026-11-07 | Phase 0 gate | User chose Guardian-held loan; owner position/factory implementation may proceed locally |
 | D19 | Demo network | founder | Open (founder leans testnet, 2026-11-04) | Phase 0 gate 2026-11-06 | Lead recommends the testnet-first ladder |
 | D20 | Submitter and GitHub owner | founder | Decided 2026-11-04 | P6.5 | 0xlann submits; repository `github.com/0xlann/mr.fund` |
 | D21 | Project skills tracked in git | founder | Decided 2026-11-04 | done | `.claude/skills/` committed with `skills-lock.json` |
@@ -51,10 +51,11 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 | D28 | Default comfort line and trigger | lead | Lead proposal | P1.5 | Comfort line health 150%, trigger default 120%, user-editable |
 | D29 | Watcher hosting | founder (account, cost) | Open, follows D16 | P5.3 | Options in D16 hosting table |
 | D30 | Protocol rate convention | user | Decided 2026-11-06 | P1.4 | Use Rhea APR fields end to end; rename shared types, engine and tools; no implicit APY conversion |
+| D31 | Dual browser login | user | Decided 2026-11-08 | P4.3 login slice | NEAR Auth hosted social/passkey onboarding plus NEAR Connect ecosystem wallets; no account linking, session keys or new spending authority |
 
 ### D16. Tech stack (Open)
 
-Context: Mr.Fund needs a web app with wallet signing, a server boundary that keeps the LLM key secret and runs deterministic tools, a Rust NEAR contract for the Guardian, and a watcher that requests Guardian actions. All versions below were observed live on 2026-11-04 (`npm view`, crates.io API, Rust stable channel manifest, Node release index); sources in [ARCHITECTURE](technical/ARCHITECTURE.md#proposed-stack-open-d16). None was installed or built.
+Context: Mr.Fund needs a web app with wallet signing, a server boundary that keeps the LLM key secret and runs deterministic tools, a Rust NEAR contract for the Guardian, and a watcher that requests Guardian actions. All versions below were observed live on 2026-11-04 (`npm view`, crates.io API, Rust stable channel manifest, Node release index); sources in [ARCHITECTURE](technical/ARCHITECTURE.md#selected-stack-and-historical-alternatives-d16). None was installed or built at that observation date.
 
 Shared core in every viable option: TypeScript 7.0.2 and React 19.3.1; wallet connection `@hot-labs/near-connect` 0.12.0 (what docs.near.org currently teaches) with `near-api-js` 7.4.0 for RPC; Rust `near-sdk` 5.30.0 (MSRV Rust 1.95; current stable 1.99.1), `cargo-near` 0.22.0 (stable; 0.23.0-rc.2 excluded), `near-workspaces` 0.24.0 for sandbox tests; NEAR AI Cloud through the `openai` 7.50.0 client; finance math on native `BigInt`; Vitest 5.1.0; Playwright 1.64.1; Node 24.22.2.
 
@@ -70,7 +71,7 @@ Character rendering (part of this decision, D26), listed without choosing: sprit
 
 **Resolution (2026-11-05):** Option A, chosen in a coding session after the question "can the backend be NestJS?" was answered. A NestJS `apps/api` (variant A′) was offered and not chosen: the backend is one streaming chat endpoint plus a separate watcher, so Route Handlers are enough and add no extra deployable. If a NestJS API is wanted later, keep it a separate process from the watcher (the chat process holds only the LLM key, the watcher only its function-call key). Package manager: pnpm 12.14.0. Lint and format: Biome 2.6.5 (lead choice, code files only). D26 (character rendering) and D29 (watcher host) remain open. The scaffold is BUILD-PLAN P0.7.
 
-### D18. Guardian custody model (Open)
+### D18. Guardian custody model (Decided G1, 2026-11-07)
 
 **How Rhea lending decides whose debt is repaid** [V, `ref-finance/burrowland` commit `2110c7047f2d72a9189abcbaad5eafb4e4a87f9e`, read 2026-11-04]:
 
@@ -94,7 +95,7 @@ Caveat [U]: the deployed contracts do not match the published source. Mainnet `c
 
 Recommendation [I]: **G1**, with wallet loans served by chat, cards and manual repay (F1 to F5). The cards already give the G2 experience, so G3 needs little extra beyond alerts. The demo then shows a Guardian-held loan for steps 5 to 7 of the never-cut demo.
 
-Blocker: B1. Founder response 2026-11-04: "make it open decisions and give the context on how the things works and whats the blocker". Affected docs: PRD F6, SMART-CONTRACT (written for G1 and marked draft), BUILD-PLAN Phase 2 and P5.
+Decision [user, 2026-11-07]: **G1 — Guardian-held loan**. This resolves B1 and permits local owner-position/factory work. Existing wallet loans remain manual repay/card flows; no automatic repayment on behalf is claimed. D19/B7 still gate public account creation, funding and deployment. Final provisioning ABI/storage evidence remains required before factory-dependent activation builders.
 
 ### D19. Demo network (Open; founder leans testnet)
 
@@ -153,6 +154,10 @@ The structure is fixed in PRD "Fees model": activation fee, per-action fee, exec
 
 Live NEAR AI Cloud catalog (`https://cloud-api.near.ai/v1/models`, read 2026-11-04) lists `Qwen/Qwen3.8-27B` (`supported_features: tools, structured_outputs, reasoning`; USD 0.04 per million input tokens, USD 1.35 per million output) and `z-ai/glm-5.3-flash` (tools, structured_outputs, reasoning, json_mode; USD 0.08 per million input, USD 0.50 per million output). Tutorial ids such as `zai-org/GLM-5.1-FP8` were absent from the live catalog. No provider-wide language guarantee exists. Choose by the P3.4 multilingual tool-calling eval; record the winner here.
 
+[V, 2026-11-08] The user selected `z-ai/glm-5.3-flash` for implementation and supplied local access (B6 resolved); this is not acceptance of its quality. The refreshed official catalog and four complete live runs, exact-decimal observed cost estimates and current generation settings are summarized in [CHAT-API](technical/CHAT-API.md#observed-evidence-2026-11-08). Qwen was not inferred against or compared.
+
+**BLOCKER (owner: lead):** the latest complete run produced 34/36 model answers and two guarded comparison fallbacks (`comparison.id`, `comparison.es`). Automated number/card/claim and language-heuristic checks passed, but comparison content failed. Independent assistant review of all 36 exact outputs completed at `2026-11-08T04:44:14.735636Z`: 36/36 correct language, 22 content/honesty approvals and 14 rejections, including provenance uncertainty; this is not human review or provider self-assessment. Findings and the ignored review artifact are summarized in CHAT-API. A later two-case repeat succeeded after rejecting an invented-number/unsupported-assurance candidate; it does not replace the complete dataset. D25/P3.4/OpenSpec 3.3 remain open pending passing full live evidence and independent review, not local test success. No deployment readiness is claimed.
+
 ### D26. Character rendering (Open)
 
 Options under D16. Decided together with the founder's visual references when DESIGN.md is written (D23).
@@ -160,6 +165,8 @@ Options under D16. Decided together with the founder's visual references when DE
 ### D27. Guardian trigger verification (Open, lead, depends on Gate 3)
 
 Preferred: the Guardian contract verifies the trigger itself. Inside `request_repay` it reads its own Rhea account, the asset configs and fresh prices from the oracle Rhea uses (`get_price_no_older_than` with the configured age), computes health with Rhea's formula, and rejects if health is at or above the trigger or any price is stale. Fallback, if P0.4 shows this is impractical (gas or interface): the trigger stays a watcher rule, and the contract still enforces caps, floor, cooldown, action and target. In that case **the per-action fee is dropped**, so the watcher operator earns nothing from unnecessary repays, and the disclosure changes to "a faulty watcher can repay early, within your limits; that only reduces your debt".
+
+Local composed evidence [V, 2026-11-07]: the preferred read → repay → resolver → fee chain fits an explicitly asserted 300 Tgas root budget on both imported Rhea versions, with >31 Tgas trigger-callback and >17 Tgas settlement continuation margin. Actual Guardian tests include fee failure and pause during reads; controlled partial/full-refund fixtures are distinguished from deployed Rhea surplus behavior. See [GUARDIAN-SETTLEMENT](technical/GUARDIAN-SETTLEMENT.md). This permits the local preferred implementation; D27/B4 public feasibility remains open pending the selected network's actual token/oracle and D18/D19/B7. No fallback or public deployment is authorized by this result.
 
 ### D28. Default comfort line and trigger (Lead proposal)
 
@@ -173,16 +180,24 @@ Follows D16: Option A needs an always-on Node host (Railway or Fly.io; Render's 
 
 Live testnet and mainnet `get_assets_paged_detailed` return decimal strings `supply_apr` and `borrow_apr`, contradicting the APY-only shared types. The user explicitly chose APR end to end during P1.4. Interfaces now use `supplyAprBps`, `borrowAprBps` and `yieldAprBps`, without old-name aliases. Supply floors and borrow ceils to integer basis points using exact arithmetic. Preserve the protocol's naming without claiming an APR/APY conversion or exact future compounded returns. This supersedes APY assumptions in historical test evidence.
 
+### D31. Dual browser login (Decided 2026-11-08)
+
+The user approved implementing `add-dual-near-auth` on a new branch from merged `dev`. Offer NEAR Auth hosted login and NEAR Connect wallets, preserving one explicitly selected network/account. Passkey/fingerprint availability belongs to the hosted tenant/device; login does not remove transaction approvals or change Guardian permissions. Mainnet Auth needs approved client credentials; D19 remains open. Named Auth account provisioning, funding, transaction submission and server authentication are outside this login slice.
+
+Execution scope update [V, user instruction, 2026-11-08]: stop all UI-related work for now. Finish the NEAR Auth/NEAR Connect adapters, account controller and non-UI verification only. React context/root wiring, `/connect`, DESIGN and app-level real-login proof are deferred to frontend integration; dual-login product intent is unchanged. The existing app UI must remain unchanged.
+
+The user also superseded D17's historical lack of a commit-size rule for subsequent work: **50–350 added/deleted lines per coherent commit**, including tests/docs/generated changes. No automatic merge is authorized.
+
 ## BLOCKERS
 
 | Id | Missing prerequisite | Owner | Status | Blocks plan ids | Next action / proof |
 | --- | --- | --- | --- | --- | --- |
-| B1 | Guardian custody choice (D18) | founder | Open | P2.4, P2.6, P5.1, P5.5 | Founder picks G1, G2 or G3 at the Phase 0 gate with the P0.3 evidence |
+| B1 | Guardian custody choice (D18) | founder | Resolved G1, 2026-11-07 | P2.4, P2.6, P5.1, P5.5 | User explicitly selected G1 Guardian-held loan; public network/funding gates remain separate |
 | B2 | Demo network choice and Gate 1 proof (D19) | lead runs probes, founder decides | Open | P0.2, P5.5, P6.4 | P0.2 result: fresh USDC price on testnet and a borrow transaction, or fallback |
 | B3 | Gate 2 proof on deployed Rhea code | lead | Open | P0.3, Phase 2 | Contract-owned position completes supply, collateral, borrow, withdraw, repay and release on testnet and in a sandbox with mainnet code imported |
 | B4 | Gate 3: in-contract trigger price source | lead | Open | P0.4, P2.5 | Contract reads a fresh price and computes the same health as the engine, or D27 fallback |
 | B5 | Tech stack (D16) | founder | Resolved 2026-11-05 | P0.7 and every app path | Option A chosen; see D16 |
-| B6 | NEAR AI Cloud API key and credits | founder | Open | P0.6, Phase 3 | Create an account and key at cloud.near.ai or request hackathon credits (link on docs.near.org hackathons page); place the key in local `.env` only |
+| B6 | NEAR AI Cloud API key and credits | founder | Resolved for local inference, 2026-11-08 | P0.6, Phase 3 | Local credential accepted by authenticated gateway; real GLM tool-calling turns exercised. Model acceptance is separate D25/P3.4 evidence; no credential is committed |
 | B7 | Testnet accounts, NEAR and listed test tokens | founder creates or authorizes the lead | Open | P0.2, P0.3, P2.8, P5 | Accounts listed in INTEGRATIONS "NEAR testnet accounts"; faucet NEAR; a way to obtain `usdc.fakes.testnet` [U] |
 | B8 | Watcher host account (D29) | founder | Open | P5.3 | After D16 |
 | B9 | Team members and other entries of 0xlann | 0xlann | Open | P6.3, P6.5 | Confirm the team list and whether 0xlann is on another entry (READMEs must name each other) |
@@ -207,7 +222,7 @@ Unblock evidence: sandbox test showing the Guardian computes health from a live-
 
 ### B6. LLM access
 
-No key exists yet, and none may be committed. Unblock evidence: one tool-calling request against each candidate model (P0.6) with its response saved under `scratch/` (never committed if it contains secrets).
+[V, 2026-11-08] The user supplied a local key and selected `z-ai/glm-5.3-flash` as the initial model. Authenticated gateway access, actual tool-call inference, and local HTTP chat with public Rhea reads succeeded. B6 is resolved for local inference; token/latency/quality evidence belongs to D25/P3.4 and [CHAT-API](technical/CHAT-API.md). Keys remain local and must never be committed or printed.
 
 ### B7. Accounts and tokens
 

@@ -2,7 +2,7 @@
 
 ## TL;DR and approval
 
-- **Status: draft.** Components, trust boundaries, flows, data model and threat model are written against product decisions D1 to D15. The tech stack is **Open** (D16); the Guardian custody model is **Open** (D18, written here for the recommended G1); the demo network is **Open** (D19). This document becomes final when those three are resolved at the Phase 0 gate (BUILD-PLAN P0.8).
+- **Status: draft for unresolved network/provisioning.** D16 Option A was decided on 2026-11-05: Next.js App Router/Route Handlers, Rust Guardian and a separate Node watcher. User selected **G1 Guardian-held loan** (D18, 2026-11-07); the demo network (D19) remains open. These diagrams include planned components; current implementation/evidence is tracked in BUILD-PLAN, not implied by arrows.
 - **Core invariant:** *the AI talks; deterministic code decides numbers; the contract decides permissions.* The LLM can read data and propose a card. It cannot build a transaction payload, sign anything, or reach the Guardian. Manual actions are signed by the user's wallet; automatic actions are requested by a deterministic watcher (no LLM in that path) and authorized only by the Guardian contract.
 - **No private keys leave the user.** The watcher holds one function-call key that can call exactly one Guardian method and attach no deposit.
 
@@ -12,7 +12,7 @@
 flowchart LR
   subgraph Browser["User device (untrusted UI, trusted wallet)"]
     UI[Web app: character, chat, position panel, cards, Guardian form]
-    W[Wallet via NEAR Connect]
+    W[NEAR Auth or NEAR Connect account context]
   end
   subgraph Server["Mr.Fund server (holds LLM key)"]
     API[Chat API]
@@ -48,6 +48,7 @@ flowchart LR
 | --- | --- | --- | --- | --- |
 | Web app | User input, wallet session, API responses | Rendered chat, cards, forms; transaction requests to the wallet | Chat transcript and receipts in browser storage | Untrusted for authority; displays only engine numbers |
 | Wallet (NEAR Connect) | Transactions built by the engine | Signatures, transaction outcomes | User keys | Trusted by the user; Mr.Fund never sees keys |
+| Dual-login module (D31) | Hosted Auth0 identity or NEAR Connect wallet accounts | Network-qualified selected account; no signer exposed in this slice | Provider-managed login state; network-scoped method/account hint only | Browser state is not server authentication or Guardian authority |
 | Chat API | Message, account id, locale | Streamed assistant reply, card drafts, character state | None durable (stateless per request) | Holds the LLM key; rate-limited |
 | Agent | Conversation, tool registry | Tool calls, final text, card drafts | None | LLM output is untrusted text |
 | Finance engine | Snapshots, policies, parameters | Numbers with inputs and assumptions; typed errors | None (pure) | Source of truth for every number |
@@ -57,6 +58,21 @@ flowchart LR
 | Guardian | Owner calls, watcher requests, token transfers | Rhea calls, events, views | Policy, reserve accounting, history | **Authority boundary for automatic actions** |
 | Rhea lending | Token transfers and `execute` | Position changes | Positions | External; behavior proven in Phase 0 |
 | Oracle | View calls | Prices with publish time | Prices | External; freshness enforced by consumers |
+
+### Dual-login implementation boundary (D31)
+
+[V, local, 2026-11-08] `apps/web/src/wallet/` implements explicit configuration, account validation, hosted identity-to-public-address derivation, NEAR Auth/NEAR Connect adapters and a framework-independent session controller. Per the user's later instruction, all UI-related integration is deferred: no React provider, root wiring, connection page or DESIGN work ships in this slice.
+
+- `createWalletSession(network, adapters, storage?)` exposes `getSnapshot`, `subscribe`, `restore`, `login`, `selectAccount`, `logout` and `dispose`. Its state contains lifecycle status, nullable selected session and a sanitized error.
+- The session contains method, network, accountId, validated account candidates and `contextKey`. Future frontend state must partition/reset by that key; it does not prove account ownership to a server.
+- Provider state, not browser hints, establishes account context. A restored method/account hint cannot add accounts absent from the provider.
+- Interactive login and sign-out are exclusive. Competing operations reject until they settle; do not queue popups and lose the user's gesture. Passive SDK events during login cannot supersede its final account read.
+- Generation guards discard obsolete passive/disposed results. They are not a substitute for exclusion: the connector's delayed sign-out mutates global provider state before returning.
+- Hosted Auth delegates identity validation to the official Auth0 browser SDK and uses the published network tenant/identity path to read the deployed MPC Ed25519 public key. An implicit address is neither a funded account nor evidence of transaction permission.
+- No signing method, raw token, private key or backend authorization credential crosses the interface. Guardian permissions, manual wallet approval and public-read chat behavior are unchanged.
+
+Observed module tests, the public MPC probe and remaining real-login gates are recorded in [INTEGRATIONS](INTEGRATIONS.md#dual-login-module-handoff-d31). React context and app-level login proof remain unchecked in `add-dual-near-auth`.
+
 
 ## Data flow
 
@@ -154,9 +170,9 @@ The over-limit beat in the demo is the first branch: a request with `A > max_per
 | Reserve exhausted | Spendable < minimum repay | Guardian panel and chat warn | User tops up or deactivates | Contract and watcher tests |
 | Rhea repay refunds part | `ft_resolve_transfer` returns unused | Receipt shows used and refunded | Refund returns to reserve | Sandbox test |
 
-## Proposed stack (open, D16)
+## Selected stack and historical alternatives (D16)
 
-Nothing here is approved. Options, comparison and recommendation: [OPEN-DECISIONS D16](../OPEN-DECISIONS.md#d16-tech-stack-open). Versions are live observations from 2026-11-04, not installs.
+D16 selected Option A on 2026-11-05; Option C below is historical comparison, not an active implementation track. [OPEN-DECISIONS D16](../OPEN-DECISIONS.md#d16-tech-stack-open) records the decision. Table versions are observations from 2026-11-04; installed versions/deviations and local verification are recorded in BUILD-PLAN P0.7 and subsequent evidence.
 
 | Layer | Option A (recommended) | Option C | Version source (2026-11-04) |
 | --- | --- | --- | --- |
@@ -182,7 +198,7 @@ Character rendering candidates (D26): sprite sheets with CSS; `lottie-react` 3.1
 
 ## Codebase structure and interfaces
 
-Stack-neutral layout. Under Option A, `apps/web` hosts the chat API as Route Handlers and `apps/watcher` is a Node process; under Option C, `apps/web` is a Vite SPA and `apps/edge` holds the Worker (`fetch` plus `scheduled`) that imports `packages/agent` and `apps/watcher/src/core`.
+Selected Option A layout: `apps/web` hosts the chat API as Route Handlers under `src/app/`, and `apps/watcher` is a Node process. The Option C edge layout in the historical comparison is not implemented.
 
 ```text
 apps/
@@ -205,6 +221,8 @@ scripts/                  Phase 0 probes and demo operator scripts
 ```
 
 Import rules: `engine` imports only `shared`. `rhea` and `guardian-client` import `shared` and the RPC client. `agent` imports `engine`, `rhea`, `guardian-client` and `shared`, and never a signer. The watcher imports `engine`, `rhea`, `guardian-client` and its own signer; it never imports `agent`. Transaction builders exist only in `rhea` and `guardian-client`.
+
+The D31 login slice lives in `apps/web/src/wallet/` and `/connect`, outside agent/server/watcher imports. Auth0's official browser SDK performs NEAR Auth login; the MPC public-key view maps its authenticated subject to an implicit address without creating or funding it. NEAR Connect supplies ecosystem accounts. The shared context exposes no signing API. Mainnet Auth approval, real login proof and wallet transaction submission have separate evidence gates in `add-dual-near-auth`; see its design for exact path/configuration and upstream SDK compatibility findings.
 
 ### Core types (TypeScript, `packages/shared`)
 
@@ -273,23 +291,37 @@ Rhea formulas implemented [V, burrowland source at `2110c70`, read 2026-11-04]:
 - `value = internal_balance × price.multiplier / 10^(price.decimals + extra_decimals)`; internal amount = token atomic amount × `10^extra_decimals`.
 - Liquidation is possible only while the discount `(B − C) / B / 2` is positive (health strictly below 100%).
 
-The engine rounds health down and debt up. These formulas are re-verified against the deployed version in P0.3 and P1.4.
+The engine rounds health down and debt up. Verification is split: shared-vector parity, actual deployed-code risk/discount behavior in local sandbox, and public display comparison. [PROTOCOL-EVIDENCE](PROTOCOL-EVIDENCE.md) records the 2026-11-07 observations and bounded source-model rounding differences. Public UI parity and the legacy deployment's scalar health remain unverified; local checks do not establish a universal 1-bp bound.
 
 ### Tool registry (`packages/agent`)
 
 | Tool | Arguments (validated) | Returns | Side effects |
 | --- | --- | --- | --- |
-| `get_position` | none (account from session) | Snapshot summary with health, liquidation price, data age | None |
+| `get_position` | none (account from validated server public-read context, not authentication) | Snapshot summary with health, liquidation price, data age | None |
 | `compare_repay_vs_yield` | `amount?`, `horizonDays` (default 365) | `repayVsYield` result | None |
 | `what_if_price` | `shocks[]` (bounded −95% to +500%) | `whatIfPrice` result, labelled scenario | None |
 | `propose_card` | `action` (enum), `amount?` | Card built by the engine, or a typed refusal | Creates a draft card shown in the UI; no signing |
-| `guardian_status` | none | Status, policy, reserve, spendable, watcher heartbeat | None |
-| `guardian_history` | `sinceMs?`, `limit` ≤ 50 | Attempts with reasons and tx links | None |
+| `guardian_status` | none | Validated status/policy/reserve/config, block provenance; correlated heartbeat observation or explicit unavailable | None |
+| `guardian_history` | `sinceMs?`, `limit` 1–50 | Backend-filtered retained attempts/reasons and known spend/fees; truncation and unavailable transaction links disclosed | None |
 | `explain_term` | `term` (enum of glossary terms) | Short fixed explanation | None |
 
 No tool signs, sends, changes a policy or calls the watcher. A card's payload is created by `rhea` or `guardian-client` builders from engine-validated parameters; the LLM's text never becomes payload bytes.
 
+Guardian read integration (local, 2026-11-07): `guardian-client` has an injected structural `GuardianViewClient` and a bounded public RPC implementation. `readGuardian` anchors `get_config` at finality `final`, pins status/policy/reserve/the complete retained ring to that block hash, rejects mixed provenance and validates actual Rust decimal-string u128/U64, snake_case enums, operation phases, policy and reserve arithmetic. Nanoseconds remain bigint; `nsToMs` checks conversion. `toGuardianState` explicitly maps the engine input. These are public reads, not authentication or on-chain code-hash verification.
+
+`dispatch` always returns `Promise<ToolResult>`; every caller awaits it, including formerly synchronous tools. The server injects `ToolContext.guardian` with a trusted network/account target and optional heartbeat dependency. Model arguments cannot choose contracts, owners, network, recipients or hashes. Tools correlate the Guardian owner/network/lending target and debt-token metadata with trusted snapshot context before emitting SourceNumbers. `sinceMs` is inclusive; filtering and latest-limit selection happen in the backend after reading at most 50 retained attempts. An empty result never proves no past activity.
+
+Chat runtime integration (2026-11-08): `runChatTurn` composes the awaitable dispatcher, current-turn source facts, bounded provider calls and pre-emission guards. `apps/web/src/app/api/chat/route.ts` constructs the real read-only context and native-fetch OpenAI-compatible provider from server environment. Request/account selection does not prove ownership; no signer or transcript database was added. The response is SSE progress followed by guarded text, unsigned cards and a terminal summary. See [CHAT-API](CHAT-API.md) for request/event contracts, cancellation, proxy/rate-limit boundaries, exact GLM settings and offline/live evaluation.
+
+Heartbeat evidence must match network/Guardian/current watcher and ordered nonfuture `lastSeenMs`/`observedAtMs`; more than 90 seconds since last seen yields `stale_observation`, otherwise `recent_observation`. Missing, malformed or failed observations remain unavailable; neither state proves uptime or a historical cause. Attempts lack transaction hashes and activation metadata, so no explorer link or paid-activation fee/date is inferred. Configured activation fee is explicitly separate from historical payment. Pending/unresolved placeholder zeros never become factual zero consumption or confirmed zero fees; only known accepted spend and terminal confirmed fees enter numeric facts. Full F7 event-link/activation-fee evidence remains open until a verified source is connected.
+
+Existing-instance owner controls: `guardianOwnerPayload` builds only fixed-target pause/resume/deactivate/withdraw/policy/rotation calls with 1 yocto and the current Rust ABI. It validates owner binding, a nonfuture read age no greater than 120 seconds, status transitions, shared locks, policy bounds and cumulative-spend floor. Owner withdrawal remains available after deactivation and may cross the automation reserve floor. `guardianOwnerCard` produces engine-owned deactivate/withdraw drafts from validated state; `propose_card` supports those two actions using a fresh server read. Reason prose never changes amounts or recipients, and payload bytes stay out of the tool message. These are unsigned existing-instance drafts, not proof of live execution or a deployed factory.
+
+Activation is deliberately unavailable: `guardianOwnerPayload({kind:"activate",…})` refuses until the final provisioning ABI is verified; the tool registry does not advertise it. No registration/create/fund sequence, factory method or funding amount is guessed. User requested stopping at client/tools; the separate factory work remains outside this merge. OpenSpec conditional tasks stay open, so the change is not archived while activation/provisioning tests are incomplete.
+
 ### Card (`packages/shared`)
+
+P4.3 backend update [V, local, 2026-11-07]: `packages/rhea` exports a pure outcome parser, bounded read-only outcome RPC adapter, ordered batch aggregation and fresh position reconciliation. Execution, token acceptance/refunds and debt/supplied deltas remain separate. `toCardReceipt` confirms repayment only when the entire batch succeeds and a valid post-read observes debt reduction; terminal execution without post-state stays separately visible as execution evidence while the receipt remains submitted. Health is injected from the deterministic engine by the composition root. Full API, limits, receipt mapping and sandbox fixture provenance: [REPAY-OUTCOMES](REPAY-OUTCOMES.md). Wallet/UI integration remains incomplete.
 
 ```ts
 type CardAction = "repay" | "guardian_activate" | "guardian_deactivate" | "guardian_withdraw";  // P1 adds "deposit"
@@ -366,19 +398,19 @@ erDiagram
 
 | Environment | Purpose | Status |
 | --- | --- | --- |
-| Local unit tests | Engine, builders, agent checker, contract unit tests | Planned |
-| Local sandbox (`near-workspaces`) | Guardian + factory + Rhea wasm (testnet `0.11.0` and, if importable, mainnet `0.16.2`) + mock price source | Planned (P0.3, P2.7) |
+| Local unit tests | Engine, builders, agent checker, contract unit tests | Exercised; detailed results in BUILD-PLAN |
+| Local sandbox (`near-workspaces`) | Probe + imported Rhea 0.11.0/0.16.2 + test tokens/Simulated oracle; Guardian policy/reserve | Exercised; factory and automatic Guardian flow remain incomplete |
 | NEAR testnet | Phase 0 probes, Guardian deployment, demo (D19 ladder steps 1 and 2) | Planned |
 | NEAR mainnet | Read-only engine validation; deployment only if the founder approves D19 step 3 | Planned, approval-gated |
 
-Planned verification commands (planned, not run; exact commands depend on D16):
+Verification commands (actual run summaries are in BUILD-PLAN; commands alone are not evidence):
 
 - `cargo test -p guardian` (contract unit tests), `cargo test -p contract-tests` (sandbox, Linux or WSL2).
 - `cargo near build non-reproducible-wasm` for development and `cargo near build reproducible-wasm` before any deployment.
 - Package unit tests: `vitest run` in each `packages/*` (exact runner script per D16).
 - `playwright test` for UI flows with the fake wallet adapter.
 
-Observed evidence so far: research read-only RPC views only (OPEN-DECISIONS D18, D19). Nothing is deployed.
+Observed evidence includes public read-only adapter recordings, local TypeScript/Rust tests and sandbox cycles on imported deployed Rhea code with new state and Simulated prices. No public deployment or live wallet repayment is claimed. D18 is G1 as of 2026-11-07; D19 and public funding/deployment gates remain open.
 
 ## Sources
 

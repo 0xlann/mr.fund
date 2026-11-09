@@ -1,4 +1,6 @@
 export const packageName = "@mrfund/agent" as const;
+export * from "./chat";
+export * from "./chat-types";
 export * from "./dispatch";
 export * from "./numbers";
 export * from "./persona";

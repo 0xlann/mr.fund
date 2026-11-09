@@ -1,14 +1,17 @@
-//! Guardian policy and reserve lifecycle (P2.1/P2.2). No lending or automatic repay yet.
+//! Guardian policy, reserve lifecycle and fixed-target automatic repayment.
 
 mod events;
 mod policy;
+mod position;
+mod repay;
 mod reserve;
 mod state;
+mod trigger;
 mod views;
 
 use near_sdk::{assert_one_yocto, env, near, require, serde_json::json, AccountId, PanicOnDefault};
 use policy::Policy;
-use state::{Attempt, GuardianConfig, InFlight, Status};
+use state::{Attempt, GuardianConfig, InFlight, PositionOperation, Status};
 use std::collections::VecDeque;
 
 #[near(contract_state)]
@@ -24,6 +27,8 @@ pub struct Guardian {
     next_op_id: u64,
     history: VecDeque<Attempt>,
     pending_reserve: Option<state::ReserveOperation>,
+    pending_position: Option<PositionOperation>,
+    repay_phase: Option<state::RepayPhase>,
 }
 
 #[near]
@@ -38,6 +43,7 @@ impl Guardian {
         policy
             .validate()
             .unwrap_or_else(|reason| env::panic_str(reason));
+        config.validate();
         Self {
             config,
             policy,
@@ -49,6 +55,8 @@ impl Guardian {
             next_op_id: 0,
             history: VecDeque::new(),
             pending_reserve: None,
+            pending_position: None,
+            repay_phase: None,
         }
     }
     #[payable]

@@ -33,6 +33,54 @@ The downloaded safe is authored with an open door and geometry baked relative to
 - Root cause: decorative geometry and real occluders shared the same pointer policy. A noninteractive first hit returned null before checking the board behind it.
 - Rule: explicitly mark pointer-transparent decorations and share one target resolver between hover and click. Three regression tests cover decoration passthrough to both boards, genuine wall occlusion, nested prop surfaces and the character. Typecheck passed; browser inspection remains with the user.
 
+### 2026-11-08: generation guards cannot undo wallet SDK side effects
+
+- What happened: lifecycle review traced delayed connector sign-out and sign-in events that could clear a newer connection. Two controller regressions reproduced competing-operation failures before the fix.
+- Root cause: the pinned connector removes its global selected-wallet after awaiting remote sign-out. Ignoring an old result does not undo that mutation; a sign-in event can also start a competing passive restore.
+- Rule: reject competing interactive operations until login/logout settles, preserve the user's explicit popup gesture, and let interactive login read final accounts without event-driven restores superseding it. Keep generation guards for passive/disposal results.
+
+### 2026-11-08: a browser dependency's sponsorship postinstall is not a required build
+
+- What happened: adding the pinned Auth0 browser SDK installed its dependencies but pnpm failed with `ERR_PNPM_IGNORED_BUILDS` for `browser-tabs-lock@1.3.0`.
+- Root cause: that package declares a postinstall which only prints sponsorship text; its published JavaScript needs no build. The connector also ships agent skills that this repository did not request.
+- Rule: inspect the exact lifecycle script before making a package-specific permission decision. Explicitly deny the unnecessary script and unrequested skills; retain strict defaults. `pnpm install --frozen-lockfile` then completed without executing that script.
+
+### 2026-11-08: a provenance guard must tokenize leading-decimal amounts
+
+- What happened: final review found that `.99%` bypassed the numeric checker without any tool source. Eight regression cases reproduced the missing rejection, including an actual chat turn that emitted the unsupported rate.
+- Root cause: the tokenizer required an initial digit and prevented matching digits immediately after a decimal separator, so leading-dot and leading-comma amounts disappeared from validation.
+- Rule: parse leading decimals with the same exact-value, sign and unit rules as other numbers. Keep both lexical boundary tests and a consumer-visible no-emission regression; passing ordinary decimal examples does not establish coverage of numerical notation.
+
+### 2026-11-08: a successful gateway response can contain null usage-detail objects
+
+- What happened: the first real chat HTTP smoke reached NEAR AI but returned the sanitized unavailable response. The actual gateway returned `prompt_tokens_details: null`; the provider adapter only accepted absent or object-valued details. A regression reproduced the rejection, then passed after nullish optional metadata was accepted.
+- Root cause: the scripted response fixture covered an object-valued cached-token breakdown, not the nullable shape observed from the gateway.
+- Rule: exercise the actual provider protocol before declaring integration complete. Treat optional metadata separately from required response data, keep errors sanitized, and describe observed usage as incomplete when a request fails or is interrupted.
+
+### 2026-11-07: a failed child creation is atomic, so the design's keyless failed child never exists
+
+- What happened: the factory design assumed a failed initialization could leave a keyless, half-initialized child holding committed funds, and planned phase reporting around it. The sandbox experiment showed create-account, transfer, deploy and `new` in one batch revert together: no child survives, and the whole deposit returns to the factory (the batch receipt's predecessor), not to the owner.
+- Root cause: the failure model was reasoned from multi-step creation instead of measured against the one-receipt batch that the protocol applies atomically.
+- Rule: measure failure phases before designing recovery. The factory forwards the refund to the owner in a checked callback and keeps `claim_refund` for a failed forward. Re-measure if creation is ever split into separate receipts.
+
+### 2026-11-07: a global-contract child was created and grew state with far too little balance
+
+- What happened: in the pinned sandbox (2.14.0) a child using a global contract by hash was created with 0.00086 NEAR against 686 bytes of storage, then accepted a state-growing call. The same funding boundary for stored code held to the exact yocto.
+- Root cause: unknown. The protocol's storage-stake check was not observed to bind for the global-contract child; the exact behavior on testnet is unverified.
+- Rule: never let a contract rely on the runtime to refuse under-funding. The factory enforces its own funding bounds, and the global strategy stays unadopted until a testnet publish and use passes and the behavior is explained.
+
+### 2026-11-07: near-sdk `#[private]` is not enforced when a unit test calls a callback directly
+
+- What happened: a unit test expected a direct call to a factory callback by a foreign account to panic with "private"; it ran the body instead.
+- Root cause: the `#[private]` check lives in the exported wrapper, which direct Rust calls skip. A `Promise` also schedules its receipt only when dropped, so a test that holds the returned value sees no receipt.
+- Rule: prove privacy with a real sandbox call and look for the "private" failure text. Unit tests can only prove checks written in the method body. Drop the promise before reading receipts.
+
+### 2026-11-07: deployed liquidation event fields differ across Rhea versions
+
+- What happened: the sandbox health-evidence test found `old_discount: "0.0725"` on imported 0.16.2, but the same successful liquidation on 0.11.0 emitted no discount fields.
+- Root cause: the published source and the newer deployment's event shape were assumed to describe both versions. The legacy raw event carries account ids, repaid/collateral sums and position only.
+- Rule: validate event evidence against the observed version. Missing fields remain unknown; never manufacture scalar health from the very engine being compared. Preserve both versions' raw evidence and separately test deployed risk boundaries.
+
 ### 2026-11-06: a strict legacy repay amount fails when full debt rounds up
 
 - What happened: review asked for the legacy full-repay dust boundary. A sandbox debt of 10000000000000000001 internal units failed when the atomic-ceiled repayment used strict `Repay.amount`; deployed testnet bytecode panicked in pool subtraction.

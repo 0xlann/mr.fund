@@ -1,6 +1,6 @@
 use near_sdk::{
     json_types::{U128, U64},
-    near, AccountId,
+    near,
 };
 
 pub const HISTORY_LEN: usize = 50;
@@ -23,17 +23,41 @@ pub struct InFlight {
     pub started_ns: u64,
 }
 
+pub use guardian_types::GuardianConfig;
+
 #[near(serializers = [json, borsh])]
-#[derive(Clone)]
-pub struct GuardianConfig {
-    pub owner_id: AccountId,
-    pub watcher_id: AccountId,
-    pub lending_id: AccountId,
-    pub oracle_id: AccountId,
-    pub debt_token_id: AccountId,
-    pub collateral_token_ids: Vec<AccountId>,
-    pub fee_recipient_id: AccountId,
-    pub activation_fee: U128,
+#[derive(Clone, Debug, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum RepayPhase {
+    Reading,
+    Repaying,
+    Fee { used: U128 },
+    Unresolved,
+}
+
+#[near(serializers=[json])]
+#[derive(Clone, Debug)]
+#[serde(tag = "outcome", rename_all = "snake_case")]
+pub enum RequestOutcome {
+    Rejected { op_id: U64, reason: RejectReason },
+    Executed { op_id: U64, used: U128, fee: U128 },
+    Failed { op_id: U64 },
+    Unresolved { op_id: U64 },
+}
+
+/// Owner position operations that hold the shared lock (`in_flight`). `Unresolved`
+/// is terminal: an ambiguous manual repayment has no administrative unlock.
+#[near(serializers = [borsh])]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PositionOperation {
+    Register,
+    Collateral,
+    Borrow,
+    Release,
+    ManualRepay,
+    SweepRead,
+    SweepSend,
+    Unresolved,
 }
 
 #[near(serializers = [borsh])]
@@ -51,10 +75,11 @@ pub enum Outcome {
     Started,
     Settled,
     Failed,
+    Unresolved,
 }
 
 #[near(serializers = [json, borsh])]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum RejectReason {
     NotActive,
@@ -67,6 +92,9 @@ pub enum RejectReason {
     TriggerNotMet,
     StalePrice,
     UnsupportedPositionShape,
+    InvalidConfig,
+    BadResponse,
+    ArithmeticOverflow,
 }
 
 #[near(serializers = [json, borsh])]

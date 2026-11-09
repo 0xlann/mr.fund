@@ -18,6 +18,8 @@ dist/
 build/
 out/
 .next/
+# Next dev regenerates this local framework-reference file.
+/apps/web/AGENTS.md
 coverage/
 *.tsbuildinfo
 *.wasm.map

@@ -49,10 +49,10 @@ const ORDINAL_MAX = 31n;
 const ORDINAL_SUFFIX = /^(st|nd|rd|th)$/i;
 const THOUSANDS_ONLY = /[  '’]/;
 
-// A token starts where no letter, digit, underscore, dot or comma precedes it,
-// and is digits joined by separators that each have a digit on both sides, so
-// a sentence-final period is never part of it.
-const TOKEN = /(?<![\p{L}\p{N}_.,])([-−])?(\d+(?:[.,  '’]\d+)*)/gu;
+// A token starts where no letter, digit, underscore, dot or comma precedes it.
+// Accept a leading decimal separator as well as digit-separated groups; a
+// sentence-final period is never part of either form.
+const TOKEN = /(?<![\p{L}\p{N}_.,])([-−])?(\d+(?:[.,  '’]\d+)*|[.,]\d+)/gu;
 
 function dec(digits: string, scale: number): Dec {
   return { int: BigInt(digits), scale };

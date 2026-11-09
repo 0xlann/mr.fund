@@ -3,7 +3,10 @@
 The DeFi manager you can talk to: he explains your position in plain words, shows you the
 smartest move, and acts only within limits you set.
 
-> Status: scaffold. Nothing is deployed and no feature works yet. Scope and progress live in
+> Status: the local engine, read adapter, unsigned transaction builders, agent tools and
+> guarded chat API are implemented. Guardian/factory contract progress and evidence are
+> tracked in BUILD-PLAN. Wallet/chat UI integration, watcher operation and public deployment remain incomplete.
+> Scope and progress live in
 > [docs/PRD.md](docs/PRD.md) and [docs/BUILD-PLAN.md](docs/BUILD-PLAN.md).
 
 ## Layout
@@ -30,11 +33,24 @@ pnpm test               # vitest, all TypeScript packages
 npx vitest run packages/shared   # one package
 pnpm typecheck
 pnpm lint
-pnpm contracts:test     # cargo test in contracts/
+pnpm contracts:probe:prepare  # fresh clone: download public WASM and build local fixtures
+pnpm contracts:test     # cargo test in contracts/ (needs preparation above)
 pnpm --filter @mrfund/web dev
 ```
 
 Copy `.env.example` to `.env` and fill it locally. Never commit `.env`.
+
+## Browser login modules
+
+NEAR Auth and NEAR Connect adapters plus an account-session controller are implemented in `apps/web/src/wallet/`. **UI integration is deferred by the user's instruction:** there is no connection screen or React provider yet. Module tests and a public MPC key read do not establish successful human login, funding or signing. Interfaces, public configuration and remaining proof: [dual-login handoff](docs/technical/INTEGRATIONS.md#dual-login-module-handoff-d31).
+
+## Chat API
+
+The backend-only `POST /api/chat` streams progress, guarded text, unsigned cards and a terminal summary. Configure the server's `NEARAI_*` and network/Rhea environment variables before starting the web app; root `.env` values must be explicitly injected into the `apps/web` process. Missing pricing disables action proposals rather than inventing zero fees.
+
+Request/event formats, local setup, limits, GLM settings and evaluation commands: [CHAT-API](docs/technical/CHAT-API.md). Account ids select public reads; they are not authenticated identities. NEAR Auth/NEAR Connect and wallet signing are not implemented by this endpoint.
+
+Model acceptance is still open (D25/P3.4): the latest complete live-inference benchmark returned 34 model answers and two guard fallbacks on **Simulated** data. Completed independent assistant review (not human/provider review) found 36/36 correct language but only 22 content/honesty approvals and 14 rejections, including provenance uncertainty. Local implementation checks do not establish deployment readiness. See the [observed evidence](docs/technical/CHAT-API.md#observed-evidence-2026-11-08).
 
 ## Honest limits
 

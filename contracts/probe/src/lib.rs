@@ -1,5 +1,6 @@
 //! Throwaway Phase 0 probe (BUILD-PLAN P0.3, P0.4). Deleted at P6.2 unless reused.
 
+mod composed;
 mod trigger;
 
 use near_sdk::{
@@ -23,6 +24,7 @@ pub struct Probe {
     in_flight: Option<u64>,
     last_result: Option<ProbeResult>,
     last_trigger_result: Option<trigger::TriggerResult>,
+    composed: Option<composed::ComposedOperation>,
 }
 
 #[near(serializers = [json, borsh])]
@@ -66,6 +68,7 @@ impl Probe {
             in_flight: None,
             last_result: None,
             last_trigger_result: None,
+            composed: None,
         }
     }
 

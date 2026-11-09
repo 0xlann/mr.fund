@@ -217,3 +217,48 @@ fn malformed_token_result_is_not_reported_as_success() {
     assert_eq!(result.used, None);
     assert_eq!(p.in_flight, None);
 }
+
+#[test]
+fn composed_probe_reserves_continuation_gas_instead_of_read_only_callback() {
+    let mut p = probe();
+    context("owner.test.near", 1);
+    testing_env!(VMContextBuilder::new()
+        .current_account_id(id("probe.test.near"))
+        .predecessor_account_id(id("owner.test.near"))
+        .attached_deposit(NearToken::from_yoctonear(1))
+        .prepaid_gas(Gas::from_tgas(1000))
+        .build());
+    // Structural receipt assertion only. The sandbox test separately enforces 300 Tgas.
+    let _ = p.probe_compose_repay(
+        trigger::TriggerConfig {
+            oracle_id: id("oracle.test.near"),
+            collateral_price_id: "11".repeat(32),
+            debt_price_id: "22".repeat(32),
+            max_price_age_sec: 60,
+            threshold_bps: 12000,
+            legacy_oracle: true,
+        },
+        U128(7),
+        U128(1),
+        id("owner.test.near"),
+        "0.11.0".into(),
+        None,
+    );
+    let mut found = false;
+    for r in get_created_receipts() {
+        for a in r.actions {
+            if let near_sdk::mock::MockAction::FunctionCallWeight {
+                method_name,
+                prepaid_gas,
+                ..
+            } = a
+            {
+                if method_name == b"on_trigger_checked" {
+                    assert_eq!(prepaid_gas, Gas::from_tgas(160));
+                    found = true;
+                }
+            }
+        }
+    }
+    assert!(found);
+}

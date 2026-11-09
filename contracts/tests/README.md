@@ -1,5 +1,23 @@
 # P0.3 sandbox probe
 
+P4.3 outcome recording: ordinary probe cycles capture raw FINAL RPC outcomes,
+receipt action details, execution block headers and before/after account views
+under ignored `contracts/target/probes/outcomes/`. To regenerate the twelve
+tracked fixtures explicitly, run
+`RECORD_OUTCOMES=1 cargo test --manifest-path contracts/Cargo.toml -p contract-tests --test probe`.
+The partial-refund receiver is a sandbox fixture, not Rhea. No fixture records
+public transactions or private keys. See
+[REPAY-OUTCOMES](../../docs/technical/REPAY-OUTCOMES.md).
+
+2026-11-07: independent Rust test encoders assert all five shared syntax vectors;
+the harness uses them for actual token registration, wallet repayment and fee
+transfer. Both imported versions pass partial/full/dust repayment and the exact
+borrow risk boundary. Health evidence also compares an actual 0.16.2 liquidation
+discount with the shared engine vector; 0.11.0 omits that event field and its
+scalar health stays unobserved. Details, limitations and source hashes are in
+[PROTOCOL-EVIDENCE](../../docs/technical/PROTOCOL-EVIDENCE.md). The Guardian
+repay-message vector proves syntax only: its receiver is not yet implemented.
+
 P0.4 extends these cycles with joined position/config/feed/price reads and shared
 Rust/TypeScript health vectors. Null/expired/mismatched-config replies refuse
 the trigger. Generated gas files measure only the read-only check; composed
@@ -53,7 +71,8 @@ all reduce debt and excess is not assumed refunded.
 Mainnet `0.16.2` uses `probe_repay` with `"OnlyRepay"`. There is no automatic
 retry or silent fallback. The product builder now requires an observed version
 and validated extra decimals, refuses unknown versions, and chooses the matching
-message. Live wallet proof and complete Rust byte-vector parity remain pending.
+message. Complete Rust byte-vector parity is now checked; live wallet proof and
+production builder gas remain pending.
 
 Permission boundary: operations require the immutable owner as predecessor and
 exactly 1 yoctoNEAR. The probe only registers on its configured lending/token
