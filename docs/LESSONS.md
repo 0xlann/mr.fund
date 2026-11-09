@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-10: Preserve recommendation intent independently of card validity
+
+- What happened: independent review found that dismissing a zero-amount draft then asking about repay again lost the baseline's adjustment recovery card. A new DOM characterization failed on the missing Adjust amount action.
+- Root cause: the port cutover opened recommendations only on a valid protocol Card event; baseline code opened the recommendation whenever comparison succeeded, including invalid drafts.
+- Rule: represent recommendation intent with the existing progress/tool event independently of the validated card payload. Never manufacture an invalid executable Card to preserve a recovery surface. The new regression passes while existing tests remain unchanged.
+
 Read the headlines before starting work. Record actual surprises only, never invented seed lessons. Newest entry first. Each entry uses `### 2026-11-08: Keep WebGL resolution stable during CSS layout motion
 
 The portrait's ResizeObserver called renderer.setSize for every animated grid/viewport size change. That repeatedly reallocates the drawing buffer during the camera orbit; a second camera lerp also added a trailing stop. Keep projection responsive but defer buffer allocation until motion settles, and use one eased camera timeline. A 60-frame resize regression verifies one allocation during motion and one final commit. No browser FPS claim is implied.

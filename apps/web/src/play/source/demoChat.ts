@@ -63,7 +63,11 @@ export function createDemoChat(read: (amount: string) => ChatContext): ChatPort 
         yield {
           type: "progress",
           stage: "tools",
-          ...(kind === "scenario" ? { tool: "what_if_price" } : {}),
+          ...(kind === "scenario"
+            ? { tool: "what_if_price" }
+            : kind === "recommendation"
+              ? { tool: "propose_card" }
+              : {}),
         };
         signal.throwIfAborted();
         yield { type: "text", text };

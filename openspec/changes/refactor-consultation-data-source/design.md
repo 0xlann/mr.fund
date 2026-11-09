@@ -44,3 +44,5 @@ Known gap [V, baseline browser captures, 2026-11-10]: chat greeting/recommendati
 ## Permission and honesty
 
 Permission boundary: unchanged. Nothing here signs, sends, reads a network or stores credentials. Invariant S1: every rendered financial value originates from a port with declared provenance; existing provenance-label slots use `ProvenanceTag` and reject a simulated port with absent/non-simulation label text. The known unlabelled chat/mobile surfaces above are an explicit baseline exception, tracked at task 5.1. Does not guarantee that later live ports are correct.
+
+Review correction [V, 2026-11-10]: `progress/tool=propose_card` carries recommendation intent even when the current adjusted draft is invalid; only validated drafts emit a `card`. This preserves the original re-open/adjust recovery surface without inventing an executable payload. The reviewer reproduction first failed its new DOM regression, then all 217 web tests passed with typecheck and Biome.

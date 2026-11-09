@@ -137,3 +137,19 @@ it("reviews an editable voice sample without sending until explicit approval", a
   await advance();
   expect(screen.getByText(/Your demo position has 1,000 NEAR/)).toBeTruthy();
 });
+
+it("reopens recommendation recovery after dismissing an invalid adjusted draft", async () => {
+  await begin();
+  await recommend();
+  await advance(10000);
+  click("Adjust");
+  fireEvent.change(screen.getByLabelText("Repay amount (USDC)"), { target: { value: "0" } });
+  click("Dismiss recommendation");
+  fireEvent.change(screen.getByRole("textbox", { name: "Message Mr.Fund" }), {
+    target: { value: "Should I repay or earn yield?" },
+  });
+  click("Send message");
+  await advance();
+  expect(screen.getByRole("button", { name: "Adjust amount" })).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Execute now" })).toBeNull();
+});

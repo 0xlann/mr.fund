@@ -295,7 +295,10 @@ export function useConsultation(source: ConsultationSource) {
           if (controller.signal.aborted || speechSequence.current !== speechId) return;
           if (event.type === "text") text += event.text;
           else if (event.type === "progress" && event.tool === "what_if_price") kind = "scenario";
-          else if (event.type === "card") {
+          else if (
+            event.type === "card" ||
+            (event.type === "progress" && event.tool === "propose_card")
+          ) {
             kind = "recommendation";
             setCardOpen(true);
             source.execution.clearRecommendation();
