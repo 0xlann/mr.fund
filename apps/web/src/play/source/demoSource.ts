@@ -11,12 +11,15 @@ export function createDemoSource(): ConsultationSource {
   const position = createDemoPosition(() => session.port.getSnapshot().walletBalance);
   const execution = createDemoExecution(session, position);
   const guardian = createDemoGuardian(session, execution);
-  const chat = createDemoChat((value) => ({
-    position: position.port.getSnapshot(),
-    advice: position.port.advice(value),
-    guardian: guardian.port.getSnapshot(),
-    receipts: execution.port.getSnapshot().receipts,
-  }));
+  const chat = createDemoChat(
+    (value) => ({
+      position: position.port.getSnapshot(),
+      advice: position.port.advice(value),
+      guardian: guardian.port.getSnapshot(),
+      receipts: execution.port.getSnapshot().receipts,
+    }),
+    position.rememberCard,
+  );
   return {
     session: session.port,
     position: position.port,

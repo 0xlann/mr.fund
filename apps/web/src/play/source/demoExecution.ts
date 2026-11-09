@@ -66,8 +66,8 @@ export function createDemoExecution(session: DemoSession, position: DemoPosition
     clearRecommendation() {
       update({ lastRepay: null });
     },
-    prepareRepay(input) {
-      const { card } = position.port.advice(input);
+    prepareRepay(input, recommendation) {
+      const { card } = position.port.advice(input, recommendation);
       const current = position.port.getSnapshot();
       if (!card?.ok || current.dataState !== "fresh") return null;
       const value = card.value;

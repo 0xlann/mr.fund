@@ -1,4 +1,5 @@
 import { assembleCard } from "@mrfund/engine";
+import type { Card } from "@mrfund/shared";
 import { amount, percent } from "../display";
 import type { Advice, ChatEvent, ChatPort, GuardianView, PositionView, Receipt } from "./types";
 
@@ -8,7 +9,10 @@ interface ChatContext {
   guardian: GuardianView;
   receipts: Receipt[];
 }
-export function createDemoChat(read: (amount: string) => ChatContext): ChatPort {
+export function createDemoChat(
+  read: (amount: string) => ChatContext,
+  rememberCard?: (card: Card, value: string) => void,
+): ChatPort {
   return {
     provenance: "simulated",
     send(request, signal) {
@@ -73,10 +77,13 @@ export function createDemoChat(read: (amount: string) => ChatContext): ChatPort 
         yield { type: "text", text };
         signal.throwIfAborted();
         if (kind === "recommendation" && card?.ok) {
-          yield {
-            type: "card",
-            card: assembleCard(card.value, { id: "demo-repay", reason: "", payload: [] }),
-          };
+          const recommendation = assembleCard(card.value, {
+            id: "demo-repay",
+            reason: "",
+            payload: [],
+          });
+          rememberCard?.(recommendation, request.amount);
+          yield { type: "card", card: recommendation };
         }
         signal.throwIfAborted();
         yield {

@@ -1,5 +1,6 @@
 "use client";
 import { mood as computeMood } from "@mrfund/engine";
+import type { Card } from "@mrfund/shared";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { DetailTab } from "./ConsultationTabs";
 import { percent } from "./display";
@@ -156,6 +157,7 @@ export function useConsultation(source: ConsultationSource) {
   const [thinking, setThinking] = useState(false);
   const [wave, setWave] = useState(0);
   const [repayAmount, setRepayAmount] = useState("100");
+  const [recommendation, setRecommendation] = useState<Card | undefined>();
   const [adjusting, setAdjusting] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
@@ -247,7 +249,7 @@ export function useConsultation(source: ConsultationSource) {
       : dataState === "error"
         ? "concerned"
         : computed.state;
-  const { card, comp, whatIf } = source.position.advice(repayAmount);
+  const { card, comp, whatIf } = source.position.advice(repayAmount, recommendation);
   const unavailable = dataState !== "fresh";
   function later(fn: () => void, ms: number) {
     const timer = setTimeout(fn, ms);
@@ -269,6 +271,7 @@ export function useConsultation(source: ConsultationSource) {
     if (!text.trim()) return;
     const previousReply = streamingId;
     stopReply();
+    setRecommendation(undefined);
     if (previousReply !== null)
       setMessages((prev) => prev.filter((message) => message.id !== previousReply));
     const controller = new AbortController();
@@ -300,6 +303,7 @@ export function useConsultation(source: ConsultationSource) {
             (event.type === "progress" && event.tool === "propose_card")
           ) {
             kind = "recommendation";
+            if (event.type === "card") setRecommendation(event.card);
             setCardOpen(true);
             source.execution.clearRecommendation();
           } else if (event.type === "error") {
@@ -400,7 +404,7 @@ export function useConsultation(source: ConsultationSource) {
     }
   }
   function executeCard() {
-    requestAction(source.execution.prepareRepay(repayAmount));
+    requestAction(source.execution.prepareRepay(repayAmount, recommendation));
   }
   function activate() {
     requestAction(source.guardian.prepare("activate", policyFields));
@@ -428,12 +432,14 @@ export function useConsultation(source: ConsultationSource) {
   }
   function clearConversation() {
     stopReply();
+    setRecommendation(undefined);
     setMessages([greeting]);
     setCardOpen(false);
     source.execution.clearRecommendation();
   }
   function reset() {
     stopReply();
+    setRecommendation(undefined);
     operation.current?.abort();
     source.reset();
     setMessages([greeting]);
@@ -502,7 +508,10 @@ export function useConsultation(source: ConsultationSource) {
     thinking,
     wave,
     repayAmount,
-    setRepayAmount,
+    setRepayAmount: (value: string) => {
+      setRecommendation(undefined);
+      setRepayAmount(value);
+    },
     adjusting,
     setAdjusting,
     cardOpen,

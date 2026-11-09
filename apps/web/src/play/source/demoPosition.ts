@@ -1,9 +1,11 @@
+import type { Card } from "@mrfund/shared";
 import { comparison, draft, metrics, scenario, snapshot } from "../demo";
 import { demoDelay } from "./demoDelay";
 import type { DataState, PositionPort, PositionView } from "./types";
 
 export interface DemoPosition {
   port: PositionPort;
+  rememberCard(card: Card, value: string): void;
   repay(value: bigint): void;
   reset(): void;
 }
@@ -11,6 +13,7 @@ export function createDemoPosition(balance: () => bigint): DemoPosition {
   let debt = 1_800_000_000n;
   let dataState: DataState = "fresh";
   const listeners = new Set<() => void>();
+  const recommendations = new WeakMap<Card, string>();
   function view(): PositionView {
     const now = Date.now();
     const value = snapshot(debt, now, dataState);
@@ -37,8 +40,10 @@ export function createDemoPosition(balance: () => bigint): DemoPosition {
         listeners.delete(listener);
       };
     },
-    advice(value) {
-      const card = draft(current.snapshot, value, balance(), current.now);
+    advice(value, recommendation) {
+      const input = recommendation ? recommendations.get(recommendation) : value;
+      const card =
+        input === undefined ? null : draft(current.snapshot, input, balance(), current.now);
       return {
         card,
         comp: comparison(
@@ -65,6 +70,9 @@ export function createDemoPosition(balance: () => bigint): DemoPosition {
   };
   return {
     port,
+    rememberCard(card, value) {
+      recommendations.set(card, value);
+    },
     repay(value: bigint) {
       debt -= value;
       publish();

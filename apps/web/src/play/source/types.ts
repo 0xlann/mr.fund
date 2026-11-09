@@ -1,6 +1,7 @@
 import type { ChatEvent } from "@mrfund/agent";
 import type { RepayVsYield, WhatIf } from "@mrfund/engine";
 import type {
+  Card,
   CardDraft,
   CardReceipt,
   Computed,
@@ -91,7 +92,7 @@ export interface SessionPort extends Port, Store<SessionView> {
   disconnect(): void;
 }
 export interface PositionPort extends Port, Store<PositionView> {
-  advice(value: string): Advice;
+  advice(value: string, recommendation?: Card): Advice;
   refresh(signal?: AbortSignal): Promise<void>;
   selectDataState(state: DataState): void;
 }
@@ -99,7 +100,7 @@ export interface ChatPort extends Port {
   send(request: { message: string; amount: string }, signal: AbortSignal): AsyncIterable<ChatEvent>;
 }
 export interface ExecutionPort extends Port, Store<ExecutionView> {
-  prepareRepay(value: string): Approval | null;
+  prepareRepay(value: string, recommendation?: Card): Approval | null;
   execute(id: string, outcome: WalletOutcome, signal: AbortSignal): AsyncIterable<ExecutionEvent>;
   clearRecommendation(): void;
 }
