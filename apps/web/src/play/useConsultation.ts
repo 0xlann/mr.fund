@@ -514,6 +514,7 @@ export function useConsultation(source: ConsultationSource) {
     signing,
     walletOutcome,
     setWalletOutcome,
+    guardianView: guardianState,
     guardian,
     reserve,
     guardianSpent,
