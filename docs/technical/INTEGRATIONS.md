@@ -66,6 +66,8 @@ The production Next build includes a dynamic `/api/chat` route. Transport, trust
 
 [I, selector contract, 2026-11-10] GET `/api/position` accepts exactly one `accountId` and `networkId` query field; POST accepts precisely those two JSON fields and no query. Duplicate JSON keys (including escaped names), duplicate query parameters, unknown fields and malformed account ids refuse. Public selectors never choose an RPC URL, contract or version and never assert wallet ownership.
 
+[I, HTTP contract, 2026-11-10] `/api/position` is independent of provider credentials. Success is HTTP 200 with the structured view above; every error is `{ok:false,error:{code,message},networkId}` and no balances/health. Static recovery messages map bad selectors to 400, network mismatch to 409, absent/all-zero lending positions to 404, transport/configuration unavailability to 503, stale data/unsupported version to 422, untrusted data to 502, deadlines to 504, cancellation to 499, size to 413, media type to 415, admission to 429 and other methods to 405 (`Allow: GET, POST`). Consumers must discard account/network mismatches and superseded responses. A Guardian id may be read explicitly as an account, without ownership discovery or action authority. Fixed prices remain visibly fixed, and local recording replays are not live evidence.
+
 ## Environment variables (names only)
 
 `.env.example` will list these names with empty values at P0.7. Values never enter git.
