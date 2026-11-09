@@ -1,7 +1,12 @@
 import { comparison, draft, metrics, scenario, snapshot } from "../demo";
 import type { DataState, PositionPort, PositionView } from "./types";
 
-export function createDemoPosition(balance: () => bigint) {
+export interface DemoPosition {
+  port: PositionPort;
+  repay(value: bigint): void;
+  reset(): void;
+}
+export function createDemoPosition(balance: () => bigint): DemoPosition {
   let debt = 1_800_000_000n;
   let dataState: DataState = "fresh";
   const listeners = new Set<() => void>();
