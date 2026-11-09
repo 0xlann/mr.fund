@@ -2,6 +2,7 @@ import {
   healthBps,
   liquidationPrice,
   MAX_DATA_AGE_MS,
+  MAX_FUTURE_SKEW_MS,
   outstandingDebtAtomic,
 } from "@mrfund/engine";
 import {
@@ -100,6 +101,8 @@ export function presentPosition(
     if (price) {
       integer(price.decimals);
       if (price.publishTimeMs !== null) integer(price.publishTimeMs);
+      if (price.publishTimeMs !== null && price.publishTimeMs - nowMs > MAX_FUTURE_SKEW_MS)
+        throw new PositionReadError("untrusted_data");
       if (price.multiplier <= 0n || !["oracle", "default_price"].includes(price.source))
         throw new PositionReadError("untrusted_data");
     }

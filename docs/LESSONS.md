@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-10: Validate non-collateral source timestamps before presentation
+
+- What happened: a new negative case showed a future-dated supplied-token quote could appear in a successful position response while health ignored that non-collateral token.
+- Root cause: engine freshness intentionally considers only risk-priced collateral/debt. A structured HTTP view also publishes non-collateral price context.
+- Rule: preserve the engine's freshness scope, but reject every presented price timestamp beyond the same exported clock-skew tolerance; the failing presenter regression now passes without changing engine formulas.
+
 ### 2026-11-10: Clone nested shared snapshot fixtures before mutation
 
 - What happened: a presenter negative test changed a shared asset's APR and contaminated the next freshness test, which then refused the mutated numeric field.

@@ -116,4 +116,19 @@ describe("exact public position presentation", () => {
     s.readAtMs = NOW + 120001;
     expect(() => presentPosition(s, source, NOW + 120001)).toThrow("stale_data");
   });
+  it("retains capped health assumptions and refuses unsupported debt metadata", () => {
+    const s = baseSnapshot({ borrowed: [{ tokenId: USDC, internal: 1n }] });
+    const view = presentPosition(s, source, NOW);
+    expect(view.health).toEqual({ kind: "value", bps: Number.MAX_SAFE_INTEGER });
+    expect(view.assumptions).toContain(`Health above ${Number.MAX_SAFE_INTEGER} bps is capped.`);
+    delete s.assets[USDC];
+    expect(() => presentPosition(s, source, NOW)).toThrow("untrusted_data");
+  });
+  it("rejects a future-dated non-collateral price even though health does not use it", () => {
+    const s = baseSnapshot({ borrowed: [], supplied: [{ tokenId: USDC, internal: 1n }] });
+    const price = s.prices[USDC];
+    if (!price) throw new Error("Missing fixture price");
+    price.publishTimeMs = NOW + 60001;
+    expect(() => presentPosition(s, source, NOW)).toThrow("untrusted_data");
+  });
 });

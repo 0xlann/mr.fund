@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createPositionLoader } from "../src/server/position/loader";
 import { accountId, config, recording, rpc } from "./position-rpc";
@@ -74,5 +75,40 @@ describe("shared public snapshot loader", () => {
     await expect(
       createPositionLoader(config, fetchImpl, true)(accountId, signal()),
     ).rejects.toMatchObject({ code: "rpc_unavailable" });
+  });
+  it("reads supported mainnet data and qualifies implicit selectors on each network", async () => {
+    const mainnet = JSON.parse(
+      readFileSync(new URL("../../../fixtures/rhea/mainnet-reads.json", import.meta.url), "utf8"),
+    );
+    const mainConfig = {
+      network: "mainnet" as const,
+      rpcUrl: "https://rpc.example",
+      lendingId: mainnet._provenance.lendingId as string,
+    };
+    const remote = rpc({ chain: "mainnet", get_version: "0.16.2" }, mainnet);
+    const result = await createPositionLoader(
+      mainConfig,
+      remote.fetchImpl,
+      true,
+    )(mainnet._provenance.accountId, signal());
+    expect(result.snapshot.network).toBe("mainnet");
+    expect(result.source?.lendingVersion).toBe("0.16.2");
+    for (const target of [config, mainConfig]) {
+      const data = target.network === "testnet" ? recording : mainnet;
+      const read = await createPositionLoader(
+        target,
+        rpc(
+          {
+            chain: target.network,
+            get_version: target.network === "testnet" ? "0.11.0" : "0.16.2",
+            get_account: null,
+          },
+          data,
+        ).fetchImpl,
+        true,
+      )("a".repeat(64), signal());
+      expect(read.snapshot.accountId).toBe("a".repeat(64));
+      expect(read.snapshot.network).toBe(target.network);
+    }
   });
 });
