@@ -64,6 +64,8 @@ The production Next build includes a dynamic `/api/chat` route. Transport, trust
 
 [I, wire interface, 2026-11-10] `presentPosition(snapshot, source, nowMs, maxDataAgeMs?)` returns the exact HTTP domain contract in `openspec/changes/add-position-read-api/design.md`: `ok`, `provenance`, account/network, pinned Rhea source, read/computation/data-age timestamps, supplied/collateral/debt lines, discriminated health/liquidation results, engine inputs and assumptions. All lending internal/atomic amounts and price multipliers are canonical strings; supply/collateral floor and debt ceils using existing shared/engine functions. Health is calculated from internal units, not those rounded strings. No-debt and other-collateral coverage are statuses, not infinity or zero market quotes. Unpriced non-collateral supply may remain null; unknown metadata refuses. A positive integer freshness override applies uniformly to all engine calls. This read-only view neither proves ownership nor authorizes a repayment.
 
+[I, selector contract, 2026-11-10] GET `/api/position` accepts exactly one `accountId` and `networkId` query field; POST accepts precisely those two JSON fields and no query. Duplicate JSON keys (including escaped names), duplicate query parameters, unknown fields and malformed account ids refuse. Public selectors never choose an RPC URL, contract or version and never assert wallet ownership.
+
 ## Environment variables (names only)
 
 `.env.example` will list these names with empty values at P0.7. Values never enter git.
