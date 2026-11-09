@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowRight,
   ArrowUpRight,
-  BadgeCheck,
   BarChart3,
   Check,
   CircleHelp,
@@ -34,6 +33,7 @@ import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
 import { ModalFrame } from "./ModalFrame";
 import { PositionPanel } from "./PositionPanel";
 import { ProvenanceTag, Tag } from "./ProvenanceTag";
+import { ReceiptDetail } from "./ReceiptDetail";
 import { createDemoSource } from "./source/demoSource";
 import type { ConsultationSource, DataState, PolicyFields, WalletOutcome } from "./source/types";
 import { panelReveal, playClasses } from "./styles";
@@ -942,68 +942,15 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
           </ModalFrame>
         )}
         {selectedReceipt && (
-          <ModalFrame
-            eyebrow="A RECORD, NOT A PROMISE"
-            title="Your demo receipt."
+          <ReceiptDetail
+            receipt={selectedReceipt}
+            port={activeSource.execution}
             close={() => setSelectedReceipt(null)}
-          >
-            <div className={playClasses(`receipt-banner ${selectedReceipt.status}`)}>
-              <span>
-                {selectedReceipt.status === "confirmed" ? (
-                  <BadgeCheck size={27} />
-                ) : (
-                  <AlertTriangle size={27} />
-                )}
-              </span>
-              <div>
-                <b>{selectedReceipt.title}</b>
-                <small>
-                  {selectedReceipt.status.toUpperCase()} · SIMULATED · {selectedReceipt.at}
-                </small>
-              </div>
-            </div>
-            <p className="modal-copy text-[12px] leading-[1.8] text-[#a2a4a5] m-[20px_0]! max-[620px]:text-[11px]">
-              {selectedReceipt.detail}
-            </p>
-            {selectedReceipt.before && (
-              <div className="receipt-health flex items-center justify-between [border:1px_solid_#313334] rounded-[8px] p-[14px_12px] gap-[10px] [&>span]:text-[10px] [&>span]:text-[#a2a4a5] [&_b]:flex [&_b]:gap-[8px] [&_b]:items-center [&_b]:font-[family-name:var(--font-display)] [&_b]:text-[15px] max-[620px]:p-[12px_9px] max-[620px]:[&>span]:text-[8px] max-[620px]:[&_b]:text-[13px]">
-                <span>Position health</span>
-                <b>
-                  {selectedReceipt.before}
-                  <ArrowRight size={18} />
-                  {selectedReceipt.after}
-                </b>
-              </div>
-            )}
-            <div className="receipt-metadata mt-[16px] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:p-[12px_0] [&>div]:[border-bottom:1px_solid_#313334] [&>div]:text-[10px] [&_span]:text-[#a2a4a5] [&_b]:text-[9px] [&~.button]:mt-[22px]">
-              <div>
-                <span>Reference</span>
-                <b>DEMO-{String(selectedReceipt.id).padStart(4, "0")}</b>
-              </div>
-              <div>
-                <span>Network</span>
-                <b>Local simulation</b>
-              </div>
-              <div>
-                <span>Transaction hash</span>
-                <b>Not submitted</b>
-              </div>
-            </div>
-            <p className="fine-print text-[9px] leading-[1.8] text-[#a2a4a5] mt-[18px]! block [&>svg]:[vertical-align:middle] [&>svg]:mr-[5px]">
-              No explorer link: this is a local UI simulation. The result is computed from the
-              updated demo fixture, not observed on-chain.
-            </p>
-            <button
-              type="button"
-              className="button border-0 inline-flex items-center justify-center gap-[12px] p-[13px_17px] min-h-[43px] rounded-[9px] text-[11px]! font-bold! [transition:transform_.17s,background_.17s,box-shadow_.17s] [&:hover:not(:disabled)]:transform-[translateY(-2px)] [&:hover:not(:disabled)]:shadow-none [&:active:not(:disabled)]:transform-[translateY(0)] [&.small]:p-[10px_13px] [&.small]:min-h-[35px] [&.small]:text-[10px]! [&.small]:gap-[8px] [&.small]:rounded-[7px] blue-button bg-[var(--blue)] text-[#203327]! [&:hover]:bg-[#a7c8b1] full-width w-full"
-              onClick={() => {
-                setSelectedReceipt(null);
-                openPanel("activity");
-              }}
-            >
-              View all activity <ArrowRight size={16} />
-            </button>
-          </ModalFrame>
+            openActivity={() => {
+              setSelectedReceipt(null);
+              openPanel("activity");
+            }}
+          />
         )}
       </div>
     </main>

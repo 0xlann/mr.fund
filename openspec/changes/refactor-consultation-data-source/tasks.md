@@ -26,7 +26,8 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
 
 - [x] 3.1 Add `useConsultation(source)` and move state and intents into it; `Playground` renders from the view model only.
   Evidence [V, 2026-11-10]: hook contract first failed typecheck before injection existed. After cutover `pnpm exec vitest run apps/web/test`: 214 passed, including unchanged interaction tests, eight baseline characterizations, abort/replacement hook tests and fixture-import guard; workspace typecheck and Biome (220 files) passed. Parent approved one atomic state-cutover commit-size exception and the composition-root default.
-- [ ] 3.2 Extract `WalletDialog`, `ChatPanel`, `PositionPanel`, `GuardianPanel`, `ActivityPanel` and `ReceiptDetail` one per commit; no style or copy change.
+- [x] 3.2 Extract `WalletDialog`, `ChatPanel`, `PositionPanel`, `GuardianPanel`, `ActivityPanel` and `ReceiptDetail` one per commit; no style or copy change.
+  Evidence [V, 2026-11-10]: each named module landed in its own checked commit; larger chat/Guardian sections were first split into cohesive smaller presentation modules to keep commits below 350 changed lines. `pnpm exec vitest run apps/web/test`: 216 passed after the final named extraction; workspace typecheck and Biome (231 files) passed. Existing test files remain untouched.
 - [ ] 3.3 Mount `demoSource` from `app/play/page.tsx`; verify the landing route's bundle does not include `play/source/`.
 
 ## 4. Verification
