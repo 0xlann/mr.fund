@@ -2,8 +2,10 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
 
 ## 1. Baseline
 
-- [ ] 1.1 Record the current baseline: `pnpm test` summary, `pnpm --filter @mrfund/web build`, and rendered text of the welcome, wallet dialog, chat reply, position, Guardian and activity panels captured from `next dev` at one desktop and one 360 px viewport. Store captures only in ignored `scratch/`.
-- [ ] 1.2 List behaviors in `Playground.tsx` that no existing test covers (receipt detail, partial wallet batch, Guardian replay, data-state switch in Demo settings, voice sample). Add characterization tests for each before moving code; they must pass on the unmodified file.
+- [x] 1.1 Record the current baseline: `pnpm test` summary, `pnpm --filter @mrfund/web build`, and rendered text of the welcome, wallet dialog, chat reply, position, Guardian and activity panels captured from `next dev` at one desktop and one 360 px viewport. Store captures only in ignored `scratch/`.
+  Evidence [V, 2026-11-10]: `pnpm test`: 67 files passed, 3 skipped; 936 tests passed, 3 skipped. Production build passed. Managed Chromium captures at 1440×900 and 360×800: `scratch/consultation-baseline.json`.
+- [x] 1.2 List behaviors in `Playground.tsx` that no existing test covers (receipt detail, partial wallet batch, Guardian replay, data-state switch in Demo settings, voice sample). Add characterization tests for each before moving code; they must pass on the unmodified file.
+  Evidence [V, 2026-11-10]: `pnpm exec vitest run apps/web/test/consultation-characterization.test.ts apps/web/test/playground.test.ts`: 25 passed on unchanged production code; eight additions cover failed/partial receipts and unchanged funds, confirmed receipt metadata/health, repeated-replay cooldown, loading/empty/error recovery, editable voice approval. Basic replay, stale switch and voice sample were already covered. `pnpm typecheck` and `pnpm lint` passed (202 files).
 
 ## 2. Ports and demo source
 
