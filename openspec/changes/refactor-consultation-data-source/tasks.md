@@ -15,7 +15,8 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
   Evidence [V, 2026-11-10]: provenance tests first failed on the missing component; all 199 web tests now pass, workspace typecheck and Biome (206 files) pass. Parent explicitly preserved visible copy and deferred missing chat/mobile labels.
 - [x] 2.3 Extract the position/engine fixture logic to the demo source `position` port (no UI change).
   Evidence [V, 2026-11-10]: position tests first failed on the missing adapter; `pnpm exec vitest run apps/web/test`: 201 passed, including original health, repayment, cached subscription and stale advice checks. Workspace typecheck and Biome (208 files) pass. UI cutover follows at 3.1.
-- [ ] 2.4 Extract scripted chat into the demo `chat` port as an `AsyncIterable<ChatEvent>`; keep the two-second thinking and progressive reveal in the UI; test abort leaves no stale event.
+- [x] 2.4 Extract scripted chat into the demo `chat` port as an `AsyncIterable<ChatEvent>`; keep the two-second thinking and progressive reveal in the UI; test abort leaves no stale event.
+  Evidence [V, 2026-11-10]: stream tests first failed on the missing adapter; `pnpm exec vitest run apps/web/test`: 204 passed, including protocol events and cancellation before/mid-stream. Workspace typecheck and Biome (210 files) pass. UI timing is unchanged pending 3.1 cutover.
 - [ ] 2.5 Extract mock wallet connection and the four outcomes into the demo `session` and `execution` ports; test cancel/failure/partial/success keep or change balances exactly as before.
 - [ ] 2.6 Extract simulated Guardian lifecycle, over-limit rejection, replay, reserve and receipts into the demo `guardian` port.
 
