@@ -46,6 +46,10 @@ Negative tests (fake wallet, recorded fixtures): payload with an extra `AddKey`/
 
 It does not guarantee: that the wallet's own transaction display is accurate, that repayment improves health beyond what the post-state shows (debt delta is not causal attribution), that an unknown Rhea version is handled (it refuses), or any behavior on mainnet before authorization.
 
+## Final allowlist (task 1.1, 2026-11-10)
+
+Inventory of `rhea.repayPayload` + `shared.feeTransfers`: (1) `<debt token>.ft_transfer_call({receiver_id: <lending>, amount, msg})`, 1 yocto, `msg` = `"OnlyRepay"` (0.16.2) or `{"Execute":{"actions":[{"Repay":{"token_id","max_amount"}}]}}` with `max_amount = amount × 10^extra` (0.11.0); (2) optional `<fee token>.storage_deposit({account_id: <fee recipient>, registration_only: true})`, deposit in (0, 0.1 NEAR]; (3) `<fee token>.ft_transfer({receiver_id: <fee recipient>, amount})`, 1 yocto, only with exactly one fee line. Each transaction has one action with exactly `methodName/args/gas/deposit` and gas ≤ 300 Tgas. The repay amount is the engine headline `Repay <amount> <symbol>` for the session's debt token.
+
 ## Risks
 
 - Wallets may not return outcomes for every transaction in a batch on partial failure [U]. The observation-based `unconfirmed` path is the mitigation and is tested with injected partial results; real behavior is proven only by public wallet evidence (P4.5).

@@ -103,6 +103,7 @@ node --input-type=module -e "const endpoint='http://127.0.0.1:3148/api/position'
 | `NEXT_PUBLIC_NEAR_NETWORK_ID`, `NEXT_PUBLIC_NEAR_RPC_URL` | web app | Browser copies of the above (Next.js exposes only `NEXT_PUBLIC_*`, D16) | public |
 | `RHEA_LENDING_ID` | all | Lending contract for the network | public |
 | `GUARDIAN_FACTORY_ID` | all | Factory account | public |
+| `NEXT_PUBLIC_RHEA_LENDING_ID`, `NEXT_PUBLIC_FEE_RECIPIENT_ID` | web app (execution verifier) | Browser copies of `RHEA_LENDING_ID` and `FEE_RECIPIENT_ID`; must match them; missing or wrong-network values block Execute | public |
 | `FEE_RECIPIENT_ID` | factory deploy, web app (display) | Fee recipient account | public |
 | `WATCHER_ACCOUNT_ID` | watcher, factory policy defaults | Watcher account | public id |
 | `WATCHER_KEYS_DIR` | watcher | Directory with the watcher's function-call key files (one per Guardian) | secret path |
