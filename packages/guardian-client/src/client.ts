@@ -54,6 +54,8 @@ const VIEW_METHODS = [
   "get_unclaimed",
   "is_pending",
   "storage_balance_of",
+  "storage_balance_bounds",
+  "ft_metadata",
 ];
 /** Public final-block views only. No signer, retry, account creation or mutation transport. */
 export function createGuardianClient(

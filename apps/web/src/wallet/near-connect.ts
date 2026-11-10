@@ -21,10 +21,26 @@ export interface NearConnectAdapter extends AuthAdapter {
   signingWallet(): Promise<SigningWallet>;
 }
 
+/**
+ * The signing surface of the Connect adapter the wallet provider created for each network.
+ * Kept here so the session controller and React context stay signer-free; only
+ * `createTransactionSigner` (verified payloads only) should call it.
+ */
+const signingWallets = new Map<NearNetwork, () => Promise<SigningWallet>>();
+export function connectSigningWallet(network: NearNetwork): (() => Promise<SigningWallet>) | null {
+  return signingWallets.get(network) ?? null;
+}
+
 export function createNearConnectAdapter(
   config: WalletConfig,
   connector?: NearConnectSDK,
 ): NearConnectAdapter {
+  const adapter = buildAdapter(config, connector);
+  signingWallets.set(config.network, () => adapter.signingWallet());
+  return adapter;
+}
+
+function buildAdapter(config: WalletConfig, connector?: NearConnectSDK): NearConnectAdapter {
   let loading: Promise<NearConnectSDK> | undefined;
   function getConnector(): Promise<NearConnectSDK> {
     if (connector) return Promise.resolve(connector);

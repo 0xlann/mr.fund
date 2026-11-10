@@ -5,7 +5,11 @@ import type { Card } from "@mrfund/shared";
 import { describe, expect, it, vi } from "vitest";
 import { createTransactionSigner, type SigningWallet } from "../src/execution/signer";
 import { type VerifiedRepay, verifyCardPayload } from "../src/execution/verify";
-import { createNearConnectAdapter, type NearConnectSDK } from "../src/wallet/near-connect";
+import {
+  connectSigningWallet,
+  createNearConnectAdapter,
+  type NearConnectSDK,
+} from "../src/wallet/near-connect";
 
 const TOKEN = { id: "usdc.testnet", symbol: "USDC", decimals: 6, extraDecimals: 12 };
 const LENDING = "rhea.testnet";
@@ -144,6 +148,24 @@ describe("NEAR Connect adapter signing wallet", () => {
       transactions: [],
     });
     expect(sign).toHaveBeenCalledOnce();
+  });
+
+  it("exposes the latest adapter's signing surface per network only", async () => {
+    expect(connectSigningWallet("mainnet")).toBeNull();
+    const sign = vi.fn(async () => ["ok"]);
+    createNearConnectAdapter(
+      config,
+      sdk({ getAccounts: async () => [], signAndSendTransactions: sign }),
+    );
+    const get = connectSigningWallet("testnet");
+    if (!get) throw new Error("missing");
+    await (await get()).signAndSendTransactions({
+      network: "testnet",
+      signerId: "a.testnet",
+      transactions: [],
+    });
+    expect(sign).toHaveBeenCalledOnce();
+    expect(connectSigningWallet("mainnet")).toBeNull();
   });
 
   it("refuses a wallet without transaction signing", async () => {
