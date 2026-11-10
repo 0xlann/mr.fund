@@ -2,25 +2,25 @@ Gate summary: local work (sections 1–3) needs no external gate, no D19 decisio
 
 ## 1. Provider and binding
 
-- [ ] 1.1 Add the client-only `WalletProvider` and `useWalletSession` (`useSyncExternalStore` over the controller) mounted from `app/play/layout.tsx`; adapters are built lazily in the browser and construction failure becomes the `error` state. Tests with fake adapters: server render yields `checking`; state equals controller snapshots; unmount disposes. Acceptance: landing bundle contains no wallet SDK (checked on the production build).
-- [ ] 1.2 Expose the controller as the `session` port (`provenance: "live"`) for the consultation source; the demo source keeps its simulated port. Test the mixed configuration label rule from the consultation-source spec.
+- [x] 1.1 Add the client-only `WalletProvider` and `useWalletSession` (`useSyncExternalStore` over the controller) mounted from `app/play/layout.tsx`; adapters are built lazily in the browser and construction failure becomes the `error` state. Tests with fake adapters: server render yields `checking`; state equals controller snapshots; unmount disposes. Acceptance: landing bundle contains no wallet SDK (checked on the production build). (2026-11-10: `wallet/react.tsx` + `app/play/layout.tsx`; production build: the four wallet SDK chunks are referenced by `/play` only, none by `/`.)
+- [x] 1.2 Expose the controller as the `session` port (`provenance: "live"`) for the consultation source; the demo source keeps its simulated port. Test the mixed configuration label rule from the consultation-source spec. (`play/source/liveSession.ts`; `PlayViewport` uses it only while the controller reports `connected`.)
 
 ## 2. Surfaces
 
-- [ ] 2.1 Connection dialog: NEAR Auth and NEAR Connect choices, explicit "Try the simulated demo" entry, no automatic demo fallback. Tests for success, cancel, failure, double activation and unmount during login. Remove the mock-wallet-as-default path from `Playground`; the simulated wallet remains reachable only through the demo entry.
-- [ ] 2.2 Status and recovery states for all six `WalletState.status` values, passive-restore checking state, and explicit configuration errors (missing config, mainnet without client id, wrong-network accounts). Tests per state.
-- [ ] 2.3 Account display, network badge and account picker (only when several accounts); the capability line derived from `method`. Tests: only session accounts shown; Auth shows read-only copy; no enabled sign action.
-- [ ] 2.4 Logout and remote-logout-failure copy ("this device is signed out; the provider session may remain"). Tests for success and failure paths.
-- [ ] 2.5 Accessibility and responsive pass: focus trap and restore, Escape rule, live-region announcements, 360 px, reduced motion. Keyboard-only test of the login path.
+- [x] 2.1 Connection dialog: NEAR Auth and NEAR Connect choices, explicit "Try the simulated demo" entry, no automatic demo fallback. Tests for success, cancel, failure, double activation and unmount during login. Remove the mock-wallet-as-default path from `Playground`; the simulated wallet remains reachable only through the demo entry. (Visual layout kept; the dialog's former "Coming with the live integration" row became the two real methods. The controller does not distinguish cancel from failure (adapters untouched), so a cancel shows the recoverable error state rather than a neutral notice.)
+- [x] 2.2 Status and recovery states for all six `WalletState.status` values, passive-restore checking state, and explicit configuration errors (missing config, mainnet without client id, wrong-network accounts). Tests per state. (Wrong-network accounts surface as the controller's sign-in error plus the configured network name.)
+- [x] 2.3 Account display, network badge and account picker (only when several accounts); the capability line derived from `method`. Tests: only session accounts shown; Auth shows read-only copy; no enabled sign action.
+- [x] 2.4 Logout and remote-logout-failure copy ("this device is signed out; the provider session may remain"). Tests for success and failure paths.
+- [ ] 2.5 Accessibility and responsive pass: focus trap and restore, Escape rule, live-region announcements, 360 px, reduced motion. Keyboard-only test of the login path. **Open (2026-11-10):** Escape/close blocked while busy, polite live region, native modal dialog focus handling and existing reduced-motion variants are in place; no keyboard-only test and no 360 px check yet.
 
 ## 3. Documentation
 
-- [ ] 3.1 Update `docs/DESIGN.md` with the connect surfaces and the demo-entry rule. Record the route-scoped provider as a deliberate narrowing of `add-dual-near-auth` task 3.3 wording. Do not tick any task yet.
+- [ ] 3.1 Update `docs/DESIGN.md` with the connect surfaces and the demo-entry rule. Record the route-scoped provider as a deliberate narrowing of `add-dual-near-auth` task 3.3 wording. Do not tick any task yet. **Open (2026-11-10):** Skipped by user instruction: `docs/DESIGN.md` is not edited in frontend work.
 
 ## 4. Evidence (observed only)
 
-- [ ] 4.1 Run `next dev`, exercise: first load (checking → disconnected), cancel, error recovery, demo entry, wrong/missing config, keyboard-only path and 360 px. Record the observed results and screenshots (ignored `scratch/` unless small and useful).
-- [ ] 4.2 Run `pnpm test`, `pnpm typecheck`, `pnpm lint` and the production build; record counts and the landing-bundle check.
+- [ ] 4.1 Run `next dev`, exercise: first load (checking → disconnected), cancel, error recovery, demo entry, wrong/missing config, keyboard-only path and 360 px. Record the observed results and screenshots (ignored `scratch/` unless small and useful). **Open (2026-11-10):** Not run: browser checks are done by the user.
+- [x] 4.2 Run `pnpm test`, `pnpm typecheck`, `pnpm lint` and the production build; record counts and the landing-bundle check. (2026-11-10: `pnpm test` 1078 passed / 3 skipped, `pnpm typecheck` and `pnpm lint` clean, `next build` succeeded with testnet public env.)
 - [ ] 4.3 **Human gate (lead):** complete one real NEAR Auth login (passkey) and one real NEAR Connect login on the configured network. Record account ids, method, network, date, browser, and any origin/callback rejection as observed. This changes no balance and signs nothing. Until done, tasks 3.3, 4.1 and 4.2 of `add-dual-near-auth` and P4.3a stay unchecked.
 - [ ] 4.4 After 4.1–4.3, update `add-dual-near-auth` tasks 3.3/4.1/4.2 and BUILD-PLAN P4.3a with the evidence actually observed.
 

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { type ReactNode, useState } from "react";
+import type { WalletSession } from "../wallet/react";
 import { ActivityPanel } from "./ActivityPanel";
 import { ApprovalDialog } from "./ApprovalDialog";
 import { ChatPanel } from "./ChatPanel";
@@ -33,6 +34,19 @@ import { type Panel, useConsultation } from "./useConsultation";
 import { VoicePanel } from "./VoicePanel";
 import { WalletDialog } from "./WalletDialog";
 
+/** Without a wallet provider (tests, isolated renders) real login is simply unavailable. */
+const OFFLINE_WALLET: WalletSession = {
+  controller: null,
+  network: null,
+  available: [],
+  configError: null,
+  state: { status: "disconnected", session: null, error: null },
+  busy: false,
+  login: async () => {},
+  logout: async () => {},
+  selectAccount: () => {},
+};
+
 const CharacterPortrait = dynamic(
   () => import("./CharacterPortrait").then((m) => m.CharacterPortrait),
   {
@@ -46,7 +60,13 @@ const CharacterPortrait = dynamic(
     ),
   },
 );
-export function Playground({ source }: { source?: ConsultationSource } = {}) {
+export function Playground({
+  source,
+  wallet,
+}: {
+  source?: ConsultationSource;
+  wallet?: WalletSession;
+} = {}) {
   const [defaultSource] = useState(() => source ?? createDemoSource());
   const activeSource = source ?? defaultSource;
   const {
@@ -133,6 +153,7 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
     clearConversation,
     reset,
     startConsultation,
+    liveConnected,
     connect,
     healthText,
   } = useConsultation(activeSource);
@@ -507,6 +528,8 @@ export function Playground({ source }: { source?: ConsultationSource } = {}) {
             connect={connect}
             disconnect={disconnect}
             setNotice={setNotice}
+            wallet={wallet ?? OFFLINE_WALLET}
+            liveConnected={liveConnected}
           />
         )}
         {modal === "settings" && (

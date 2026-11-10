@@ -38,7 +38,7 @@ const click = (name: string | RegExp) => fireEvent.click(screen.getByRole("butto
 async function begin() {
   render(createElement(Playground));
   click("Start consultation");
-  click("Connect demo wallet");
+  click("Try the simulated demo");
   await advance(800);
   act(() => scene.enter());
   await advance(200);
