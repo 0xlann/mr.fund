@@ -116,6 +116,12 @@ node --input-type=module -e "const endpoint='http://127.0.0.1:3148/api/position'
 | `CHAT_PROXY_SECRET_HEADER`, `CHAT_PROXY_IP_HEADER` | chat/position APIs / trusted edge | Header names used only with the matching proxy secret; otherwise all direct requests share one IP bucket | public names |
 | `MAX_DATA_AGE_MS` | engine consumers | Freshness limit for advice and cards (default proposal 120000) | public |
 
+### Watcher local runtime
+
+[V, local implementation] `pnpm --filter @mrfund/watcher start <guardian-account-id>` reads `NEAR_NETWORK_ID`, `NEAR_RPC_URL`, `WATCHER_ACCOUNT_ID` and `WATCHER_KEYS_DIR` from its process environment. The directory contains `<guardian-account-id>.json` in near-cli key-file shape, with a matching watcher `account_id`, `public_key`, and `private_key` or `secret_key`. The runtime rejects symlinks, mismatched accounts/keys, invalid networks and non-HTTPS endpoints. It verifies fresh node status and final access-key permissions for exactly one `request_repay` receiver and method before starting. Never commit a key file or print its contents.
+
+Run only one process per Guardian/key. The initial access-key nonce cannot establish whether an earlier signed request is unresolved, so startup remains `read_only` and the public submission gate is hard-disabled in this implementation. It has no operator override; no run of this entry sends a transaction. Polling uses fresh, block-pinned Guardian and position views, while JSON heartbeat lines show observation, successful-read and evaluation timestamps, pending/error flags and backoff. A running process is not proof of a fresh observation. SIGINT/SIGTERM stop scheduling. No uptime or liquidation-prevention guarantee is implied. Sandbox and public submission require separate evidence and gates in `add-deterministic-guardian-watcher`; hosted operation requires D29/B8.
+
 ## Step-by-step recipes
 
 Commands are **planned, not run** unless marked exercised. Writes need the authorization noted.

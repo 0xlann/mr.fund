@@ -4,12 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "start": "tsx src/main.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@mrfund/engine": "workspace:*",
     "@mrfund/guardian-client": "workspace:*",
     "@mrfund/rhea": "workspace:*",
-    "@mrfund/shared": "workspace:*"
+    "@mrfund/shared": "workspace:*",
+    "near-api-js": "7.4.0",
+    "tsx": "4.23.15"
   }
 }

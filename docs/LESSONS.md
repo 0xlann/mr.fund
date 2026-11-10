@@ -1,5 +1,23 @@
 # Mr.Fund: lessons
 
+### 2026-11-11: Stopping the scheduler must also stop an in-progress read from submitting
+
+- What happened: a watcher poll paused on a read could continue into `request_repay` after `stop()` cleared the timer.
+- Root cause: stopping future ticks did not invalidate work already awaiting an RPC result.
+- Rule: a stop generation invalidates pre-submission polls; a regression holds a read open, stops the watcher and verifies that no request is sent. An already submitted transaction still requires reconciliation.
+
+### 2026-11-11: Scheduled watcher polls must fail closed on unexpected exceptions
+
+- What happened: a malformed startup-evidence object caused `tick()` to reject outside the existing adapter error handling.
+- Root cause: scheduled polls were started without a per-Guardian catch for unexpected exceptions.
+- Rule: contain unexpected poll errors per Guardian, suppress raw exception data and lock requests read-only because the failure may have followed signing; the lifecycle regression exercises this path.
+
+### 2026-11-11: Watcher SDK network identity and retry defaults require explicit handling
+
+- What happened: inspecting `near-api-js` 7.4.0 showed that `getNetworkId()` caches the first result, access-key reads default to optimistic finality, and the JSON-RPC transport retries by default.
+- Root cause: general-purpose SDK convenience behavior does not meet the watcher's fresh-network and no-blind-retransmission boundaries.
+- Rule: verify the network using a fresh status request, inspect access permissions at finality `final`, and explicitly configure a single transport attempt before wiring any watcher broadcast. An ambiguous signed hash remains locked until reconciled; SDK defaults are not evidence that this occurred.
+
 ### 2026-11-10: Position locks hold amount zero; the status parser rejected them
 
 - What happened: while building Guardian activation, a fixture with an in-flight `owner_register` made `readGuardian` fail with `bad_response`, so every Guardian read would fail during registration or sweep. Separately, ARCHITECTURE Flow 3 still described `create_guardian(label, policy, watcher_id)` and an access-key batch the factory never implemented.

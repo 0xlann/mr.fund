@@ -120,6 +120,7 @@ export function createWatcher(options: WatcherOptions) {
   const startedAt = clock.now();
   let timer: ReturnType<typeof setTimeout> | null = null;
   let running = false;
+  let stopGeneration = 0;
 
   const emit = (event: WatcherEvent) => {
     try {
@@ -195,6 +196,7 @@ export function createWatcher(options: WatcherOptions) {
       return;
     }
     slot.busy = true;
+    const generation = stopGeneration;
     try {
       if (clock.now() < slot.retryAt) return;
       // A signed hash is reconciled first; even a terminal result waits for the next tick.
@@ -279,6 +281,8 @@ export function createWatcher(options: WatcherOptions) {
         return;
       }
 
+      if (generation !== stopGeneration) return;
+
       slot.lastDecision = `act:${decision.amount}`;
       let sent: Awaited<ReturnType<RepayRequester["requestRepay"]>>;
       try {
@@ -319,7 +323,26 @@ export function createWatcher(options: WatcherOptions) {
   }
 
   /** One scheduled tick. Slow Guardians do not delay or overlap with each other. */
-  const tick = () => Promise.all(slots.map(poll)).then(() => undefined);
+  const tick = () =>
+    Promise.all(
+      slots.map(async (slot) => {
+        try {
+          await poll(slot);
+        } catch {
+          // An unexpected adapter or state failure may have happened after signing.
+          // Without a reconcilable hash, fail closed and never log the exception.
+          slot.lockedReason = "poll_uncertain";
+          slot.lastError = "poll_uncertain";
+          emit({
+            event: "request_uncertain",
+            guardianId: slot.watched.target.guardianId,
+            at: clock.now(),
+            detail: "unexpected polling failure",
+          });
+          announce(slot, slot.watched.target.guardianId);
+        }
+      }),
+    ).then(() => undefined);
 
   const schedule = () => {
     if (!running) return;
@@ -339,6 +362,7 @@ export function createWatcher(options: WatcherOptions) {
     },
     stop() {
       running = false;
+      stopGeneration++;
       if (timer) clearTimeout(timer);
       timer = null;
     },

@@ -12,12 +12,15 @@
 
 ## 3. Runtime observability and operator test
 
-- [ ] 3.1 Add Node entry with existing local key source only, signal shutdown and structured redacted heartbeat timestamps/errors; document single-instance operation.
+- [x] 3.1 Add Node entry with existing local key source only, signal shutdown and structured redacted heartbeat timestamps/errors; document single-instance operation.
+  - Local evidence [V, 2026-11-11]: entry, scoped near-api-js signer, fresh chain/final access-key validation, block-pinned reads, conservative receipt/state reconciliation, redacted heartbeat and signal cleanup are implemented. Node startup without configuration refuses with sanitized `startup_failed`; watcher/client suites, typecheck and lint passed. The entry is deliberately read-only: a key nonce alone cannot prove restart reconciliation, and the public submission gate is hard-disabled. No public account, signature or transaction was used.
 - [ ] 3.2 Add explicit over-limit operator script outside polling and run accepted/rejected flows in sandbox after settlement/D27 proof.
+  - Partial local evidence: an explicit operator helper computes `max_per_action + 1`, checks authorization, startup certainty, freshness, active/no-in-flight/cooldown conditions, and never retries. Fake-requester tests passed. It is not yet a runnable operator script and has not been exercised against sandbox. The current runtime accepts only `testnet`/`mainnet`, checks public-network account suffixes, and requires HTTPS; the sandbox harness uses local accounts/endpoints. A separate, explicitly isolated sandbox transport/identity design is needed before running the operator against it without weakening public network checks.
 - [x] 3.3 Test no agent import, no owner-method transport, timestamp freshness and secret-free logs/status.
 
 ## 4. Evidence and external gates
 
 - [ ] 4.1 Run watcher/client suites, typecheck/lint and affected sandbox integration; update P5.3/P5.4 local evidence and runtime instructions.
+  - Partial local evidence [V, 2026-11-11]: watcher/client suites: 147 tests passed; full workspace: 1321 passed, 3 skipped; typecheck and lint passed. `guardian_controlled_refund_fixtures` passed for both protocol versions; `probe_testnet_wasm_cycle` passed after rebuilding local Guardian and factory WASM. These are contract sandbox observations, not watcher submission evidence. Runtime instructions are in INTEGRATIONS. The separate operator/sandbox acceptance remains open.
 - [ ] 4.2 Before any public request, verify D18/D19/B7 and configured permissions; keep network evidence unchecked until actual hashes exist.
 - [ ] 4.3 Before hosted deployment, obtain D29/B8 host/account/cost authorization; no hosting or account creation is included in local completion.

@@ -209,7 +209,14 @@ describe("watcher import boundary", () => {
     expect(files.length).toBeGreaterThan(0);
     const imports = source.match(/from\s+["'][^"']+["']/g) ?? [];
     expect(imports.length).toBeGreaterThan(0);
-    expect(imports.join("\n")).not.toMatch(/@mrfund\/agent|openai|anthropic|near-ai|signer/i);
+    expect(imports.join("\n")).not.toMatch(/@mrfund\/agent|openai|anthropic|near-ai/i);
+    const core = files
+      .filter((file) => file.startsWith("core/"))
+      .map((file) => readFileSync(join(dir, file), "utf8"))
+      .join("\n");
+    expect(core.match(/from\s+["'][^"']+["']/g)?.join("\n") ?? "").not.toMatch(
+      /near-api-js|signer/i,
+    );
   });
 
   it("names no owner method", () => {

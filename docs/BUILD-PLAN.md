@@ -286,6 +286,7 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Evidence: Playwright summary; testnet transaction hashes.
 
 - [ ] **P5.3 Watcher** (F6).
+  - Runtime progress [V, local, 2026-11-11]: Node entry, scoped signer, read adapters, conservative receipt reconciliation, redacted heartbeat and shutdown are implemented and tested; startup is read-only and public submission is hard-disabled because nonce alone does not prove restart safety. Watcher/client suites passed 147 tests; workspace test 1321 passed/3 skipped, typecheck and lint passed. Controlled refund and testnet-WASM contract sandbox tests passed after rebuilding local Guardian/factory WASM. No watcher request or public evidence is claimed; P5.3 remains open.
   - Owned: `apps/watcher/src/core/{loop,evaluate,request}.ts`, entry per D16.
   - Behavior: every 30 s (Option A) or every minute (Option C): read snapshot and Guardian state; `evaluateTrigger`; if act, call `request_repay(amount)` with the per-Guardian function-call key; never more than one outstanding request per Guardian; exponential backoff on RPC errors; heartbeat (timestamp) exposed through a status endpoint or log for the panel.
   - Boundary: the key can call only `request_repay` on that Guardian and attach no deposit. The watcher imports no LLM code.
