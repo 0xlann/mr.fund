@@ -1,3 +1,4 @@
+import type { SigningWallet } from "../execution/signer";
 import { validateAccounts } from "./accounts";
 import type { AuthAdapter, NearNetwork, WalletConfig } from "./types";
 
@@ -15,10 +16,15 @@ export interface NearConnectSDK {
   off(event: ConnectionEvent, changed: () => void): void;
 }
 
+/** The Connect adapter alone can reach a signing wallet; `AuthAdapter` stays signer-free. */
+export interface NearConnectAdapter extends AuthAdapter {
+  signingWallet(): Promise<SigningWallet>;
+}
+
 export function createNearConnectAdapter(
   config: WalletConfig,
   connector?: NearConnectSDK,
-): AuthAdapter {
+): NearConnectAdapter {
   let loading: Promise<NearConnectSDK> | undefined;
   function getConnector(): Promise<NearConnectSDK> {
     if (connector) return Promise.resolve(connector);
@@ -89,6 +95,13 @@ export function createNearConnectAdapter(
       const sdk = await getConnector();
       const wallet = await current(sdk);
       if (wallet) await sdk.disconnect(wallet);
+    },
+    async signingWallet() {
+      const wallet = await current(await getConnector());
+      const sign = (wallet as Partial<SigningWallet> | null)?.signAndSendTransactions;
+      if (!wallet || typeof sign !== "function")
+        throw new Error("The connected wallet cannot sign transactions.");
+      return { signAndSendTransactions: (params) => sign.call(wallet, params) };
     },
     subscribe(changed) {
       let active = true;

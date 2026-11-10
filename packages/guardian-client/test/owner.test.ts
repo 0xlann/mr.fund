@@ -50,7 +50,7 @@ it("withdraws reserve after deactivation and rejects stale/foreign/locked or ove
     ).ok,
   ).toBe(false);
 });
-it("keeps activation/provisioning unavailable without a final factory ABI", async () => {
+it("routes activate through the activation builder, which refuses an active Guardian", async () => {
   const r = await readGuardian(fakeClient(), target, { now: () => NOW });
   if (!r.ok) throw new Error("fixture");
   const p = guardianOwnerPayload(
@@ -62,7 +62,7 @@ it("keeps activation/provisioning unavailable without a final factory ABI", asyn
   if (!p.ok)
     expect(p.error).toMatchObject({
       kind: "invalid_input",
-      reason: expect.stringMatching(/provisioning ABI/),
+      reason: expect.stringMatching(/already activated/),
     });
 });
 

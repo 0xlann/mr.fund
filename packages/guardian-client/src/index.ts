@@ -1,7 +1,10 @@
 export const packageName = "@mrfund/guardian-client" as const;
+export * from "./activation-form";
+export * from "./activation-read";
 export * from "./client";
 export { nsToMs } from "./parse";
 export * from "./read";
+export * from "./tx/activation";
 export * from "./tx/owner";
 export * from "./tx/repay";
 export * from "./types";

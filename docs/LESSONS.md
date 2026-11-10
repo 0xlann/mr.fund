@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-10: Position locks hold amount zero; the status parser rejected them
+
+- What happened: while building Guardian activation, a fixture with an in-flight `owner_register` made `readGuardian` fail with `bad_response`, so every Guardian read would fail during registration or sweep. Separately, ARCHITECTURE Flow 3 still described `create_guardian(label, policy, watcher_id)` and an access-key batch the factory never implemented.
+- Root cause: `parseStatus` required a positive `in_flight.amount`, but the contract's `lock_position(0, …)` stores 0 for position operations. The architecture flow predated the archived factory ABI.
+- Rule: parsers mirror every value the contract can actually store, checked against the Rust source, not only the repay path; a zero amount is valid only with no repay phase (regression test in `guardian-client/test/read.test.ts`). The contract and SMART-CONTRACT "Final ABI for the client" are authoritative; Flow 3 is corrected to them.
+
 ### 2026-11-10: Preserve recommendation intent independently of card validity
 
 - What happened: independent review found that dismissing a zero-amount draft then asking about repay again lost the baseline's adjustment recovery card. A new DOM characterization failed on the missing Adjust amount action.

@@ -127,6 +127,25 @@ describe("validated Guardian reads", () => {
       if (r.ok) expect(toGuardianState(r.value).inFlight?.amount).toBe(100n);
     }
   });
+  it("reads a position lock (owner_register/owner_sweep) that holds amount 0", async () => {
+    // The contract's lock_position(0, Register) reports amount 0 with no repay phase.
+    const read = async (amount: string, phase: unknown) => {
+      const data: Record<string, unknown> = views();
+      (data.get_status as Record<string, unknown>).in_flight = {
+        op_id: "3",
+        amount,
+        fee: "0",
+        started_ns: "0",
+        repay_phase: phase,
+      };
+      return readGuardian(fakeClient(data), target, { now: () => NOW });
+    };
+    const r = await read("0", null);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.status.inFlight).toMatchObject({ opId: 3n, amount: 0n });
+    // A repayment phase with nothing locked is still corrupt.
+    expect((await read("0", "repaying")).ok).toBe(false);
+  });
   it("refuses corrupt history rather than inventing an interpretation", async () => {
     for (const mutate of [
       (a: Record<string, unknown>) => {
