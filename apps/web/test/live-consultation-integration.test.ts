@@ -38,6 +38,7 @@ function Harness({ id = "alice.testnet" }: { id?: string }) {
     createElement(LivePositionPanel, { live }),
     createElement(LiveChatPanel, {
       live,
+      repay: { store: null, view: { phase: "idle" } },
       phone: false,
       setComposerFocused: () => {},
       setKeyboardHeight: () => {},
@@ -50,6 +51,7 @@ describe("live consultation", () => {
     const card = {
       type: "card",
       card: {
+        id: "card-1",
         headline: "Repay",
         reason: "Reduce debt",
         numbers: [],
@@ -74,9 +76,9 @@ describe("live consultation", () => {
     fireEvent.change(screen.getByLabelText("Message Mr.Fund"), { target: { value: "What now?" } });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     expect(await screen.findByText("Hello")).toBeTruthy();
-    expect(
-      ((await screen.findByRole("button", { name: "Execute now" })) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    // Without a live repay executor (no session store) the card states it cannot execute.
+    expect(await screen.findByText("Execution is unavailable for this session.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Execute now" })).toBeNull();
     expect(screen.queryByText(/confirmed|pending|receipt/i)).toBeNull();
     expect(screen.queryByText("1,800.00")).toBeNull();
   });
