@@ -113,6 +113,15 @@ sequenceDiagram
   UI-->>U: card becomes receipt (status, tx link, new health)
 ```
 
+Browser execution (`apps/web/src/execution/`, `add-wallet-manual-repay-execution`) [V, local tests 2026-11-10; no public wallet run yet]:
+
+- **Permission boundary:** only the user's wallet signs. The signer exists only for NEAR Connect sessions (`NearConnectAdapter.signingWallet`); `WalletState`, `AuthAdapter` and NEAR Auth stay signer-free. The app holds no key and requests no access key or plugin.
+- **Invariants:** E1 the wallet signs only a frozen `VerifiedRepay` issued by `verifyCardPayload` for the session account and network (the signer refuses any other object); E2 `confirmed` comes only from `toCardReceipt` over a parsed outcome with a fresh post-state, never from a thrown wallet error; E3 one submission per card, locked from the moment the wallet is asked; E4 a later failed or partial transaction never resets an applied repay; E5 NEAR Auth sessions cannot reach the signer.
+- **Verifier allowlist:** repay `ft_transfer_call` to the configured lending contract with 1 yocto and the version's exact message; optional `storage_deposit` for the configured fee recipient (deposit ≤ 0.1 NEAR); `ft_transfer` of the card's fee to the configured recipient with 1 yocto. One function call per transaction with exactly the builder's keys; anything else is refused. Lending id and fee recipient come from `NEXT_PUBLIC_RHEA_LENDING_ID` and `NEXT_PUBLIC_FEE_RECIPIENT_ID` (no defaults).
+- **Wallet errors:** observation decides. Unchanged debt → nothing observed; changed debt → an observed change, never `confirmed`; unreadable → unknown, card stays locked.
+- **Negative tests:** extra AddKey/Transfer/DeployContract/Stake, wrong receiver, method, deposit, amount, message, fee recipient or fee amount, oversized registration, stale card, wrong network, foreign signer, forged unverified payload, Auth session, double activation, changed position, failed fresh read, wallet rejection, mismatched wallet result, unreadable outcome, recorded outcome fixtures.
+- **Does not guarantee:** that the wallet's display is accurate, that a debt change is caused by this repay, or any public-network behavior before P4.5 evidence.
+
 For a Guardian-held loan (G1), the same card targets the Guardian instead: `ft_transfer_call(receiver=<guardian>, amount, msg={"repay":{}})`, and the Guardian forwards the tokens to Rhea with `OnlyRepay` as itself. The execution fee, if any, is a separate `ft_transfer` to the fee recipient in the same `signAndSendTransactions` batch and is listed on the card.
 
 ### Flow 3: Guardian activation (F6, G1)
