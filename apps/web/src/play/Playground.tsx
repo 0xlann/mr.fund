@@ -23,6 +23,7 @@ import { GuardianPanel } from "./GuardianPanel";
 import { GuardianSetupDialog } from "./GuardianSetupDialog";
 import { HelpDialog } from "./HelpDialog";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
+import { LiveChatPanel, LivePositionPanel } from "./LivePanels";
 import { ModalFrame } from "./ModalFrame";
 import { PositionPanel } from "./PositionPanel";
 import { ReceiptDetail } from "./ReceiptDetail";
@@ -31,6 +32,7 @@ import { createDemoSource } from "./source/demoSource";
 import type { ConsultationSource } from "./source/types";
 import { panelReveal } from "./styles";
 import { type Panel, useConsultation } from "./useConsultation";
+import { useLiveConsultation } from "./useLiveConsultation";
 import { VoicePanel } from "./VoicePanel";
 import { WalletDialog } from "./WalletDialog";
 
@@ -69,6 +71,12 @@ export function Playground({
 } = {}) {
   const [defaultSource] = useState(() => source ?? createDemoSource());
   const activeSource = source ?? defaultSource;
+  const liveAccount = wallet?.state.status === "connected" ? wallet.state.session : undefined;
+  const live = useLiveConsultation(
+    liveAccount
+      ? { ...liveAccount, accounts: liveAccount.accounts.map((account) => account.accountId) }
+      : undefined,
+  );
   const {
     stage,
     panel,
@@ -184,6 +192,7 @@ export function Playground({
   }
 
   function positionContent() {
+    if (liveAccount) return <LivePositionPanel live={live} />;
     return (
       <PositionPanel
         port={activeSource.position}
@@ -204,6 +213,14 @@ export function Playground({
 
   function toolContent(value: DetailTab) {
     if (value === "position") return positionContent();
+    if (liveAccount)
+      return (
+        <p className="p-5 text-sm text-[#a2a4a5]">
+          {value === "guardian"
+            ? "Live Guardian controls are not available yet."
+            : "No live activity is available yet."}
+        </p>
+      );
     if (value === "guardian")
       return (
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -285,10 +302,11 @@ export function Playground({
             phone={phone}
             keyboardHeight={keyboardHeight}
             shortMobile={shortMobile}
-            healthText={healthText}
-            dataState={dataState}
-            debt={debt}
-            port={activeSource.position}
+            healthText={liveAccount ? "—" : healthText}
+            dataState={liveAccount ? "loading" : dataState}
+            debt={liveAccount ? 0n : debt}
+            port={liveAccount ? activeSource.session : activeSource.position}
+            liveAccount={liveAccount?.accountId}
             sound={sound}
             setSound={setSound}
             setNotice={setNotice}
@@ -316,8 +334,8 @@ export function Playground({
               transparent={phone && stage === "consult"}
             >
               <CharacterPortrait
-                mood={characterMood}
-                speaking={speaking}
+                mood={liveAccount ? (live.busy ? "thinking" : "calm") : characterMood}
+                speaking={liveAccount ? false : speaking}
                 mobile={phone}
                 speech={speechCue}
                 wave={wave}
@@ -355,7 +373,7 @@ export function Playground({
                 <ConsultationTabs
                   value={detailTab}
                   onChange={setDetailTab}
-                  activityCount={receipts.length}
+                  activityCount={liveAccount ? 0 : receipts.length}
                 />
               </div>
               <div
@@ -394,7 +412,16 @@ export function Playground({
                   </button>
                 </div>
               )}
-              {panel === "chat" && (
+              {panel === "chat" && liveAccount && (
+                <LiveChatPanel
+                  live={live}
+                  phone={phone}
+                  setComposerFocused={setComposerFocused}
+                  setKeyboardHeight={setKeyboardHeight}
+                  openPanel={openPanel}
+                />
+              )}
+              {panel === "chat" && !liveAccount && (
                 <ChatPanel
                   phone={phone}
                   scrollRef={scrollRef}
@@ -428,8 +455,15 @@ export function Playground({
               )}
               {panel === "voice" && (
                 <VoicePanel
-                  busy={thinking || streamingId !== null}
-                  onSend={sendMessage}
+                  busy={liveAccount ? live.busy : thinking || streamingId !== null}
+                  live={Boolean(liveAccount)}
+                  onSend={
+                    liveAccount
+                      ? (question) => {
+                          void live.send(question);
+                        }
+                      : sendMessage
+                  }
                   onNotice={setNotice}
                 />
               )}
@@ -457,7 +491,7 @@ export function Playground({
                   className={`relative grid size-[var(--dock-icon)] place-items-center rounded-[19px] border border-white/8 shadow-none transition-transform group-active:translate-y-1 group-active:shadow-none ${item.color} ${item.id === "voice" ? "size-[var(--voice-icon)]! rounded-[23px]!" : ""} ${panel === item.id ? "outline-2 outline-offset-4 outline-[#ff643b]" : ""}`}
                 >
                   {item.icon}
-                  {item.id === "activity" && receipts.length > 0 && (
+                  {!liveAccount && item.id === "activity" && receipts.length > 0 && (
                     <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full border border-[#313334] bg-[#ff643b] text-[#171b23]! text-[8px] font-bold">
                       {receipts.length}
                     </span>
@@ -479,10 +513,12 @@ export function Playground({
           close={() => setVoiceOpen(false)}
         >
           <VoicePanel
-            busy={thinking || streamingId !== null}
+            busy={liveAccount ? live.busy : thinking || streamingId !== null}
+            live={Boolean(liveAccount)}
             onSend={(question) => {
               setVoiceOpen(false);
-              sendMessage(question);
+              if (liveAccount) void live.send(question);
+              else sendMessage(question);
             }}
             onNotice={setNotice}
           />
@@ -532,7 +568,7 @@ export function Playground({
             liveConnected={liveConnected}
           />
         )}
-        {modal === "settings" && (
+        {!liveAccount && modal === "settings" && (
           <SettingsDialog
             dataState={dataState}
             selectDataState={selectDataState}
@@ -544,8 +580,8 @@ export function Playground({
             close={() => setModal(null)}
           />
         )}
-        {modal === "help" && <HelpDialog close={() => setModal(null)} />}
-        {modal === "setup" && (
+        {!liveAccount && modal === "help" && <HelpDialog close={() => setModal(null)} />}
+        {!liveAccount && modal === "setup" && (
           <GuardianSetupDialog
             port={activeSource.guardian}
             policyFields={policyFields}
@@ -557,7 +593,7 @@ export function Playground({
             close={() => setModal(null)}
           />
         )}
-        {pending && (
+        {!liveAccount && pending && (
           <ApprovalDialog
             pending={pending}
             signing={signing}
@@ -568,7 +604,7 @@ export function Playground({
             confirmPending={confirmPending}
           />
         )}
-        {selectedReceipt && (
+        {!liveAccount && selectedReceipt && (
           <ReceiptDetail
             receipt={selectedReceipt}
             port={activeSource.execution}

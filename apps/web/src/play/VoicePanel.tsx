@@ -26,10 +26,12 @@ export function VoicePanel({
   onSend,
   onNotice,
   busy = false,
+  live = false,
 }: {
   onSend: (text: string) => void;
   onNotice: (text: string) => void;
   busy?: boolean;
+  live?: boolean;
 }) {
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
@@ -175,9 +177,11 @@ export function VoicePanel({
           recognition.current?.abort();
           onSend(transcript);
           onNotice(
-            sample
-              ? "A labelled voice sample was sent to the scripted demo chat."
-              : "Your transcript was sent to Mr.Fund's demo chat.",
+            live
+              ? "Your transcript was sent to Mr.Fund."
+              : sample
+                ? "A labelled voice sample was sent to the scripted demo chat."
+                : "Your transcript was sent to Mr.Fund's demo chat.",
           );
         }}
         className="mt-3 flex items-center justify-between rounded-xl border-0 bg-[#bad7c3] px-4 py-3 text-xs font-bold text-[#203327] disabled:opacity-40"
@@ -204,8 +208,9 @@ export function VoicePanel({
         Try a demo transcript
       </button>
       <p className="mt-5! text-center text-[8px] leading-relaxed text-[#a2a4a5]">
-        Voice uses your browser's speech service; its provider may process audio. Mr.Fund's replies
-        are scripted in this demo. No transaction is authorized by speaking.
+        Voice uses your browser's speech service; its provider may process audio.{" "}
+        {live ? "" : "Mr.Fund's replies are scripted in this demo. "}No transaction is authorized by
+        speaking.
       </p>
     </div>
   );

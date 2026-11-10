@@ -13,6 +13,9 @@ interface Props {
   setKeyboardHeight: (height: number | null) => void;
   clearConversation: () => void;
   openPanel: (panel: Panel | null) => void;
+  maxLength?: number;
+  allowDuringThinking?: boolean;
+  disabled?: boolean;
 }
 export function ChatComposer({
   input,
@@ -24,6 +27,9 @@ export function ChatComposer({
   setKeyboardHeight,
   clearConversation,
   openPanel,
+  maxLength = 500,
+  allowDuringThinking = false,
+  disabled = false,
 }: Props) {
   return (
     <form
@@ -44,16 +50,20 @@ export function ChatComposer({
         aria-label="Message Mr.Fund"
         placeholder="Write a message…"
         value={input}
-        maxLength={500}
+        maxLength={maxLength}
         onChange={(event) => setInput(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
             event.preventDefault();
-            if (input.trim() && !thinking && streamingId === null)
+            if (
+              input.trim() &&
+              !disabled &&
+              (allowDuringThinking || (!thinking && streamingId === null))
+            )
               event.currentTarget.form?.requestSubmit();
           }
         }}
-        disabled={thinking}
+        disabled={disabled || (thinking && !allowDuringThinking)}
       />
       <div className="flex shrink-0 items-center gap-0.5 pb-1 pr-1 sm:gap-1">
         <button
@@ -77,7 +87,11 @@ export function ChatComposer({
         <button
           type="submit"
           aria-label="Send message"
-          disabled={!input.trim() || thinking || streamingId !== null}
+          disabled={
+            disabled ||
+            !input.trim() ||
+            (!allowDuringThinking && (thinking || streamingId !== null))
+          }
           className={chatSendClass}
         >
           {thinking ? (
