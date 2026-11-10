@@ -47,7 +47,7 @@ const advance = async (ms = 2200) => {
 function click(name: string) {
   fireEvent.click(screen.getByRole("button", { name }));
 }
-const DEMO_WALLET = "Connect demo wallet";
+const DEMO_WALLET = "Try the simulated demo";
 /** Welcome, then wallet, then the chair gesture: the whole flow into a consultation. */
 async function begin() {
   click("Start consultation");

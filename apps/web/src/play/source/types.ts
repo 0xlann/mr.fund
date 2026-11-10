@@ -10,6 +10,8 @@ import type {
   Result,
 } from "@mrfund/shared";
 
+import type { LiveAccountView } from "./liveSession";
+
 export type { ChatEvent };
 export type Provenance = "simulated" | "live";
 export interface Port {
@@ -71,6 +73,8 @@ export interface SessionView {
   connected: boolean;
   connecting: boolean;
   walletBalance: bigint;
+  /** Present only for a live wallet session; simulated sessions have no real account. */
+  account?: LiveAccountView;
 }
 export interface ExecutionView {
   receipts: Receipt[];

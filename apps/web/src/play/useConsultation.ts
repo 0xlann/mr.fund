@@ -472,6 +472,13 @@ export function useConsultation(source: ConsultationSource) {
         setNotice(error instanceof Error ? error.message : String(error));
     }
   }
+  /** A real wallet finished signing in (the wallet controller owns that operation). */
+  function liveConnected() {
+    setModal(null);
+    setWave((v) => v + 1);
+    setNotice("Signed in. Welcome to the office.");
+    if (stage === "welcome") enterConsultation();
+  }
   const healthText =
     current.health === null || dataState === "error" || dataState === "loading"
       ? "—"
@@ -571,6 +578,7 @@ export function useConsultation(source: ConsultationSource) {
     clearConversation,
     reset,
     startConsultation,
+    liveConnected,
     connect,
     healthText,
   };
