@@ -252,6 +252,7 @@ Spec: [SMART-CONTRACT](technical/SMART-CONTRACT.md). P2.1 to P2.3 are identical 
   - Remaining (box stays open): frontend context/connection screen and real app/provider/passkey/wallet proof are deferred by user instruction. The current app UI remains unchanged. Synthetic provider tests and a public derived address do not satisfy complete browser login or P4.5.
 
 - [ ] **P4.4 Main screen, chat, card and receipt UI** (F1, F2, F4, F5).
+  - Live consultation progress [V, local, 2026-11-10]: the existing room can render fake-tested live position and chat ports for a connected account, with network mismatch refusal, cancellable streams, explicit refresh and non-executing cards. Full workspace tests passed 1112 with 3 skipped; typecheck, lint and web production build passed. A `next dev` route smoke with recorded fake RPC and a fake provider observed position, answer, tool-built card, sanitized error and provider cancellation; fake-session UI tests cover account isolation and keyboard use. Live-wallet flow, public model/account evidence, receipt execution and P4.4 acceptance remain open.
   - First step: write `docs/DESIGN.md` from the founder's references (D23), including character rendering choice (D26).
   - Owned: `apps/web/src/{screens,components}/*`.
   - Acceptance: PRD "Functional screen contracts" states all reachable; keyboard-only path through ask → card → execute; visible focus; reduced motion; 360 px layout; no fixture data shown as live (fixtures carry a visible label in dev builds only).

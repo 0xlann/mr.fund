@@ -55,6 +55,8 @@ Custody, network, pricing and production renderer decisions remain governed by t
 
 ## Consultation module map — 2026-11-10
 
+Live consultation uses the existing room and panel layout. `useLiveConsultation` owns account-scoped chat history and cancellation; `LivePanels` renders the live position and card without demo fixtures. `source/livePosition.ts` reads `/api/position`, validates account/network, expires data without polling, and exposes loading, empty, mismatch, stale and unavailable states. `source/liveChat.ts` consumes the chat SSE stream; HTTP 400, 429, unavailable and interrupted responses map to recoverable messages with the question restored. The server-provided card is read-only: Execute remains disabled until wallet execution is implemented. This describes local implementation, not a real-wallet or public-network proof.
+
 [V, local implementation and checks] The source refactor preserves the existing consultation layout, copy, styles, focus sequence and CharacterPortrait dynamic loading. It changes where state lives, not what the product claims to execute.
 
 ### Composition roots

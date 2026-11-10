@@ -19,6 +19,7 @@ interface Props {
   setNotice: (text: string) => void;
   connected: boolean;
   setModal: (modal: "settings" | "help" | "wallet") => void;
+  liveAccount?: string | undefined;
 }
 export function ConsultationHeader({
   stage,
@@ -35,6 +36,7 @@ export function ConsultationHeader({
   setNotice,
   connected,
   setModal,
+  liveAccount,
 }: Props) {
   return (
     <header
@@ -54,7 +56,7 @@ export function ConsultationHeader({
         </span>
       </div>
       <div className="flex items-center gap-2">
-        {stage === "consult" && (
+        {stage === "consult" && !liveAccount && (
           <section
             aria-label="Position stats"
             className="mr-3 hidden grid-cols-2 items-center gap-x-5 gap-y-1 text-sm lg:grid 2xl:grid-cols-[auto_auto_auto]"
@@ -78,50 +80,59 @@ export function ConsultationHeader({
             />
           </section>
         )}
-        <button
-          type="button"
-          aria-label="Demo settings"
-          onClick={() => setModal("settings")}
-          className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b]"
-        >
-          <Settings2 size={17} />
-        </button>
-        <button
-          type="button"
-          aria-label={sound ? "Mute spoken replies" : "Enable spoken replies"}
-          aria-pressed={sound}
-          onClick={() => {
-            if (!("speechSynthesis" in window)) {
-              setNotice("Spoken replies aren't supported by this browser. Text chat still works.");
-              return;
-            }
-            setSound((value) => !value);
-            window.speechSynthesis.cancel();
-          }}
-          className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b]"
-        >
-          {sound ? <Volume2 size={17} /> : <VolumeX size={17} />}
-        </button>
-        <button
-          type="button"
-          aria-label="How it works"
-          onClick={() => setModal("help")}
-          className="hidden size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b] sm:grid"
-        >
-          <CircleHelp size={17} />
-        </button>
+        {!liveAccount && (
+          <button
+            type="button"
+            aria-label="Demo settings"
+            onClick={() => setModal("settings")}
+            className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b]"
+          >
+            <Settings2 size={17} />
+          </button>
+        )}
+        {!liveAccount && (
+          <button
+            type="button"
+            aria-label={sound ? "Mute spoken replies" : "Enable spoken replies"}
+            aria-pressed={sound}
+            onClick={() => {
+              if (!("speechSynthesis" in window)) {
+                setNotice(
+                  "Spoken replies aren't supported by this browser. Text chat still works.",
+                );
+                return;
+              }
+              setSound((value) => !value);
+              window.speechSynthesis.cancel();
+            }}
+            className="grid size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b]"
+          >
+            {sound ? <Volume2 size={17} /> : <VolumeX size={17} />}
+          </button>
+        )}
+        {!liveAccount && (
+          <button
+            type="button"
+            aria-label="How it works"
+            onClick={() => setModal("help")}
+            className="hidden size-9 place-items-center rounded-full border-0 bg-transparent text-[#989a9b] hover:bg-[#25292b] sm:grid"
+          >
+            <CircleHelp size={17} />
+          </button>
+        )}
         {stage === "consult" && (
           <button
             type="button"
+            aria-label={liveAccount ? `Wallet: ${liveAccount}` : undefined}
             onClick={() => setModal("wallet")}
             className="ml-1 flex min-h-10 items-center gap-2 rounded-full border border-white/10 bg-[#202223] px-3 text-[11px] font-medium text-[#d8d5e0]"
           >
             <Wallet size={15} />
             <span className="hidden sm:block">
-              {connected ? "you.demo.testnet" : "Connect wallet"}
+              {liveAccount ?? (connected ? "you.demo.testnet" : "Connect wallet")}
             </span>
             <span className="sr-only sm:hidden">
-              {connected ? "you.demo.testnet" : "Connect wallet"}
+              {liveAccount ?? (connected ? "you.demo.testnet" : "Connect wallet")}
             </span>
           </button>
         )}
