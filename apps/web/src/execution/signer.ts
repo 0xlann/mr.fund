@@ -1,3 +1,4 @@
+import { type VerifiedGuardian, wasGuardianVerified } from "../guardian/verify";
 import { type VerifiedRepay, wasVerified } from "./verify";
 
 /** The wallet surface the signer needs; matches `@hot-labs/near-connect` 0.12.0. */
@@ -17,13 +18,14 @@ export interface SigningWallet {
 
 /**
  * Connect-only signing capability (task 2.1). It signs only a `VerifiedRepay` issued by
- * `verifyCardPayload` for this exact account and network, sets `signerId` and `network`
+ * `verifyCardPayload` or a `VerifiedGuardian` issued by `verifyGuardianPayload` for this exact
+ * account and network (one signing path for both, E1 and G-UI-1), sets `signerId` and `network`
  * explicitly, and hands back the wallet's result unmodified. NEAR Auth has no signer at all.
  */
 export interface TransactionSigner {
   readonly accountId: string;
   readonly network: "testnet" | "mainnet";
-  signAndSend(verified: VerifiedRepay): Promise<unknown>;
+  signAndSend(verified: VerifiedRepay | VerifiedGuardian): Promise<unknown>;
 }
 
 export function createTransactionSigner(
@@ -39,8 +41,9 @@ export function createTransactionSigner(
   return Object.freeze({
     accountId,
     network,
-    async signAndSend(verified: VerifiedRepay) {
-      if (!wasVerified(verified)) throw new Error("Only a verified payload can be signed.");
+    async signAndSend(verified: VerifiedRepay | VerifiedGuardian) {
+      const issued = "intent" in verified ? wasGuardianVerified(verified) : wasVerified(verified);
+      if (!issued) throw new Error("Only a verified payload can be signed.");
       if (verified.signerId !== accountId)
         throw new Error("The payload was verified for another account.");
       if (verified.network !== network)
