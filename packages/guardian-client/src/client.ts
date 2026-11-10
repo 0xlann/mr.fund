@@ -40,6 +40,21 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
 }
+/** Guardian, factory and NEP-145 views; nothing here can change state. */
+const VIEW_METHODS = [
+  "get_config",
+  "get_status",
+  "get_policy",
+  "get_reserve",
+  "get_history",
+  "get_guardian",
+  "get_next_guardian_id",
+  "get_template",
+  "get_limits",
+  "get_unclaimed",
+  "is_pending",
+  "storage_balance_of",
+];
 /** Public final-block views only. No signer, retry, account creation or mutation transport. */
 export function createGuardianClient(
   rpcUrl: string,
@@ -49,9 +64,7 @@ export function createGuardianClient(
     async view(contractId, method, args, blockId) {
       if (
         !isValidAccountId(contractId) ||
-        !["get_config", "get_status", "get_policy", "get_reserve", "get_history"].includes(
-          method,
-        ) ||
+        !VIEW_METHODS.includes(method) ||
         (blockId !== undefined && (typeof blockId !== "string" || !blockId || blockId.length > 128))
       )
         return bad();

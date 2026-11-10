@@ -9,6 +9,7 @@ import {
 } from "@mrfund/shared";
 import { parsePolicy } from "../parse";
 import type { GuardianSnapshot } from "../types";
+import { activationPayload, policyWire } from "./activation";
 export type GuardianOwnerAction =
   | { kind: "pause" | "resume" | "deactivate" }
   | { kind: "withdraw_reserve"; amount: bigint }
@@ -42,8 +43,12 @@ export function guardianOwnerPayload(
     if (age > 120000) return err({ kind: "stale_snapshot", ageMs: age, limitMs: 120000 });
     if (action === null || typeof action !== "object" || Array.isArray(action))
       return bad("Invalid owner action");
-    if (action.kind === "activate")
-      return bad("Activation is unavailable until the final provisioning ABI is verified");
+    if (action.kind === "activate") {
+      if (Object.keys(action).some((k) => !["kind", "amount"].includes(k)))
+        return bad("Unexpected owner action field");
+      const draft = activationPayload(snapshot, action.amount, context);
+      return draft.ok ? ok(draft.value.payload) : draft;
+    }
     const allowed =
       action.kind === "withdraw_reserve"
         ? ["kind", "amount"]
@@ -89,16 +94,7 @@ export function guardianOwnerPayload(
         break;
       case "set_policy": {
         if (snapshot.status.inFlight !== null) return bad("Operation in flight");
-        const p = action.policy;
-        const wire = {
-          max_per_action: p.maxPerAction.toString(),
-          lifetime_cap: p.lifetimeCap.toString(),
-          reserve_floor: p.reserveFloor.toString(),
-          trigger_hf_bps: p.triggerHfBps,
-          target_hf_bps: p.targetHfBps,
-          cooldown_sec: p.cooldownSec,
-          action_fee: p.actionFee.toString(),
-        };
+        const wire = policyWire(action.policy);
         const policy = parsePolicy(wire);
         if (policy.lifetimeCap < snapshot.reserve.spentTotal)
           return bad("Lifetime cap below cumulative spend");

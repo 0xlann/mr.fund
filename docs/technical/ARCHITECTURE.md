@@ -118,10 +118,13 @@ For a Guardian-held loan (G1), the same card targets the Guardian instead: `ft_t
 ### Flow 3: Guardian activation (F6, G1)
 
 1. User fills in the form. The engine validates fields (PRD F6) and produces a plain-language summary plus the exact policy struct.
-2. Wallet batch 1: `create_guardian(label, policy, watcher_id)` on the factory, with attached NEAR covering account storage, Rhea registration (live minimum 0.1 NEAR) and token registrations. The factory creates `<label>.<factory>`, deploys the Guardian code, calls `new`, adds **no access key**, then the Guardian registers itself with Rhea and the debt token.
-3. Wallet batch 2: `ft_transfer_call(receiver=<guardian>, amount=reserve+activation_fee, msg={"activate":{}})` on the debt token. The Guardian books the reserve, forwards the activation fee to the fee recipient, and emits `activated`.
-4. The loan: collateral via `ft_transfer_call(receiver=<guardian>, msg={"collateral":{}})`, then `owner_borrow(amount)`. Borrowed tokens arrive at the Guardian, and `owner_sweep` sends everything above the booked reserve to the owner (SMART-CONTRACT).
-5. The watcher operator adds a function-call key on the watcher account restricted to `receiver_id = <guardian>`, `method_names = ["request_repay"]`, with a finite gas allowance.
+2. Wallet step 1: `create_guardian({policy})` on the factory with NEAR funding in `[min_funding, max_funding]` (floor 2.75325 NEAR for the current build [V, sandbox]) and at least 145 Tgas. The signer becomes the owner; the factory creates the next `get_next_guardian_id(owner)` account and its batch holds only create-account, transfer, deploy and `new` (**no access key**, I10). The watcher id and all other config come from the factory template, not from the call. The client shows the Guardian only after the `created` outcome or `guardian_created` event; `failed` returns `refund: sent | claimable`, and a claimable refund is taken with `claim_refund()` (1 yocto).
+3. Wallet step 2: `owner_register({target_id, storage_deposit})` with 1 yocto, once each for the lending contract, the debt token and the collateral token. The storage deposit is paid from the Guardian's own NEAR. Each call holds the Guardian lock until its callback, so the targets are registered one transaction at a time.
+4. Wallet step 3: `ft_transfer_call(receiver=<guardian>, amount=reserve+activation_fee, msg={"activate":{}})` on the debt token. The contract refunds the whole amount unless it covers activation fee + reserve floor + max per action + action fee. The Guardian books the reserve, forwards the immutable template activation fee to the fee recipient, and emits `activated`.
+5. The loan: collateral via `ft_transfer_call(receiver=<guardian>, msg={"collateral":{}})`, then `owner_borrow(amount)`. Borrowed tokens arrive at the Guardian, and `owner_sweep` sends everything above the booked reserve to the owner (SMART-CONTRACT). Whether P0 offers these in the UI is an open lead decision (`add-guardian-live-activation-ui` task 5.1).
+6. The watcher operator adds a function-call key on the watcher account restricted to `receiver_id = <guardian>`, `method_names = ["request_repay"]`, with a finite gas allowance.
+
+Each step's progress is read back from chain (`get_guardian(owner)`, `is_pending`, `get_unclaimed`, `get_status`, registrations); no step is assumed atomic with the next.
 
 ### Flow 4: Guardian trigger, accept and reject (F6, F7)
 

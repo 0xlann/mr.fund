@@ -91,8 +91,10 @@ export function parseStatus(v: unknown): GuardianStatusView {
       startedNs: uint(p.started_ns, 64),
       repayPhase,
     };
+    // Position locks (owner_register, owner_sweep) carry amount 0 and no repay phase; only
+    // repayment and reserve operations must lock a positive amount.
     if (
-      inFlight.amount === 0n ||
+      (inFlight.amount === 0n && repayPhase !== null) ||
       (typeof repayPhase === "object" &&
         repayPhase !== null &&
         repayPhase.fee.used > inFlight.amount)

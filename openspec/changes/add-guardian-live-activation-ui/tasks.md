@@ -2,19 +2,19 @@ Gate summary: sections 1–4 are local (pure builders, validation, UI against a 
 
 ## 1. Backend contract first
 
-- [ ] 1.1 Implement unsigned builders for factory creation, `owner_register` and reserve-plus-fee `ft_transfer_call` with the `activate` message in `packages/guardian-client/src/tx/`, from SMART-CONTRACT "Final ABI for the client". Tests: funding below/above range, gas floors, deposits (1 yocto), registration order, fee recipient binding, altered prose leaves bytes unchanged, stale/foreign owner refusal. Closes `add-guardian-client-and-tools` 3.1–3.3 (update that change in the same commit).
-- [ ] 1.2 Correct `docs/technical/ARCHITECTURE.md` Flow 3 to the real ABI (`create_guardian({policy})`; no label, watcher id or access key in the batch) and record the contradiction in `docs/LESSONS.md`. The contract and SMART-CONTRACT are authoritative.
-- [ ] 1.3 Add a resumable activation-state reader (`get_guardian(owner)`, status, registrations) returning `none | created | registered | active | failed(claimable)`. Tests per state and for pending creation.
+- [x] 1.1 Implement unsigned builders for factory creation, `owner_register` and reserve-plus-fee `ft_transfer_call` with the `activate` message in `packages/guardian-client/src/tx/`, from SMART-CONTRACT "Final ABI for the client". Tests: funding below/above range, gas floors, deposits (1 yocto), registration order, fee recipient binding, altered prose leaves bytes unchanged, stale/foreign owner refusal. Closes `add-guardian-client-and-tools` 3.1–3.3 (update that change in the same commit). (2026-11-10: `tx/activation.ts` (`createGuardianPayload`, `claimRefundPayload`, `ownerRegisterPayload`, `activationPayload`); `guardianOwnerPayload` routes `activate` to it. Gas for `owner_register` is an [I] estimate until P2.8.)
+- [x] 1.2 Correct `docs/technical/ARCHITECTURE.md` Flow 3 to the real ABI (`create_guardian({policy})`; no label, watcher id or access key in the batch) and record the contradiction in `docs/LESSONS.md`. The contract and SMART-CONTRACT are authoritative. (Also fixed `parseStatus`, which rejected the contract's zero-amount position lock; regression test in `read.test.ts`.)
+- [x] 1.3 Add a resumable activation-state reader (`get_guardian(owner)`, status, registrations) returning `none | created | registered | active | failed(claimable)`. Tests per state and for pending creation. (`activation-read.ts`: `none | pending | failed | created(next) | registered | activated`, plus `readFactory`; the view client allowlist gained the factory and `storage_balance_of` views.)
 
 ## 2. Form and verified payloads
 
-- [ ] 2.1 Form fields and validation exactly per PRD F6 using the contract's rules; test every boundary (104.99/105%, 5-minute cooldown, per-action vs reserve minus floor, total vs per-action, deposit minimum, target above trigger).
-- [ ] 2.2 Summary generation from the policy struct with fees (read from chain) and recipient; property test that every number in the summary equals the payload number.
-- [ ] 2.3 Extend the payload verifier to Guardian actions (factory, own Guardian, debt token, lending contract; allowlisted methods; deposits and gas floors); negative tests for `AddKey`, wrong factory, wrong receiver and non-owner signer.
+- [x] 2.1 Form fields and validation exactly per PRD F6 using the contract's rules; test every boundary (104.99/105%, 5-minute cooldown, per-action vs reserve minus floor, total vs per-action, deposit minimum, target above trigger). (`activation-form.ts` `parseActivationForm`; exact decimal parsing, no floating point.)
+- [x] 2.2 Summary generation from the policy struct with fees (read from chain) and recipient; property test that every number in the summary equals the payload number. (`activationSummary`; fast-check property over 200 random valid forms.)
+- [ ] 2.3 Extend the payload verifier to Guardian actions (factory, own Guardian, debt token, lending contract; allowlisted methods; deposits and gas floors); negative tests for `AddKey`, wrong factory, wrong receiver and non-owner signer. **Open (2026-11-10):** Blocked: the payload verifier does not exist yet (`add-wallet-manual-repay-execution` 0/13).
 
 ## 3. Live port and flows
 
-- [ ] 3.1 Live `guardian` port: block-pinned reads, heartbeat age, retained-ring truncation, unavailable-evidence states; tests with a fake client including malformed and stale responses.
+- [ ] 3.1 Live `guardian` port: block-pinned reads, heartbeat age, retained-ring truncation, unavailable-evidence states; tests with a fake client including malformed and stale responses. **Open (2026-11-10):** Not started: the port's `prepare` needs the verifier, and no watcher heartbeat source is exposed yet.
 - [ ] 3.2 Step-wise activation flow (create → register → reserve) with per-step observation and resume-from-chain; tests for reload at each step, failed creation with `sent` and `claimable` refund, creation in flight, and a hash-only unresolved state that shows no Guardian.
 - [ ] 3.3 Owner controls (Pause, Resume, Deactivate, Withdraw) as verified cards with availability rules; tests for deactivated semantics, in-flight withdraw block and unknown in-flight outcome.
 
