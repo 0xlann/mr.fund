@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
+import type { useLiveRepay } from "../execution/useLiveRepay";
 import { ChatComposer } from "./ChatComposer";
+import { RepayExecution } from "./RepayExecution";
 import { formatAtomic } from "./source/formatAtomic";
 import type { useLiveConsultation } from "./useLiveConsultation";
 
@@ -65,12 +67,14 @@ export function LivePositionPanel({ live }: { live: Live }) {
 
 export function LiveChatPanel({
   live,
+  repay,
   phone,
   setComposerFocused,
   setKeyboardHeight,
   openPanel,
 }: {
   live: Live;
+  repay: ReturnType<typeof useLiveRepay>;
   phone: boolean;
   setComposerFocused: (v: boolean) => void;
   setKeyboardHeight: (v: number | null) => void;
@@ -136,10 +140,12 @@ export function LiveChatPanel({
                 To {tx.receiverId}: {tx.actions.map((action) => action.methodName).join(", ")}
               </p>
             ))}
-            <button type="button" disabled>
-              Execute now
-            </button>
-            <p>Wallet execution is the next step.</p>
+            <RepayExecution
+              card={live.card}
+              store={repay.store}
+              view={repay.view}
+              onSettled={live.refresh}
+            />
             {live.state.status === "stale" && (
               <button type="button" onClick={live.refresh}>
                 Refresh position

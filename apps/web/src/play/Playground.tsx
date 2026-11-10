@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { type ReactNode, useState } from "react";
+import { useLiveRepay } from "../execution/useLiveRepay";
 import type { WalletSession } from "../wallet/react";
 import { ActivityPanel } from "./ActivityPanel";
 import { ApprovalDialog } from "./ApprovalDialog";
@@ -73,11 +74,11 @@ export function Playground({
   const [defaultSource] = useState(() => source ?? createDemoSource());
   const activeSource = source ?? defaultSource;
   const liveAccount = wallet?.state.status === "connected" ? wallet.state.session : undefined;
-  const live = useLiveConsultation(
-    liveAccount
-      ? { ...liveAccount, accounts: liveAccount.accounts.map((account) => account.accountId) }
-      : undefined,
-  );
+  const liveView = liveAccount
+    ? { ...liveAccount, accounts: liveAccount.accounts.map((account) => account.accountId) }
+    : undefined;
+  const live = useLiveConsultation(liveView);
+  const repay = useLiveRepay(liveView, process.env.NEXT_PUBLIC_NEAR_RPC_URL);
   const {
     stage,
     panel,
@@ -421,6 +422,7 @@ export function Playground({
               {panel === "chat" && liveAccount && (
                 <LiveChatPanel
                   live={live}
+                  repay={repay}
                   phone={phone}
                   setComposerFocused={setComposerFocused}
                   setKeyboardHeight={setKeyboardHeight}

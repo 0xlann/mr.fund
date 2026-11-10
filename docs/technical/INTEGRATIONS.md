@@ -225,6 +225,14 @@ Observed evidence [V, 2026-11-08]:
 
 Unexercised [U]: real hosted credentials/passkey/device behavior, actual wallet approval, future origin/client allowlisting, restore under browser cookie restrictions, mainnet Auth readiness and end-to-end app login. No keys, signatures, accounts, funds or on-chain permissions were created by these checks. These gates stay with the future frontend owner; do not archive `add-dual-near-auth` as complete browser onboarding.
 
+#### Live manual repay surface (`add-wallet-manual-repay-execution` 3.1–3.2, 2026-11-11)
+
+Status [V, local only]: the live chat card's Execute runs `prepare (get_version + fresh position read + decode + verify) → in-app confirmation → wallet → createRepayRunner`, in the browser against `NEXT_PUBLIC_NEAR_RPC_URL` (`apps/web/src/execution/live.ts`, `wire.ts`, `useLiveRepay.ts`; `apps/web/src/play/RepayExecution.tsx`).
+
+- The chat route serializes bigint as decimal strings. `decodeWireCard` restores only action `gas`/`deposit` and fee `amount`, and refuses anything malformed.
+- Material change since the card [I, chosen rule]: debt lower than the card's, debt more than 0.1 % above it, or engine health more than 50 bps away. Each blocks with "ask for a new one".
+- Never exercised with a real wallet. Live evidence is `prove-testnet-guardian-loop` 4.2.
+
 #### Live Guardian activation and controls (`add-guardian-live-activation-ui`, 2026-11-11)
 
 Status [V, local only]: implemented and tested against fake RPC clients and recorded-shape views; never run against a deployed factory (none exists, SMART-CONTRACT "Not deployed"). Live evidence belongs to `prove-testnet-guardian-loop` 4.3.
