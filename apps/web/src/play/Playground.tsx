@@ -23,6 +23,7 @@ import { GuardianPanel } from "./GuardianPanel";
 import { GuardianSetupDialog } from "./GuardianSetupDialog";
 import { HelpDialog } from "./HelpDialog";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
+import { LiveGuardianPanel } from "./LiveGuardianPanel";
 import { LiveChatPanel, LivePositionPanel } from "./LivePanels";
 import { ModalFrame } from "./ModalFrame";
 import { PositionPanel } from "./PositionPanel";
@@ -213,14 +214,19 @@ export function Playground({
 
   function toolContent(value: DetailTab) {
     if (value === "position") return positionContent();
-    if (liveAccount)
+    if (liveAccount && value === "guardian")
       return (
-        <p className="p-5 text-sm text-[#a2a4a5]">
-          {value === "guardian"
-            ? "Live Guardian controls are not available yet."
-            : "No live activity is available yet."}
-        </p>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <LiveGuardianPanel
+            account={{
+              ...liveAccount,
+              accounts: liveAccount.accounts.map((account) => account.accountId),
+            }}
+          />
+        </div>
       );
+    if (liveAccount)
+      return <p className="p-5 text-sm text-[#a2a4a5]">No live activity is available yet.</p>;
     if (value === "guardian")
       return (
         <div className="min-h-0 flex-1 overflow-y-auto p-5">

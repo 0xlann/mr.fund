@@ -104,6 +104,7 @@ node --input-type=module -e "const endpoint='http://127.0.0.1:3148/api/position'
 | `RHEA_LENDING_ID` | all | Lending contract for the network | public |
 | `GUARDIAN_FACTORY_ID` | all | Factory account | public |
 | `NEXT_PUBLIC_RHEA_LENDING_ID`, `NEXT_PUBLIC_FEE_RECIPIENT_ID` | web app (execution verifier) | Browser copies of `RHEA_LENDING_ID` and `FEE_RECIPIENT_ID`; must match them; missing or wrong-network values block Execute | public |
+| `NEXT_PUBLIC_GUARDIAN_FACTORY_ID`, `NEXT_PUBLIC_GUARDIAN_ACTION_FEE_ATOMIC` | web app (live Guardian panel) | Browser copy of `GUARDIAN_FACTORY_ID` and the per-action fee (debt-token atomic units, D24) written into a new policy; missing or wrong-network values block Guardian setup, never default | public |
 | `FEE_RECIPIENT_ID` | factory deploy, web app (display) | Fee recipient account | public |
 | `WATCHER_ACCOUNT_ID` | watcher, factory policy defaults | Watcher account | public id |
 | `WATCHER_KEYS_DIR` | watcher | Directory with the watcher's function-call key files (one per Guardian) | secret path |
@@ -223,6 +224,26 @@ Observed evidence [V, 2026-11-08]:
 - Final workspace checks: **837 tests passed, 3 opt-in checks skipped**, typecheck/lint and production web build passed; strict OpenSpec validation passed. Production routes remained `/`, `/_not-found` and `/api/chat`, with no connection screen.
 
 Unexercised [U]: real hosted credentials/passkey/device behavior, actual wallet approval, future origin/client allowlisting, restore under browser cookie restrictions, mainnet Auth readiness and end-to-end app login. No keys, signatures, accounts, funds or on-chain permissions were created by these checks. These gates stay with the future frontend owner; do not archive `add-dual-near-auth` as complete browser onboarding.
+
+#### Live Guardian activation and controls (`add-guardian-live-activation-ui`, 2026-11-11)
+
+Status [V, local only]: implemented and tested against fake RPC clients and recorded-shape views; never run against a deployed factory (none exists, SMART-CONTRACT "Not deployed"). Live evidence belongs to `prove-testnet-guardian-loop` 4.3.
+
+| Module | Contract |
+| --- | --- |
+| `apps/web/src/guardian/config.ts` | `readGuardianConfig`: network, HTTPS RPC, factory id and per-action fee; missing values block setup |
+| `apps/web/src/guardian/verify.ts` | `verifyGuardianPayload(payload, intent, expectation)`: exact builder output per intent, frozen and branded result |
+| `apps/web/src/guardian/flow.ts` | `nextActivationStep`, `activationProgress`, `buildActivationStep`, `buildControl`: steps and payloads from chain state only |
+| `apps/web/src/guardian/controls.ts` | `controlAvailability`, `inFlightNotice`, `historyNotice`, `heartbeatState` |
+| `apps/web/src/guardian/live.ts` | `createLiveGuardian`: block-pinned reads and the `build → verify → wallet → re-read` pipeline |
+| `apps/web/src/play/LiveGuardianPanel.tsx` | Setup form, review, the three activation steps and the panel with controls for a live wallet session |
+
+Money path:
+
+- Permission boundary: only the owner's NEAR Connect wallet signs. `createTransactionSigner` accepts only `VerifiedRepay` or `VerifiedGuardian` results, and the Connect adapter's signing surface is registered in `near-connect.ts`, so the session controller and React context stay signer-free. NEAR Auth sessions can view but not sign.
+- Invariants: G-UI-1 (verified payloads to the factory, own Guardian or debt token only), G-UI-2 (summary numbers equal payload numbers), G-UI-3 (a Guardian is shown only after the factory reports it), G-UI-4 (progress from chain reads). SMART-CONTRACT I1 to I10 stay contract-enforced.
+- Negative tests: `guardian-verify.test.ts`, `guardian-live.test.ts` and `live-guardian-panel.test.ts` (AddKey, wrong factory, policy drift, non-owner signer, hash-only creation, wallet error, in-flight withdraw, deactivated controls, Auth session).
+- Does not guarantee: that the watcher acts (no heartbeat source is connected, so it shows as unavailable), that a step succeeds, that a refund covers gas, or that the Guardian's NEAR can be withdrawn. Creation funding is the factory `min_funding`. No collateral, borrow or sweep control exists until the lead decides (task 5.1).
 
 ### 6. NEAR AI Cloud (B6, P0.6)
 

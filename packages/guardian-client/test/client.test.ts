@@ -83,3 +83,14 @@ it("distinguishes response body disconnects and transient RPC failures from malf
   ).view("guardian.testnet", "get_status", {});
   expect(r.ok ? null : r.error.kind).toBe("bad_response");
 });
+it("allows only view methods, including the token metadata and storage-bounds views", async () => {
+  const fetcher = transport({
+    result: { block_height: 1, block_hash: "b", result: [...new TextEncoder().encode("null")] },
+  });
+  const client = createGuardianClient("https://rpc.example", fetcher);
+  for (const method of ["ft_metadata", "storage_balance_bounds"])
+    expect((await client.view("usdc.testnet", method, {})).ok).toBe(true);
+  for (const method of ["ft_transfer", "storage_deposit", "pause", "create_guardian"])
+    expect(await client.view("usdc.testnet", method, {})).toMatchObject({ ok: false });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
