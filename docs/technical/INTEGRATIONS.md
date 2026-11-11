@@ -183,6 +183,26 @@ Agent steps (planned, need B7 accounts):
 
 Verification: each step's transaction outcome has no failed receipt; `get_account` reflects the change. Record hashes here. Stop condition: a priced step fails with a missing-price error; go to recipe 4.
 
+Observed Gate 1 plain-account cycle [V, testnet, 2026-11-11 15:43–15:45 UTC; `prove-testnet-guardian-loop` 2.2]: the user authorized the plan; demo user `d-mrf-b1ce96af6a.testnet` signed every write with `waitUntil: FINAL`. Collateral `wrap.testnet` and debt `ref.fakes.testnet` both use fixed `default_price` values (recipe 4), so this is the **fixed-price partial pass**: health does not move with any market and price-driven beats stay Simulated. Bounded outcomes with before/after `get_account` and balances are in ignored `scratch/gate1-2026-11-11.jsonl`.
+
+| Step | Transaction | Block after | Result |
+| --- | --- | --- | --- |
+| Rhea `storage_deposit` 0.1 NEAR | [`GBFMXpSS…`](https://testnet.nearblocks.io/txns/GBFMXpSSbhSwna66bkfo9UHg5diezd3rURd3VcwSw3rS) | 277235437 | Registered; empty position |
+| `ref.fakes.testnet` `storage_deposit` 0.00125 NEAR | [`5hXemhto…`](https://testnet.nearblocks.io/txns/5hXemhtovFnCuFm59sau1tZNDb4xXxdJ2ZprJ2GaXFTq) | 277235451 | Registered |
+| `near_deposit` 0.51 NEAR | [`9hqJXFd6…`](https://testnet.nearblocks.io/txns/9hqJXFd6gYob4Dm8vZPLVAB789LAUaY6Zn2ahg3Jhg2D) | 277235464 | 0.51 wNEAR |
+| Swap 0.01 wNEAR → REF, DCL pool `ref.fakes.testnet\|wrap.testnet\|2000` (`{"Swap":{pool_ids,output_token,min_output_amount}}`, 1% slippage) | [`14APowF1…`](https://testnet.nearblocks.io/txns/14APowF1T2aUjcEmBxvz2RnQ3qFY1zQPHtTN7iX8FF7S) | 277235484 | 12.915966163152627515 REF (equal to the quote) |
+| 0.5 wNEAR `ft_transfer_call` `{"Execute":{"actions":[{"IncreaseCollateral":{"token_id":"wrap.testnet"}}]}}` | [`FKdmfv3L…`](https://testnet.nearblocks.io/txns/FKdmfv3LYmvSmiod8MhD75QD9WcTnSpFPCAnzsJj7HsB) | 277235514 | Collateral 0.5 wNEAR |
+| `execute_with_pyth` Borrow + Withdraw 1 USDC | [`GkmSCzi3…`](https://testnet.nearblocks.io/txns/GkmSCzi3p6HmVFPLJnjgeiCjLQF47h333rmRsF4DNZzc) | 277235533 | **Rejected**: `Missing usdc.fakes.testnet price` (`pyth.rs:155`); position unchanged |
+| `execute_with_pyth` Borrow 0.5 REF + Withdraw 0.5 REF (exact) | [`CGg8BBkH…`](https://testnet.nearblocks.io/txns/CGg8BBkHye8583BoABn5xt2d15LJw2p4sXdVjtFr4C7Q) | 277235554 | **Rejected**: `Not enough asset balance`; whole call reverted, position unchanged (see share rounding below) |
+| `execute_with_pyth` Borrow 0.5 REF + Withdraw (amount omitted) | [`88WMGMtm…`](https://testnet.nearblocks.io/txns/88WMGMtmKXU24ST7jAdZcghJ2YDoAboWV2Ty9j6j4BLo) | 277235624 | Debt 0.500000000435016701 REF; 0.5 REF − 1 atomic reached the wallet |
+| 0.6 REF `ft_transfer_call` `{"Execute":{"actions":[{"Repay":{"token_id":"ref.fakes.testnet","max_amount":"600000000000000000"}}]}}` | [`HQJD8gzr…`](https://testnet.nearblocks.io/txns/HQJD8gzrtQU6PpJq5mWLnUzuYmy6WN8Un2vFtdWjc36x) | 277235640 | Debt 0; the excess stayed supplied (0.099999997174169570 REF) |
+| `execute_with_pyth` DecreaseCollateral + Withdraw wNEAR (amounts omitted) | [`HhCtJKxf…`](https://testnet.nearblocks.io/txns/HhCtJKxfNCxyxYEzz9cF4CXEtAPdH5eRzVJLv3FK5ouh) | 277235656 | Collateral 0; 0.500001292110087790524287 wNEAR back in the wallet |
+| `execute_with_pyth` Withdraw REF (amount omitted) | [`9V22uWmt…`](https://testnet.nearblocks.io/txns/9V22uWmtPL5pSyFHE8M9BzvcWeTw7dLruT33ox6MkFmw) | 277235673 | Supplied, collateral and borrowed all empty |
+
+Costs: 0.010645 NEAR burnt in gas across the 11 transactions (rejected ones included), 0.1 NEAR locked in Rhea storage and 0.00125 NEAR in REF storage; the cycle's REF cost was 0.000000002732103006 REF of interest. No `OnlyRepay` was attempted on `0.11.0`.
+
+Share rounding [V, testnet arithmetic at the failed borrow]: Rhea credits a borrow to `supplied` as `floor(amount × shares / balance)` shares and debits an exact-amount `Withdraw` as `ceil(…)`. With the REF pool at 370481008160211288092408 shares / 377384644082526848374484 balance, 0.5 REF credited `490853316330478637` shares and the same-amount withdraw needed `…638`. Any pool whose share price is not exactly 1 makes `Borrow(x)` + `Withdraw(x)` revert; omitting the `Withdraw` amount takes what was credited (1 atomic less). The sandbox did not show this because its fresh pools were 1:1. **Consequence for the Guardian [I, not yet exercised]:** `owner_borrow` and `owner_withdraw_collateral` (P2.4) send exact-amount `Withdraw` actions, so on these testnet pools they are expected to revert; and the demo's planned USDC debt cannot be borrowed until a fresh USDC price exists. Both need a lead decision before P2.8 (`prove-testnet-guardian-loop` 4.1).
+
 ### 4. Testnet price freshness (P0.2, B2)
 
 Observed (lead, 2026-11-04): `pyth-oracle.testnet` `get_price_no_older_than({"price_id":"41f3625971ca2ed2263e78573fe5ce23e13d2558ed3f2e47ab0f84fb9e7ae722","age":60})` returned `null` at block 276211786 (this is the USDC feed id mapped by the testnet lending contract).
