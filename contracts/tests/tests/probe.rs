@@ -487,34 +487,92 @@ async fn guardian_imported_checks(
             .await?;
         }
         let before = balance(debt, account.as_account()).await?;
-        let debt_before: u128 = position(lending, account.as_account()).await?["borrowed"][0]
-            ["balance"]
-            .as_str()
-            .unwrap()
-            .parse()?;
+        let debt_before: u128 =
+            position(lending, account.as_account()).await?["borrowed"][0]["balance"]
+                .as_str()
+                .unwrap()
+                .parse()?;
+        // A fresh sandbox-only key can call only this Guardian's request_repay.
+        let scoped_key = near_workspaces::types::SecretKey::from_random(
+            near_workspaces::types::KeyType::ED25519,
+        );
+        watcher
+            .batch(watcher.id())
+            .add_key(
+                scoped_key.public_key(),
+                near_workspaces::types::AccessKey::function_call_access(
+                    account.id(),
+                    &["request_repay"],
+                    Some(NearToken::from_near(5)),
+                ),
+            )
+            .transact()
+            .await?
+            .into_result()?;
+        let scoped_secret = scoped_key.to_string();
+        let scoped_watcher = Account::from_secret_key(watcher.id().clone(), scoped_key, worker);
         // Explicit operator-style max+1 request, before the accepted action starts cooldown.
         let reserve_before: Value = account.view("get_reserve").await?.json()?;
-        let over_limit = watcher
-            .call(account.id(), "request_repay")
-            .args_json(json!({"amount":"1000001"}))
-            .gas(Gas::from_tgas(300))
-            .transact()
-            .await?;
-        let rejection: Value = over_limit.clone().json()?;
-        assert_eq!(rejection["outcome"], "rejected");
-        assert_eq!(rejection["reason"], "above_max_per_action");
-        assert!(over_limit.failures().is_empty());
-        assert!(over_limit.logs().iter().any(|line| {
-            line.contains("request_rejected")
-                && line.contains("above_max_per_action")
-                && line.contains(rejection["op_id"].as_str().unwrap())
-        }));
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut child = std::process::Command::new(root.join("apps/watcher/node_modules/.bin/tsx"))
+            .arg(root.join("apps/watcher/src/sandbox/operator-cli.ts"))
+            .arg("--sandbox-only")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()?;
+        use std::io::Write;
+        write!(
+            child.stdin.take().context("operator stdin")?,
+            "{}",
+            json!({
+                "rpcUrl": worker.rpc_addr(), "guardianId": account.id(),
+                "watcherId": watcher.id(), "secretKey": scoped_secret
+            })
+        )?;
+        let output = child.wait_with_output()?;
+        assert!(
+            output.status.success(),
+            "sandbox operator failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let submission: Value = serde_json::from_slice(&output.stdout)?;
+        assert_eq!(submission["kind"], "pending");
+        let hash = submission["hash"].as_str().context("operator hash")?;
+        let raw = outcome_recordings::rpc(
+            worker,
+            "EXPERIMENTAL_tx_status",
+            json!({"tx_hash":hash,"sender_account_id":watcher.id(),"wait_until":"FINAL"}),
+        )
+        .await?;
+        assert_eq!(raw["final_execution_status"], "FINAL");
         let rejection_history: Value = account
             .view("get_history")
             .args_json(json!({"from":0,"limit":50}))
             .await?
             .json()?;
-        assert_eq!(rejection_history[0]["op_id"], rejection["op_id"]);
+        assert_eq!(rejection_history[0]["outcome"], "rejected");
+        assert_eq!(rejection_history[0]["reason"], "above_max_per_action");
+        let op_id = rejection_history[0]["op_id"]
+            .as_str()
+            .context("rejection operation id")?;
+        assert!(
+            raw["receipts_outcome"]
+                .as_array()
+                .context("receipt outcomes")?
+                .iter()
+                .any(|receipt| {
+                    receipt["outcome"]["logs"].as_array().is_some_and(|logs| {
+                        logs.iter().any(|entry| {
+                            entry.as_str().is_some_and(|line| {
+                                line.contains("request_rejected")
+                                    && line.contains("above_max_per_action")
+                                    && line.contains(op_id)
+                            })
+                        })
+                    })
+                })
+        );
         assert_eq!(
             account.view("get_reserve").await?.json::<Value>()?,
             reserve_before
@@ -524,11 +582,8 @@ async fn guardian_imported_checks(
             position(lending, account.as_account()).await?["borrowed"][0]["balance"],
             debt_before.to_string()
         );
-        println!(
-            "sandbox operator test request: {}",
-            over_limit.outcome().transaction_hash
-        );
-        let outcome = watcher
+        println!("sandbox operator test request: {}", hash);
+        let outcome = scoped_watcher
             .call(account.id(), "request_repay")
             .args_json(json!({"amount":"1000000"}))
             .gas(Gas::from_tgas(300))
@@ -547,14 +602,18 @@ async fn guardian_imported_checks(
             assert_eq!(status["status"], "paused");
             assert!(status["in_flight"].is_null());
             assert!(outcome.failures().is_empty(), "{:?}", outcome.failures());
-            assert!(outcome
-                .logs()
-                .iter()
-                .any(|log| log.contains("repay_requested")));
-            assert!(!outcome
-                .logs()
-                .iter()
-                .any(|log| log.contains("repay_started")));
+            assert!(
+                outcome
+                    .logs()
+                    .iter()
+                    .any(|log| log.contains("repay_requested"))
+            );
+            assert!(
+                !outcome
+                    .logs()
+                    .iter()
+                    .any(|log| log.contains("repay_started"))
+            );
             call(
                 owner,
                 oracle,
@@ -622,9 +681,11 @@ async fn guardian_imported_checks(
                     .iter()
                     .filter_map(|id| allocated.get(id.as_str()?))
                     .sum();
-                assert!(budget
-                    .checked_sub(o["outcome"]["gas_burnt"].as_u64().unwrap() + children)
-                    .is_some_and(|margin| margin >= 2_000_000_000_000));
+                assert!(
+                    budget
+                        .checked_sub(o["outcome"]["gas_burnt"].as_u64().unwrap() + children)
+                        .is_some_and(|margin| margin >= 2_000_000_000_000)
+                );
                 assert!(o["outcome"]["status"].get("Failure").is_none());
             }
         }
