@@ -35,3 +35,11 @@ reports `read_only`, including when the key is valid: current chain views and a
 key nonce do not prove that an earlier signed transaction cannot still arrive.
 Errors are sanitized and never include key material or RPC details. This is a
 preflight only; it neither authorizes nor provides a public submission path.
+
+The guarded signer also has an optional single-use local journal for future
+operator integration. It synchronizes an intent before signing and the hash
+before broadcast; an existing or incomplete record blocks a subsequent attempt.
+It does not delete records, retry, or establish what happened before the journal
+was installed. The public runtime does not use it yet. Any integration must use
+a private stable directory shared by all processes for the same Guardian and
+establish independent reconciliation before allowing another request.
