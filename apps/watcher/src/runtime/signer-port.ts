@@ -17,6 +17,12 @@ interface SignerDependencies<T> {
   verify(): Promise<boolean>;
   /** Remains false until the external public submission gates have been met. */
   submissionAllowed(): boolean;
+  /** Optional single-use durable barrier; no broadcast may precede its hash sync. */
+  journal?: {
+    begin(call: RepayCall): Promise<void>;
+    recordHash(hash: string): Promise<void>;
+    close(): Promise<void>;
+  };
   sign(call: RepayCall): Promise<SignedRequest<T>>;
   broadcast(signed: T): Promise<void>;
   lookup(hash: string): Promise<TxLookup>;
@@ -49,6 +55,7 @@ export function createGuardedSignerPort<T>(
       try {
         if (!(await deps.verify())) return { kind: "refused", reason: "authority_unavailable" };
         signingStarted = true;
+        await deps.journal?.begin(call);
         const result = await deps.sign(call);
         // After signing, uncertainty without a valid hash must propagate to the core's read-only lock.
         if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(result.hash))
@@ -56,6 +63,7 @@ export function createGuardedSignerPort<T>(
         const hashBytes = baseDecode(result.hash);
         if (hashBytes.length !== 32 || baseEncode(hashBytes) !== result.hash)
           throw new Error("Signed hash unavailable");
+        await deps.journal?.recordHash(result.hash);
         pending = result.hash;
         try {
           await deps.broadcast(result.signed);
@@ -67,6 +75,7 @@ export function createGuardedSignerPort<T>(
         if (signingStarted && pending === null) uncertain = true;
         throw new Error("Watcher request could not be reconciled");
       } finally {
+        await deps.journal?.close().catch(() => {});
         busy = false;
       }
     },
