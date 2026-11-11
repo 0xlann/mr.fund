@@ -31,6 +31,8 @@ function rpc(chain: {
   guardian: string | null;
   data?: ReturnType<typeof views>;
   registered?: string[];
+  /** Guardian-held loan views (task 5.5): Rhea account and token balances. */
+  loan?: { account: unknown; balances: Record<string, string> };
 }) {
   const data = chain.data ?? views();
   const answer: Record<string, Record<string, unknown>> = {
@@ -52,13 +54,19 @@ function rpc(chain: {
       get_next_guardian_id: "guardian.testnet",
     },
     "guardian.testnet": data as Record<string, unknown>,
+    [factory.lendingId]: { get_account: chain.loan?.account ?? null },
   };
   vi.stubGlobal(
     "fetch",
     vi.fn(async (_url: string, init: RequestInit) => {
       const { account_id: id, method_name: method } = JSON.parse(String(init.body)).params;
       let value: unknown = answer[id]?.[method];
-      if (method === "ft_metadata") value = { symbol: "USDC", decimals: 6 };
+      if (method === "ft_metadata")
+        value =
+          id === factory.collateralTokenId
+            ? { symbol: "wNEAR", decimals: 24 }
+            : { symbol: "USDC", decimals: 6 };
+      if (method === "ft_balance_of") value = chain.loan?.balances[id];
       if (method === "storage_balance_bounds") value = { min: "1250000000000000000000" };
       if (method === "storage_balance_of") value = chain.registered?.includes(id) ? {} : null;
       const bytes = [...new TextEncoder().encode(JSON.stringify(value ?? null))];
@@ -74,8 +82,6 @@ function honest(text: string) {
   const lower = text.toLowerCase();
   for (const b of BANNED) expect(lower).not.toContain(b);
   expect(lower).not.toMatch(/\bsafe\b/);
-  // No loan-building control until the lead decides (task 5.1).
-  expect(lower).not.toMatch(/\b(borrow|sweep|deposit collateral)\b/);
 }
 
 describe("live Guardian panel", () => {
@@ -154,6 +160,51 @@ describe("live Guardian panel", () => {
     await waitFor(() =>
       expect(screen.getByText(/Showing the attempts the contract still retains/)).toBeTruthy(),
     );
+  });
+});
+
+describe("Guardian-held loan section", () => {
+  const WNEAR = 10n ** 24n;
+  const active = () => {
+    const data = views();
+    (data.get_history as unknown[]) = [];
+    return data;
+  };
+
+  it("shows chain-read holdings and exact review lines; an Auth session cannot sign", async () => {
+    rpc({
+      guardian: "guardian.testnet",
+      data: active(),
+      loan: {
+        account: {
+          collateral: [{ token_id: factory.collateralTokenId, balance: String(5n * WNEAR) }],
+          borrowed: [{ token_id: factory.debtTokenId, balance: "30000000000000000000" }],
+        },
+        balances: { [factory.collateralTokenId]: String(3n * WNEAR), [factory.debtTokenId]: "260" },
+      },
+    });
+    const { container } = panel();
+    const section = await screen.findByRole("region", { name: "Guardian loan" });
+    const text = () => section.textContent ?? "";
+    expect(text()).toContain("Collateral in Rhea5 wNEAR");
+    expect(text()).toContain("Debt in Rhea30 USDC");
+    expect(text()).toContain("Above the reserve0.00006 USDC");
+    fireEvent.change(screen.getByLabelText(/Deposit collateral/), { target: { value: "2" } });
+    expect(text()).toContain("You send 2 wNEAR from your wallet to guardian.testnet");
+    fireEvent.change(screen.getByLabelText(/^Borrow/), { target: { value: "10" } });
+    expect(text()).toContain("Your Guardian borrows 10 USDC from rhea.testnet");
+    expect(text()).toMatch(/Borrowing lowers the health factor/);
+    for (const name of ["Deposit in wallet", "Borrow in wallet", "Sweep 0.00006 USDC"])
+      expect((screen.getByRole("button", { name }) as HTMLButtonElement).disabled).toBe(true);
+    honest(container.textContent ?? "");
+  });
+
+  it("an unreadable loan says so instead of showing zeros", async () => {
+    rpc({ guardian: "guardian.testnet", data: active() });
+    panel();
+    const section = await screen.findByRole("region", { name: "Guardian loan" });
+    expect(section.textContent).toMatch(/could not be read/);
+    expect(screen.queryByRole("button", { name: "Borrow in wallet" })).toBeNull();
   });
 });
 

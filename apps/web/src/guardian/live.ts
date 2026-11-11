@@ -23,6 +23,7 @@ import type { TransactionSigner } from "../execution/signer";
 import type { Network } from "../execution/verify";
 import { type Heartbeat, heartbeatState } from "./controls";
 import { activationProgress, type Built, nextActivationStep, type Submission } from "./flow";
+import { type GuardianHoldings, type LoanIntent, type LoanOutcome, readHoldings } from "./loan";
 import { verifyGuardianPayload } from "./verify";
 
 export interface TokenFacts {
@@ -40,6 +41,8 @@ export type LiveGuardianState =
       activation: ActivationState;
       /** NEP-145 minimum for the next registration target, when one is due. */
       storageDeposit: bigint | null;
+      /** Guardian-held loan facts once activated; null when not activated or unreadable. */
+      holdings: GuardianHoldings | null;
       heartbeat: Heartbeat;
       readAtMs: number;
     };
@@ -51,6 +54,8 @@ export interface LiveGuardianView {
   notice: string | null;
   /** Why signing is unavailable for this session, or null when it can sign. */
   signBlocked: string | null;
+  /** The last loan step, compared across the reads before and after it. */
+  loan: LoanOutcome | null;
 }
 
 export interface LiveGuardianDeps {
@@ -101,6 +106,7 @@ export function createLiveGuardian(deps: LiveGuardianDeps) {
     submission: null,
     busy: false,
     notice: null,
+    loan: null,
     signBlocked: deps.signer
       ? null
       : "NEAR Auth accounts can view the Guardian but cannot sign Guardian transactions. Connect a wallet with NEAR Connect to set one up.",
@@ -142,6 +148,10 @@ export function createLiveGuardian(deps: LiveGuardianDeps) {
         : null;
       storageDeposit = bounds?.ok ? parseStorageMin(bounds.value.data) : null;
     }
+    const holdings =
+      activation.value.kind === "activated"
+        ? await readHoldings(deps.client, activation.value.guardian, now)
+        : null;
     const readAtMs = now();
     return {
       status: "ready",
@@ -149,6 +159,7 @@ export function createLiveGuardian(deps: LiveGuardianDeps) {
       token,
       activation: activation.value,
       storageDeposit,
+      holdings,
       heartbeat: heartbeatState(deps.heartbeat?.() ?? null, readAtMs),
       readAtMs,
     };
@@ -171,7 +182,10 @@ export function createLiveGuardian(deps: LiveGuardianDeps) {
       (!submission || activationProgress(next.activation, submission).kind !== "unresolved")
     )
       submission = null;
-    publish({ state: next, submission });
+    // "Check again" after a loan step compares the same "before" with the newest read.
+    const loan =
+      view.loan && next.status === "ready" ? { ...view.loan, after: next.holdings } : view.loan;
+    publish({ state: next, submission, loan });
   }
 
   function guardianOf(state: LiveGuardianState): GuardianSnapshot | null {
@@ -207,7 +221,12 @@ export function createLiveGuardian(deps: LiveGuardianDeps) {
         guardian: guardianOf(state),
       });
       if (!verified.ok) return publish({ notice: verified.reason });
-      publish({ busy: true, notice: null });
+      const kind = built.intent.kind;
+      const loanIntent: LoanIntent | null =
+        kind === "collateral" || kind === "borrow" || kind === "sweep" ? kind : null;
+      const before = state.holdings;
+      if (loanIntent && !before) return publish({ notice: "Refresh the Guardian first." });
+      publish({ busy: true, notice: null, loan: null });
       let hashes: string[] = [];
       let walletError = false;
       try {
@@ -217,6 +236,10 @@ export function createLiveGuardian(deps: LiveGuardianDeps) {
       }
       publish({ submission: { intent: built.intent.kind, hashes } });
       await refresh();
+      if (loanIntent && before) {
+        const after = view.state.status === "ready" ? view.state.holdings : null;
+        publish({ loan: { intent: loanIntent, before, after, hashes, walletError } });
+      }
       publish({
         busy: false,
         notice: walletError

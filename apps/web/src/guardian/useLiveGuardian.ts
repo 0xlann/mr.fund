@@ -13,6 +13,7 @@ const LOADING: LiveGuardianView = {
   busy: false,
   notice: null,
   signBlocked: null,
+  loan: null,
 };
 const noSubscribe = () => () => {};
 

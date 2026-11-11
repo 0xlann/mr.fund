@@ -14,6 +14,11 @@
  *     1 yocto.
  *   - debt token `ft_transfer_call({receiver_id: <own Guardian>, amount: reserve + activation
  *     fee, msg: {"activate":{}}})`, 1 yocto, with the fee and recipient the factory showed.
+ *   - Guardian-held loan (task 5.5): the configured collateral token's `ft_transfer_call({
+ *     receiver_id: <own Guardian>, amount, msg: {"collateral":{}}})` with 1 yocto and ≥ 180 Tgas
+ *     (140 must reach the Guardian); own Guardian `owner_borrow({amount})` with 1 yocto and
+ *     ≥ 260 Tgas; own Guardian `owner_sweep({token_id})` with 1 yocto for the configured debt or
+ *     collateral token. Each needs an activated Guardian with nothing in flight.
  * "Own Guardian" means the account the factory reports for the signer, whose config names the
  * signer as owner. Anything else (AddKey, Transfer, DeployContract, Stake, extra arguments,
  * another receiver) is refused.
@@ -23,11 +28,14 @@
  */
 import {
   ACTIVATE_MSG,
+  COLLATERAL_MSG,
   type FactoryInfo,
   type GuardianSnapshot,
   policyWire,
   type RegistrationTarget,
   registrationTargetId,
+  type SweepToken,
+  sweepTokenId,
 } from "@mrfund/guardian-client";
 import { type GuardianPolicy, isValidAccountId } from "@mrfund/shared";
 import type { Network } from "../execution/verify";
@@ -35,6 +43,9 @@ import type { Network } from "../execution/verify";
 const TGAS = 1_000_000_000_000n;
 const MAX_GAS = 300n * TGAS;
 const MIN_CREATE_GAS = 145n * TGAS;
+/** The Guardian refunds a deposit that reaches it with < 140 Tgas; the token keeps ~35 Tgas. */
+const MIN_COLLATERAL_GAS = 180n * TGAS;
+const MIN_BORROW_GAS = 260n * TGAS;
 const U128_MAX = (1n << 128n) - 1n;
 /** Upper bound for a NEP-145 registration paid from the Guardian's NEAR (minimums are ~0.00125). */
 export const MAX_STORAGE_DEPOSIT_YOCTO = 10n ** 23n;
@@ -45,7 +56,10 @@ export type GuardianIntent =
   | { kind: "register"; target: RegistrationTarget; storageDeposit: bigint }
   | { kind: "activate"; reserve: bigint }
   | { kind: "pause" | "resume" | "deactivate" }
-  | { kind: "withdraw"; amount: bigint };
+  | { kind: "withdraw"; amount: bigint }
+  | { kind: "collateral"; amount: bigint }
+  | { kind: "borrow"; amount: bigint }
+  | { kind: "sweep"; token: SweepToken };
 
 export interface GuardianExpectation {
   network: Network;
@@ -116,6 +130,9 @@ const ARG_KEYS: Record<GuardianIntent["kind"], readonly string[]> = {
   resume: [],
   deactivate: [],
   withdraw: ["amount"],
+  collateral: ["receiver_id", "amount", "msg"],
+  borrow: ["amount"],
+  sweep: ["token_id"],
 };
 
 const METHOD: Record<GuardianIntent["kind"], string> = {
@@ -127,6 +144,9 @@ const METHOD: Record<GuardianIntent["kind"], string> = {
   resume: "resume",
   deactivate: "deactivate",
   withdraw: "owner_withdraw_reserve",
+  collateral: "ft_transfer_call",
+  borrow: "owner_borrow",
+  sweep: "owner_sweep",
 };
 
 export function verifyGuardianPayload(
@@ -154,6 +174,15 @@ export function verifyGuardianPayload(
     return null;
   };
   const oneYocto = () => (call.deposit === 1n ? null : "The call must attach exactly 1 yoctoNEAR.");
+  /** Loan steps need an activated Guardian of the signer with nothing in flight. */
+  const loanReady = () => {
+    if (!g) return "No Guardian exists for this account yet.";
+    if (g.config.ownerId !== x.signerId || g.status.ownerId !== x.signerId)
+      return "This Guardian belongs to another account.";
+    if (g.status.status === "created") return "Activate the Guardian first.";
+    if (g.status.inFlight) return "An operation is in flight. Wait until the contract settles it.";
+    return null;
+  };
 
   let problem: string | null = null;
   switch (intent.kind) {
@@ -221,6 +250,37 @@ export function verifyGuardianPayload(
       if (!problem && (intent.amount <= 0n || call.args.amount !== intent.amount.toString()))
         problem = "The withdrawal amount differs from the one you chose.";
       break;
+    case "collateral": {
+      problem = loanReady() ?? oneYocto();
+      if (problem || !g) break;
+      const tokenId = g.config.collateralTokenIds[0];
+      if (g.config.collateralTokenIds.length !== 1 || call.receiverId !== tokenId)
+        return refuse("The deposit is not for your Guardian's collateral token.");
+      if (call.args.receiver_id !== g.guardianId)
+        return refuse("The collateral goes to a contract other than your Guardian.");
+      if (call.args.msg !== COLLATERAL_MSG)
+        return refuse("The transfer message is not a collateral deposit.");
+      if (intent.amount <= 0n || call.args.amount !== intent.amount.toString())
+        return refuse("The collateral amount differs from the one you chose.");
+      if (call.gas < MIN_COLLATERAL_GAS)
+        return refuse("A collateral deposit needs at least 180 Tgas.");
+      break;
+    }
+    case "borrow":
+      problem = loanReady() ?? ownGuardian() ?? oneYocto();
+      if (problem) break;
+      if (intent.amount <= 0n || call.args.amount !== intent.amount.toString())
+        return refuse("The borrow amount differs from the one you chose.");
+      if (call.gas < MIN_BORROW_GAS) return refuse("A borrow needs at least 260 Tgas.");
+      break;
+    case "sweep": {
+      problem = loanReady() ?? ownGuardian() ?? oneYocto();
+      if (problem || !g) break;
+      const tokenId = sweepTokenId(g, intent.token);
+      if (!tokenId || call.args.token_id !== tokenId)
+        return refuse("The sweep is not for one of your Guardian's tokens.");
+      break;
+    }
   }
   if (problem) return refuse(problem);
 
