@@ -200,7 +200,7 @@ The user also superseded D17's historical lack of a commit-size rule for subsequ
 | B4 | Gate 3: in-contract trigger price source | lead | Open | P0.4, P2.5 | Contract reads a fresh price and computes the same health as the engine, or D27 fallback |
 | B5 | Tech stack (D16) | founder | Resolved 2026-11-05 | P0.7 and every app path | Option A chosen; see D16 |
 | B6 | NEAR AI Cloud API key and credits | founder | Resolved for local inference, 2026-11-08 | P0.6, Phase 3 | Local credential accepted by authenticated gateway; real GLM tool-calling turns exercised. Model acceptance is separate D25/P3.4 evidence; no credential is committed |
-| B7 | Testnet accounts, NEAR and listed test tokens | founder creates or authorizes the lead | Partially complete | P0.2, P0.3, P2.8, P5 | Six accounts funded on testnet; token sourcing remains [U]. See INTEGRATIONS "NEAR testnet accounts" |
+| B7 | Testnet accounts, NEAR and listed test tokens | founder creates or authorizes the lead | Resolved 2026-11-11 | P0.2, P0.3, P2.8, P5 | Six accounts funded; wrapping and testnet USDC sourcing observed. See INTEGRATIONS "NEAR testnet accounts" |
 | B8 | Watcher host account (D29) | founder | Open | P5.3 | After D16 |
 | B9 | Team members and other entries of 0xlann | 0xlann | Open | P6.3, P6.5 | Confirm the team list and whether 0xlann is on another entry (READMEs must name each other) |
 | B10 | License of five committed skills | founder | Open | none (risk) | `near-api-js`, `near-dapp`, `near-ai-cloud` and `near-contract-audit` have no upstream license; `motion` declares MIT only in a package manifest. Accept, or untrack these five and restore them from the lock |
@@ -228,7 +228,7 @@ Unblock evidence: sandbox test showing the Guardian computes health from a live-
 
 ### B7. Accounts and tokens
 
-On 2026-11-11 the user authorized account creation and faucet funding. Six testnet accounts were created and verified with 10 NEAR each; public ids and the pinned block are recorded in INTEGRATIONS. Private keys are in the local gitignored `.env` per user instruction. Listed test-token sourcing is still unproven, so B7 remains open.
+On 2026-11-11 the user authorized account creation and faucet funding. Six testnet accounts were created and initially verified with 10 NEAR each. The demo user then wrapped 0.1 NEAR and swapped it for `usdc.fakes.testnet`; the failed first attempt and successful corrected transaction are recorded in INTEGRATIONS. Private keys are in the local gitignored `.env` per user instruction. B7 is resolved for account and token access; oracle, deployment and fee decisions remain separate gates.
 
 ### B10. Skills licensing
 
