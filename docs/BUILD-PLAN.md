@@ -31,12 +31,13 @@ Purpose: kill or reshape early. Each gate has a pass condition, a fail condition
     1. Read-only: list `get_assets_paged_detailed` on `contract.1689937928.burrow.testnet`; for each asset record `can_borrow`, `can_use_as_collateral`, `extra_decimals`, price source (oracle id or `default_price`).
     2. Price refresh attempt (recipe 4): post a fresh price update for the USDC feed id `41f3625971ca2ed2263e78573fe5ce23e13d2558ed3f2e47ab0f84fb9e7ae722` to `pyth-oracle.testnet`, then `get_price_no_older_than(age: 60)` must return a non-null price.
     3. Token sourcing: find how to obtain `usdc.fakes.testnet` and `wrap.testnet` (wrap: `near_deposit` on `wrap.testnet`; fakes: inspect the token contract for a public mint or faucet method).
-    4. Loop with a plain testnet account: `storage_deposit` → supply `wrap.testnet` as collateral → borrow USDC (needs step 2) → withdraw borrowed USDC → repay with `"OnlyRepay"` → release collateral → withdraw.
+    4. Loop with a plain testnet account: `storage_deposit` → supply `wrap.testnet` as collateral → borrow USDC (needs step 2) → withdraw borrowed USDC → repay using the version-verified builder (`0.11.0` uses bounded `Repay.max_amount`, not `OnlyRepay`) → release collateral → withdraw.
   - **Pass:** every step in 4 has a successful transaction hash, and `get_account` shows the expected position after each step. Price-driven health moves are possible (fresh oracle).
   - **Partial pass:** loop works only with fixed-price assets → D19 ladder step 2; price-driven beats must be labelled Simulated.
-  - **Fail:** no borrowable asset on testnet → founder decides D19 step 3 (mainnet tiny) or another venue. Never fake a position.
+  - **Fail:** no borrowable asset on testnet → present the observed result for a further decision. The user selected testnet; no mainnet transaction follows without separate explicit authorization. Never fake a position.
   - Evidence: transaction hashes and block heights in INTEGRATIONS recipe 3.
   - Progress (box stays open) [V, one read-only view, 2026-11-06]: `pyth-oracle.testnet` `get_price_no_older_than({"price_id":"41f36259…7ae722","age":60})` returned `null` at block 276422972, the same as on 2026-11-04. The USDC feed has no price within 60 s, so a priced borrow on public testnet fails until a fresh update is posted (step 2, recipe 4). Whether an update can be posted and accepted is not yet tried; it needs a funded testnet account (B7). Other feeds were not read.
+  - Progress [V, read-only, 2026-11-11]: USDC remains null at the 60-second freshness check; the unsafe stored price was last published 2026-06-06. The deployed ABI was inspected, but Hermes returned 401 without a key and Pyth lists NEAR as unsupported. No actual update fee or compatible signed update was verified, so no oracle write was sent. Fixed-price wNEAR/REF remains an untested possible partial path. See INTEGRATIONS recipe 4.
 
 - [ ] **P0.3 Gate 2: can a contract own and repay a Rhea loan without anyone's private key?** (B3, D18)
   - Owned: `contracts/probe/` (minimal Rust contract), `contracts/tests/probe.rs`.
