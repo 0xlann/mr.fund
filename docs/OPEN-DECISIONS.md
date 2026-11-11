@@ -44,7 +44,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 | D21 | Project skills tracked in git | founder | Decided 2026-11-04 | done | `.claude/skills/` committed with `skills-lock.json` |
 | D22 | Branches | founder | Decided 2026-11-04 | done | `main` and `dev` pushed to `origin` |
 | D23 | Visual design doc | founder | Decided 2026-11-04 | first frontend task (P4.4) | `docs/DESIGN.md` is skipped until frontend work starts |
-| D24 | Fee pricing | founder | Open | P5.1 | Structure in PRD "Fees model"; numbers open (from D12) |
+| D24 | Fee pricing | founder | Provisional testnet values chosen, 2026-11-11; final/mainnet open | P5.1 | User delegated the testnet choice; values and token below; no deployment or fee-bearing transaction is implied |
 | D25 | LLM model | lead | Open | P3.4 | Choose from the live NEAR AI catalog by multilingual tool-calling eval |
 | D26 | Character rendering | founder (with D16) | Open | P4.4 | Options listed under D16 |
 | D27 | Guardian trigger verification | lead | Open, depends on Gate 3 | P2.5 | On-chain verification preferred; fallback drops the per-action fee |
@@ -148,9 +148,17 @@ The founder overruled the handoff's ignore rule: `.claude/skills/` is tracked so
 
 Founder: skip `docs/DESIGN.md` until frontend-related work exists. PRD "Functional screen contracts" fixes behavior; BUILD-PLAN P4.4 starts with writing DESIGN.md from the founder's references.
 
-### D24. Fee pricing (Open)
+### D24. Fee pricing (Provisional testnet decision; final/mainnet open)
 
-The structure is fixed in PRD "Fees model": activation fee, per-action fee, execution fee, and a managed-placement fee in P1. The numbers are open. On testnet the demo charges test tokens and says so. The lead proposes setting the numbers after P5.5, from observed gas and storage costs plus a margin. Founder decides.
+The user delegated the provisional testnet fee choice to the lead on 2026-11-11. For the USDC.e testnet demo, use `usdc.fakes.testnet` (6 decimals) and recipient `fee-mrf-b1ce96af6a.testnet`:
+
+| Fee | USDC.e testnet | Token atomic units |
+| --- | ---: | ---: |
+| Guardian activation, once | 1 | `1000000` |
+| Guardian automatic action, per settled repay | 0.01 | `10000` |
+| Manual execution, per action | 0.01 | `10000` |
+
+These are small demo values chosen for testnet, not measured costs, final product pricing or mainnet approval. The P1 managed-placement fee remains undecided. Guardian activation and action fees are denominated in the Guardian's debt token; this decision covers USDC.e debt only, not a future REF-denominated fixed-price loan. D27 fallback, if separately chosen, has its own action-fee requirement and is not selected by this decision. The fee recipient's `storage_balance_of` on the token returned `null` on 2026-11-11; register and verify it before a fee-bearing flow. Selecting these values authorizes no fee-bearing signature or deployment.
 
 ### D25. LLM model (Open, lead)
 
