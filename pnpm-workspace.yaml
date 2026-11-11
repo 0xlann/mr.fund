@@ -20,3 +20,5 @@ permissions:
     build: false
   "@hot-labs/near-connect":
     skills: false
+  esbuild:
+    build: false

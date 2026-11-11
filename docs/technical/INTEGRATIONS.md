@@ -294,7 +294,7 @@ Money path:
 - Permission boundary: only the owner's NEAR Connect wallet signs. `createTransactionSigner` accepts only `VerifiedRepay` or `VerifiedGuardian` results, and the Connect adapter's signing surface is registered in `near-connect.ts`, so the session controller and React context stay signer-free. NEAR Auth sessions can view but not sign.
 - Invariants: G-UI-1 (verified payloads to the factory, own Guardian or debt token only), G-UI-2 (summary numbers equal payload numbers), G-UI-3 (a Guardian is shown only after the factory reports it), G-UI-4 (progress from chain reads). SMART-CONTRACT I1 to I10 stay contract-enforced.
 - Negative tests: `guardian-verify.test.ts`, `guardian-live.test.ts` and `live-guardian-panel.test.ts` (AddKey, wrong factory, policy drift, non-owner signer, hash-only creation, wallet error, in-flight withdraw, deactivated controls, Auth session).
-- Does not guarantee: that the watcher acts (no heartbeat source is connected, so it shows as unavailable), that a step succeeds, that a refund covers gas, or that the Guardian's NEAR can be withdrawn. Creation funding is the factory `min_funding`. No collateral, borrow or sweep control exists until the lead decides (task 5.1).
+- Does not guarantee: that the watcher acts (no heartbeat source is connected, so it shows as unavailable), that a step succeeds, that a refund covers gas, or that the Guardian's NEAR can be withdrawn. Creation funding is the factory `min_funding`. The user chose P0 UI for collateral deposit, borrow and sweep on 2026-11-11; these controls are not yet implemented (task 5.5).
 
 ### 6. NEAR AI Cloud (B6, P0.6)
 
