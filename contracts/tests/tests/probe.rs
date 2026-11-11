@@ -492,6 +492,42 @@ async fn guardian_imported_checks(
             .as_str()
             .unwrap()
             .parse()?;
+        // Explicit operator-style max+1 request, before the accepted action starts cooldown.
+        let reserve_before: Value = account.view("get_reserve").await?.json()?;
+        let over_limit = watcher
+            .call(account.id(), "request_repay")
+            .args_json(json!({"amount":"1000001"}))
+            .gas(Gas::from_tgas(300))
+            .transact()
+            .await?;
+        let rejection: Value = over_limit.clone().json()?;
+        assert_eq!(rejection["outcome"], "rejected");
+        assert_eq!(rejection["reason"], "above_max_per_action");
+        assert!(over_limit.failures().is_empty());
+        assert!(over_limit.logs().iter().any(|line| {
+            line.contains("request_rejected")
+                && line.contains("above_max_per_action")
+                && line.contains(rejection["op_id"].as_str().unwrap())
+        }));
+        let rejection_history: Value = account
+            .view("get_history")
+            .args_json(json!({"from":0,"limit":50}))
+            .await?
+            .json()?;
+        assert_eq!(rejection_history[0]["op_id"], rejection["op_id"]);
+        assert_eq!(
+            account.view("get_reserve").await?.json::<Value>()?,
+            reserve_before
+        );
+        assert_eq!(balance(debt, account.as_account()).await?, before);
+        assert_eq!(
+            position(lending, account.as_account()).await?["borrowed"][0]["balance"],
+            debt_before.to_string()
+        );
+        println!(
+            "sandbox operator test request: {}",
+            over_limit.outcome().transaction_hash
+        );
         let outcome = watcher
             .call(account.id(), "request_repay")
             .args_json(json!({"amount":"1000000"}))
@@ -555,9 +591,9 @@ async fn guardian_imported_checks(
             .args_json(json!({"from":0,"limit":50}))
             .await?
             .json()?;
-        assert_eq!(history.as_array().unwrap().len(), 1);
-        assert_eq!(history[0]["used"], "1000000");
-        assert_eq!(history[0]["fee"], fee.to_string());
+        assert_eq!(history.as_array().unwrap().len(), 2);
+        assert_eq!(history[1]["used"], "1000000");
+        assert_eq!(history[1]["fee"], fee.to_string());
         let raw=outcome_recordings::rpc(worker,"EXPERIMENTAL_tx_status",json!({"tx_hash":outcome.outcome().transaction_hash.to_string(),"sender_account_id":watcher.id(),"wait_until":"FINAL"})).await?;
         assert_eq!(
             raw["transaction"]["actions"][0]["FunctionCall"]["gas"],
