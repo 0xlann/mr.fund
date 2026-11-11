@@ -122,4 +122,15 @@ describe("single-use operator write-ahead journal", () => {
     await Promise.all([first.close(), second.close()]);
     expect(await entries(dir)).toMatchObject([{ state: "signing" }]);
   });
+  it("records sandbox identity without using a public-network journal", async () => {
+    const dir = await directory();
+    const sandbox = createOperatorJournal(dir, authority, { scope: "sandbox" });
+    await sandbox.begin(call);
+    await sandbox.close();
+    expect(await entries(dir)).toMatchObject([{ network: "sandbox" }]);
+    const publicJournal = createOperatorJournal(dir, authority);
+    await publicJournal.begin(call);
+    await publicJournal.close();
+    expect(await readdir(dir)).toHaveLength(2);
+  });
 });

@@ -19,6 +19,14 @@ submits one `max_per_action + 1` request with zero deposit. It prints the signed
 hash as a pending result. The harness resolves that hash and verifies the
 rejection event, history, unchanged debt and reserve, then submits an in-limit
 request using the same scoped key. Output is sandbox evidence only.
+The operator uses a dedicated sandbox-scoped journal directory supplied by the
+harness. After resolving the first request, the harness starts a second operator
+process with the same journal and verifies it refuses and creates no second
+history entry. The disposable test directory is removed only by the harness.
+The sandbox adapter derives its clock offset from the local final block because
+the harness can advance simulated time. Public freshness checks use wall time.
+Transient sandbox authority reads receive bounded retries before signing; a
+signed transaction or broadcast is never retried automatically.
 
 The command `pnpm --filter @mrfund/watcher sandbox:over-limit` is the underlying
 explicit entry point; it expects the harness's JSON on stdin and must only be used

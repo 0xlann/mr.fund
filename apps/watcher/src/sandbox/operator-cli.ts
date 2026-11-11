@@ -13,7 +13,13 @@ async function main() {
   const result = await sandboxOverLimit(input);
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
-main().catch(() => {
-  process.stderr.write('{"event":"sandbox_operator_failed"}\n');
+main().catch((error: unknown) => {
+  const reason =
+    error instanceof Error && error.message === "Sandbox authority invalid"
+      ? "authority_invalid"
+      : error instanceof Error && error.message === "Sandbox authority unavailable"
+        ? "authority_unavailable"
+        : "operator_failed";
+  process.stderr.write(`${JSON.stringify({ event: "sandbox_operator_failed", reason })}\n`);
   process.exitCode = 1;
 });

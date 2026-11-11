@@ -16,7 +16,9 @@ import {
 } from "../core/authority";
 import type { WatcherReads } from "../core/types";
 import { requestOverLimit } from "../runtime/operator";
+import { createOperatorJournal } from "../runtime/operator-journal";
 import { createGuardedSignerPort } from "../runtime/signer-port";
+import { retrySandboxRead } from "./retry-reads";
 
 /** Sandbox test harness only. It must use a freshly created, disposable scoped key. */
 export async function sandboxOverLimit(input: {
@@ -24,6 +26,7 @@ export async function sandboxOverLimit(input: {
   guardianId: string;
   watcherId: string;
   secretKey: KeyPairString;
+  journalDirectory: string;
 }) {
   const url = new URL(input.rpcUrl);
   if (
@@ -38,6 +41,17 @@ export async function sandboxOverLimit(input: {
   )
     throw new Error("Sandbox loopback endpoint required");
   const provider = new JsonRpcProvider({ url: url.toString() }, { retries: 1 });
+  const status = await provider.viewNodeStatus();
+  if (!/^test-chain-[A-Za-z0-9]+$/.test(status.chain_id))
+    throw new Error("Sandbox authority invalid");
+  const block = await provider.viewBlock({ finality: "final" });
+  const blockTimeMs = Number(BigInt(block.header.timestamp_nanosec) / 1_000_000n);
+  if (!Number.isSafeInteger(blockTimeMs) || blockTimeMs < 0)
+    throw new Error("Sandbox authority invalid");
+  // near-workspaces fast_forward advances simulated block time past wall time.
+  // This offset is sandbox-only; public freshness must continue to use wall time.
+  const offsetMs = Math.max(0, blockTimeMs - Date.now());
+  const sandboxNow = () => Date.now() + offsetMs;
   const signer = KeyPairSigner.fromSecretKey(input.secretKey);
   const publicKey = (await signer.getPublicKey()).toString();
   // The client network field is a parser tag only; this is never public evidence.
@@ -46,20 +60,22 @@ export async function sandboxOverLimit(input: {
     fetch(url, { ...init, redirect: "error" }),
   );
   const reads: WatcherReads = {
-    guardian: (requested) => readGuardian(view, requested),
+    guardian: (requested) => readGuardian(view, requested, { now: sandboxNow }),
     position: async () =>
       err({ kind: "rpc_unavailable", detail: "sandbox operator does not read positions" }),
   };
   const verify = async () => {
-    const [node, key, guardian] = await Promise.all([
-      provider.viewNodeStatus(),
-      provider.viewAccessKey({
-        accountId: input.watcherId,
-        publicKey,
-        finalityQuery: { finality: "final" },
-      }),
-      reads.guardian(target),
-    ]);
+    const [node, key, guardian] = await retrySandboxRead(() =>
+      Promise.all([
+        provider.viewNodeStatus(),
+        provider.viewAccessKey({
+          accountId: input.watcherId,
+          publicKey,
+          finalityQuery: { finality: "final" },
+        }),
+        reads.guardian(target),
+      ]),
+    );
     if (
       !/^test-chain-[A-Za-z0-9]+$/.test(node.chain_id) ||
       !guardian.ok ||
@@ -80,7 +96,13 @@ export async function sandboxOverLimit(input: {
       /^[1-9][0-9]*$/.test(call.allowance)
     );
   };
-  if (!(await verify())) throw new Error("Sandbox authority invalid");
+  let authorityValid: boolean;
+  try {
+    authorityValid = await verify();
+  } catch {
+    throw new Error("Sandbox authority unavailable");
+  }
+  if (!authorityValid) throw new Error("Sandbox authority invalid");
   const authority: VerifiedAuthority = {
     network: target.network,
     watcherAccountId: input.watcherId,
@@ -91,6 +113,7 @@ export async function sandboxOverLimit(input: {
   const port = createGuardedSignerPort(authority, {
     verify,
     submissionAllowed: () => true,
+    journal: createOperatorJournal(input.journalDirectory, authority, { scope: "sandbox" }),
     async sign(call) {
       const transaction = await account.createTransaction({
         receiverId: call.receiverId,
@@ -112,7 +135,8 @@ export async function sandboxOverLimit(input: {
     reads,
     requester: constrainedRequester(authority, port),
     startup: { kind: "clear" },
-    nowMs: Date.now(),
+    nowMs: sandboxNow(),
+    now: sandboxNow,
     authorized: true,
   });
 }

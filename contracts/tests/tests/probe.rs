@@ -371,6 +371,20 @@ fn target(path: &str) -> PathBuf {
         .join(path)
 }
 
+fn sandbox_operator(input: &Value) -> Result<std::process::Output> {
+    use std::io::Write;
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let mut child = std::process::Command::new(root.join("apps/watcher/node_modules/.bin/tsx"))
+        .arg(root.join("apps/watcher/src/sandbox/operator-cli.ts"))
+        .arg("--sandbox-only")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+    write!(child.stdin.take().context("operator stdin")?, "{input}")?;
+    Ok(child.wait_with_output()?)
+}
+
 /// Sandbox seeding only: provision a position with the throwaway probe, then
 /// replace its code/STATE with a freshly initialized Guardian. No production
 /// provisioning, migration or upgrade entrypoint is added by this experiment.
@@ -513,24 +527,24 @@ async fn guardian_imported_checks(
         let scoped_watcher = Account::from_secret_key(watcher.id().clone(), scoped_key, worker);
         // Explicit operator-style max+1 request, before the accepted action starts cooldown.
         let reserve_before: Value = account.view("get_reserve").await?.json()?;
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let mut child = std::process::Command::new(root.join("apps/watcher/node_modules/.bin/tsx"))
-            .arg(root.join("apps/watcher/src/sandbox/operator-cli.ts"))
-            .arg("--sandbox-only")
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()?;
-        use std::io::Write;
-        write!(
-            child.stdin.take().context("operator stdin")?,
-            "{}",
-            json!({
-                "rpcUrl": worker.rpc_addr(), "guardianId": account.id(),
-                "watcherId": watcher.id(), "secretKey": scoped_secret
-            })
-        )?;
-        let output = child.wait_with_output()?;
+        let journal_dir = std::env::temp_dir().join(format!(
+            "mrfund-sandbox-journal-{}-{}",
+            std::process::id(),
+            account.id()
+        ));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            std::fs::DirBuilder::new().mode(0o700).create(&journal_dir)?;
+        }
+        #[cfg(not(unix))]
+        std::fs::create_dir(&journal_dir)?;
+        let input = json!({
+            "rpcUrl": worker.rpc_addr(), "guardianId": account.id(),
+            "watcherId": watcher.id(), "secretKey": scoped_secret,
+            "journalDirectory": journal_dir
+        });
+        let output = sandbox_operator(&input)?;
         assert!(
             output.status.success(),
             "sandbox operator failed: {}",
@@ -546,6 +560,24 @@ async fn guardian_imported_checks(
         )
         .await?;
         assert_eq!(raw["final_execution_status"], "FINAL");
+        let journal_file = std::fs::read_dir(&journal_dir)?.next().context("missing journal")??;
+        let journal = std::fs::read_to_string(journal_file.path())?;
+        let records: Vec<Value> = journal
+            .lines()
+            .map(serde_json::from_str)
+            .collect::<Result<_, _>>()?;
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0]["network"], "sandbox");
+        assert_eq!(records[1]["hash"], hash);
+        let restarted = sandbox_operator(&input)?;
+        assert!(
+            !restarted.status.success(),
+            "existing journal must prevent a second request"
+        );
+        assert!(restarted.stdout.is_empty());
+        let restart_error: Value = serde_json::from_slice(&restarted.stderr)?;
+        assert_eq!(restart_error["event"], "sandbox_operator_failed");
+        assert_eq!(restart_error["reason"], "operator_failed");
         let rejection_history: Value = account
             .view("get_history")
             .args_json(json!({"from":0,"limit":50}))
@@ -553,6 +585,8 @@ async fn guardian_imported_checks(
             .json()?;
         assert_eq!(rejection_history[0]["outcome"], "rejected");
         assert_eq!(rejection_history[0]["reason"], "above_max_per_action");
+        assert_eq!(rejection_history.as_array().unwrap().len(), 1);
+        std::fs::remove_dir_all(&journal_dir)?;
         let op_id = rejection_history[0]["op_id"]
             .as_str()
             .context("rejection operation id")?;

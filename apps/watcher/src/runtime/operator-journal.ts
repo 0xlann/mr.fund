@@ -9,10 +9,13 @@ import type { RepayCall, VerifiedAuthority } from "../core/authority";
  * record always blocks another attempt; this module intentionally cannot clear it.
  * The directory must be private, stable, and shared by all processes for a Guardian.
  */
-export function createOperatorJournal(directory: string, authority: VerifiedAuthority) {
-  const name = createHash("sha256")
-    .update(`${authority.network}\0${authority.guardianId}`)
-    .digest("hex");
+export function createOperatorJournal(
+  directory: string,
+  authority: VerifiedAuthority,
+  options?: { scope: "sandbox" },
+) {
+  const scope = options?.scope ?? authority.network;
+  const name = createHash("sha256").update(`${scope}\0${authority.guardianId}`).digest("hex");
   const path = join(directory, `${name}.jsonl`);
   let file: Awaited<ReturnType<typeof open>> | undefined;
   return {
@@ -27,7 +30,7 @@ export function createOperatorJournal(directory: string, authority: VerifiedAuth
       );
       try {
         await file.writeFile(
-          `${JSON.stringify({ version: 1, state: "signing", network: authority.network, guardianId: authority.guardianId, watcherAccountId: authority.watcherAccountId, amount: call.args.amount })}\n`,
+          `${JSON.stringify({ version: 1, state: "signing", network: scope, guardianId: authority.guardianId, watcherAccountId: authority.watcherAccountId, amount: call.args.amount })}\n`,
         );
         await file.sync();
         const parent = await open(directory, constants.O_RDONLY | constants.O_NOFOLLOW);

@@ -17,6 +17,7 @@ describe("sandbox operator isolation", () => {
         guardianId: "guardian.test.near",
         watcherId: "watcher.test.near",
         secretKey: "invalid" as KeyPairString,
+        journalDirectory: "/unused",
       }),
     ).rejects.toThrow("Sandbox loopback endpoint required");
   });

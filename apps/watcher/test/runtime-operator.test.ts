@@ -58,4 +58,12 @@ describe("explicit over-limit operator test", () => {
     await expect(requestOverLimit(input)).rejects.toThrow();
     expect(sender.sent).toEqual([100_000_001n]);
   });
+  it("samples the clock after an asynchronous fresh snapshot", async () => {
+    const { input, sender, state } = setup();
+    state.state.over = { readAtMs: NOW + 25 };
+    expect(await requestOverLimit({ ...input, now: () => NOW + 30 })).toMatchObject({
+      kind: "final",
+    });
+    expect(sender.sent).toEqual([100_000_001n]);
+  });
 });
