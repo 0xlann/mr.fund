@@ -287,13 +287,16 @@ Status [V, local only]: implemented and tested against fake RPC clients and reco
 | `apps/web/src/guardian/flow.ts` | `nextActivationStep`, `activationProgress`, `buildActivationStep`, `buildControl`: steps and payloads from chain state only |
 | `apps/web/src/guardian/controls.ts` | `controlAvailability`, `inFlightNotice`, `historyNotice`, `heartbeatState` |
 | `apps/web/src/guardian/live.ts` | `createLiveGuardian`: block-pinned reads and the `build → verify → wallet → re-read` pipeline |
-| `apps/web/src/play/LiveGuardianPanel.tsx` | Setup form, review, the three activation steps and the panel with controls for a live wallet session |
+| `apps/web/src/guardian/loan.ts` | Guardian-held loan (task 5.5): `readHoldings` (Rhea `get_account` and `ft_balance_of` views; collateral rounded down, debt up), `loanAvailability`, `buildLoanStep`, before/after `LoanOutcome` |
+| `packages/guardian-client/src/tx/position.ts` | `guardianPositionPayload`: collateral `ft_transfer_call` with `{"collateral":{}}`, `owner_borrow`, `owner_sweep`, each 1 yocto and 300 Tgas (the sandbox flow's attachment) |
+| `apps/web/src/play/LiveGuardianPanel.tsx` | Setup form, review, the three activation steps and the panel with controls and the Loan section for a live wallet session |
 
 Money path:
 
 - Permission boundary: only the owner's NEAR Connect wallet signs. `createTransactionSigner` accepts only `VerifiedRepay` or `VerifiedGuardian` results, and the Connect adapter's signing surface is registered in `near-connect.ts`, so the session controller and React context stay signer-free. NEAR Auth sessions can view but not sign.
 - Invariants: G-UI-1 (verified payloads to the factory, own Guardian or debt token only), G-UI-2 (summary numbers equal payload numbers), G-UI-3 (a Guardian is shown only after the factory reports it), G-UI-4 (progress from chain reads). SMART-CONTRACT I1 to I10 stay contract-enforced.
 - Negative tests: `guardian-verify.test.ts`, `guardian-live.test.ts` and `live-guardian-panel.test.ts` (AddKey, wrong factory, policy drift, non-owner signer, hash-only creation, wallet error, in-flight withdraw, deactivated controls, Auth session).
+- Loan steps (task 5.5, user decision 2026-11-11): only for an activated Guardian with nothing in flight. The verifier accepts the configured collateral token's `ft_transfer_call` to the own Guardian (≥ 180 Tgas, `{"collateral":{}}`), own-Guardian `owner_borrow` (≥ 260 Tgas) and `owner_sweep` for the configured debt or collateral token, each with 1 yocto; negative tests in `guardian-loan.test.ts` (other token, receiver, message, Guardian or sweep token, 2 yocto, low gas, changed amount, extra argument, in flight, before activation, non-owner), each guard mutation-checked. Outcomes compare two chain reads; hashes appear only after a change is observed. The Guardian client allowlist gains the read-only views `get_account` and `ft_balance_of`. A borrow shows no computed health factor; Rhea refuses one that leaves the position unhealthy or lacks fresh prices.
 - Does not guarantee: that the watcher acts (no heartbeat source is connected, so it shows as unavailable), that a step succeeds, that a refund covers gas, or that the Guardian's NEAR can be withdrawn. Creation funding is the factory `min_funding`. The user chose P0 UI for collateral deposit, borrow and sweep on 2026-11-11; these controls are not yet implemented (task 5.5).
 
 ### 6. NEAR AI Cloud (B6, P0.6)

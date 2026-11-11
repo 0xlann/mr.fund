@@ -112,11 +112,35 @@ The UI MUST NOT claim that a Guardian prevents liquidation, that it can recover 
 - **WHEN** any Guardian copy is rendered
 - **THEN** it contains none of the banned phrases
 
-### Requirement: Loan-building steps are not assumed
+### Requirement: Guardian-held loan steps are verified before the wallet
 
-This change SHALL NOT add collateral deposit, borrow or sweep cards until the lead records whether P0 offers them in the UI.
+Per the user decision of 2026-11-11 (task 5.1), an activated Guardian's panel SHALL offer collateral deposit, `owner_borrow` and `owner_sweep`, each only while nothing is in flight. Each payload MUST be exactly the `guardianPositionPayload` output for its intent and MUST pass `verifyGuardianPayload` before any wallet prompt.
 
-#### Scenario: Out-of-scope action
+#### Scenario: Collateral deposit
 
-- **WHEN** the Guardian panel is rendered
-- **THEN** no collateral, borrow or sweep control is present
+- **WHEN** the owner deposits collateral
+- **THEN** the only call is the configured collateral token's `ft_transfer_call` to the own Guardian with `{"collateral":{}}`, the chosen amount, 1 yocto and at least 180 Tgas
+
+#### Scenario: Borrow and sweep
+
+- **WHEN** the owner borrows or sweeps
+- **THEN** the only call is own-Guardian `owner_borrow({amount})` with at least 260 Tgas, or `owner_sweep({token_id})` for the configured debt or collateral token, each with 1 yocto
+
+#### Scenario: Tampered loan payload
+
+- **WHEN** a loan payload targets another token, receiver, message, Guardian or sweep token, attaches other than 1 yocto, carries too little gas or an amount other than the one chosen
+- **THEN** it is refused before any wallet prompt
+
+### Requirement: Guardian-held loan outcomes come from chain reads
+
+Holdings SHALL come only from final-block views, with collateral rounded down and debt rounded up from Rhea internal units. A step's outcome SHALL be the comparison of the reads before and after it; transaction hashes SHALL appear only after a change is observed.
+
+#### Scenario: Wallet error without a change
+
+- **WHEN** the wallet throws and the next read shows the targeted value unchanged
+- **THEN** the panel states that nothing changed on chain as of the read time, never that the step succeeded
+
+#### Scenario: Unreadable holdings
+
+- **WHEN** the Rhea account or a token balance cannot be read or validated
+- **THEN** the loan section says it could not be read and offers no loan step

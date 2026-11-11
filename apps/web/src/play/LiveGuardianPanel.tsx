@@ -18,6 +18,15 @@ import {
   inFlightNotice,
 } from "../guardian/controls";
 import { activationProgress, buildActivationStep, buildControl } from "../guardian/flow";
+import {
+  buildLoanStep,
+  type GuardianHoldings,
+  type LoanOutcome,
+  type LoanRequest,
+  loanAvailability,
+  loanChanged,
+  sweepableDebt,
+} from "../guardian/loan";
 import { useLiveGuardian } from "../guardian/useLiveGuardian";
 import type { LiveAccountView } from "./source/liveSession";
 
@@ -319,6 +328,7 @@ export function LiveGuardianPanel({
 
   if (s.activation.kind !== "activated") return null;
   const guardian = s.activation.guardian;
+  const holdings = s.holdings;
   return (
     <GuardianStatus
       g={guardian}
@@ -329,6 +339,24 @@ export function LiveGuardianPanel({
         void store.run(
           buildControl(guardian, kind, { ownerId: account.accountId, nowMs: Date.now() }),
         )
+      }
+      loan={
+        <LoanSection
+          g={guardian}
+          h={holdings}
+          debt={token}
+          outcome={view.loan}
+          canSign={canSign}
+          onStep={(request) =>
+            holdings &&
+            void store.run(
+              buildLoanStep(guardian, holdings, request, {
+                ownerId: account.accountId,
+                nowMs: Date.now(),
+              }),
+            )
+          }
+        />
       }
       footer={footer}
     />
@@ -341,6 +369,7 @@ function GuardianStatus({
   t,
   canSign,
   onControl,
+  loan,
   footer,
 }: {
   g: GuardianSnapshot;
@@ -348,6 +377,7 @@ function GuardianStatus({
   t: (v: bigint) => string;
   canSign: boolean;
   onControl: (kind: ControlKind) => void;
+  loan: ReactNode;
   footer: ReactNode;
 }) {
   const controls = controlAvailability(g, Date.now());
@@ -399,6 +429,7 @@ function GuardianStatus({
       {controls.withdraw.reason && (
         <p className="text-xs text-[#a2a4a5]">Withdraw: {controls.withdraw.reason}</p>
       )}
+      {loan}
       <h3 className="text-xs uppercase text-[#898b8c]">History</h3>
       <p className="text-xs text-[#a2a4a5]">{historyNotice(g)}</p>
       <ul className="space-y-1 text-xs">
@@ -411,6 +442,184 @@ function GuardianStatus({
       </ul>
       {footer}
     </Shell>
+  );
+}
+
+const LOAN_LABEL: Record<LoanOutcome["intent"], string> = {
+  collateral: "Collateral deposit",
+  borrow: "Borrow",
+  sweep: "Sweep",
+};
+
+/** Guardian-held loan: deposit collateral, borrow and sweep (task 5.5). Values are chain reads. */
+function LoanSection({
+  g,
+  h,
+  debt,
+  outcome,
+  canSign,
+  onStep,
+}: {
+  g: GuardianSnapshot;
+  h: GuardianHoldings | null;
+  debt: { symbol: string; decimals: number };
+  outcome: LoanOutcome | null;
+  canSign: boolean;
+  onStep: (request: LoanRequest) => void;
+}) {
+  const [collateralText, setCollateralText] = useState("");
+  const [borrowText, setBorrowText] = useState("");
+  if (!h)
+    return (
+      <section aria-label="Guardian loan" className="space-y-2 text-xs">
+        <h3 className="uppercase text-[#898b8c]">Loan</h3>
+        <p role="alert">The Guardian's loan could not be read. Check again.</p>
+      </section>
+    );
+  const c = h.collateralToken;
+  const ct = (v: bigint) => `${decimalString(v, c.decimals)} ${c.symbol}`;
+  const dt = (v: bigint) => `${decimalString(v, debt.decimals)} ${debt.symbol}`;
+  const steps = loanAvailability(g, h, Date.now());
+  const collateral = parseDecimal(collateralText, c.decimals);
+  const borrow = parseDecimal(borrowText, debt.decimals);
+  const sweepDebt = sweepableDebt(g, h);
+  const input =
+    "mt-1 block w-full rounded-xl border border-white/10 bg-[#1c1e1f] px-3 py-2 text-sm";
+  return (
+    <section aria-label="Guardian loan" className="space-y-3 text-xs">
+      <h3 className="uppercase text-[#898b8c]">Loan</h3>
+      <dl className="grid grid-cols-2 gap-2">
+        <dt>Collateral in Rhea</dt>
+        <dd>{ct(h.collateralAtomic)}</dd>
+        <dt>Debt in Rhea</dt>
+        <dd>{dt(h.debtAtomic)}</dd>
+        <dt>Above the reserve</dt>
+        <dd>{dt(sweepDebt)}</dd>
+        <dt>Your wallet</dt>
+        <dd>{ct(h.ownerCollateral)}</dd>
+      </dl>
+
+      <label className="block">
+        Deposit collateral ({c.symbol})
+        <input
+          inputMode="decimal"
+          value={collateralText}
+          onChange={(e) => setCollateralText(e.target.value)}
+          className={input}
+        />
+      </label>
+      {collateral !== null && collateral > 0n && (
+        <p>
+          You send {ct(collateral)} from your wallet to {g.guardianId}, which adds it to its Rhea
+          collateral. The contract returns any amount Rhea does not take.
+        </p>
+      )}
+      <button
+        type="button"
+        className={primary}
+        disabled={
+          !canSign || !steps.collateral.available || collateral === null || collateral <= 0n
+        }
+        onClick={() => collateral !== null && onStep({ kind: "collateral", amount: collateral })}
+      >
+        Deposit in wallet
+      </button>
+      {steps.collateral.reason && <p className="text-[#a2a4a5]">{steps.collateral.reason}</p>}
+
+      <label className="block">
+        Borrow ({debt.symbol})
+        <input
+          inputMode="decimal"
+          value={borrowText}
+          onChange={(e) => setBorrowText(e.target.value)}
+          className={input}
+        />
+      </label>
+      {borrow !== null && borrow > 0n && (
+        <p>
+          Your Guardian borrows {dt(borrow)} from {g.config.lendingId}; the tokens arrive at the
+          Guardian, outside the reserve. Borrowing lowers the health factor, and Rhea refuses a
+          borrow that leaves the position unhealthy or lacks fresh prices.
+        </p>
+      )}
+      <button
+        type="button"
+        className={primary}
+        disabled={!canSign || !steps.borrow.available || borrow === null || borrow <= 0n}
+        onClick={() => borrow !== null && onStep({ kind: "borrow", amount: borrow })}
+      >
+        Borrow in wallet
+      </button>
+      {steps.borrow.reason && <p className="text-[#a2a4a5]">{steps.borrow.reason}</p>}
+
+      <p>
+        Sweep sends tokens the Guardian holds to your wallet. For {debt.symbol} only the amount
+        above the reserve moves; the contract computes it when the call runs.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className={button}
+          disabled={!canSign || !steps.sweep_debt.available}
+          title={steps.sweep_debt.reason ?? undefined}
+          onClick={() => onStep({ kind: "sweep", token: "debt_token" })}
+        >
+          Sweep {dt(sweepDebt)}
+        </button>
+        <button
+          type="button"
+          className={button}
+          disabled={!canSign || !steps.sweep_collateral.available}
+          title={steps.sweep_collateral.reason ?? undefined}
+          onClick={() => onStep({ kind: "sweep", token: "collateral_token" })}
+        >
+          Sweep {ct(h.heldCollateral)}
+        </button>
+      </div>
+      {outcome && <LoanResult o={outcome} ct={ct} dt={dt} />}
+    </section>
+  );
+}
+
+function LoanResult({
+  o,
+  ct,
+  dt,
+}: {
+  o: LoanOutcome;
+  ct: (v: bigint) => string;
+  dt: (v: bigint) => string;
+}) {
+  const changed = loanChanged(o);
+  const label = LOAN_LABEL[o.intent];
+  if (!o.after || changed === null)
+    return <p role="alert">{label}: the result could not be read. Check again.</p>;
+  const a = o.after;
+  const b = o.before;
+  const at = new Date(a.readAtMs).toISOString();
+  if (!changed)
+    return (
+      <p role="status">
+        {o.walletError
+          ? `${label}: your wallet did not confirm, and nothing changed on chain as of ${at}.`
+          : `${label}: sent, but no change is visible on chain as of ${at}. The contract may still be processing it, or it returned the amount. Check again.`}
+      </p>
+    );
+  const line =
+    o.intent === "collateral"
+      ? `Collateral in Rhea ${ct(b.collateralAtomic)} → ${ct(a.collateralAtomic)}`
+      : o.intent === "borrow"
+        ? `Debt in Rhea ${dt(b.debtAtomic)} → ${dt(a.debtAtomic)}`
+        : `Held by the Guardian ${dt(b.heldDebt)} → ${dt(a.heldDebt)}, ${ct(b.heldCollateral)} → ${ct(a.heldCollateral)}`;
+  return (
+    <div role="status" className="space-y-1">
+      <p>
+        {label} observed on chain at {at}: {line}.
+      </p>
+      {o.hashes.length > 0 && (
+        <p className="break-all text-[#a2a4a5]">Transaction {o.hashes.join(", ")}</p>
+      )}
+    </div>
   );
 }
 

@@ -6,5 +6,6 @@ export { nsToMs } from "./parse";
 export * from "./read";
 export * from "./tx/activation";
 export * from "./tx/owner";
+export * from "./tx/position";
 export * from "./tx/repay";
 export * from "./types";
