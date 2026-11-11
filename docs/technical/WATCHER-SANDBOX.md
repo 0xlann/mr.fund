@@ -26,3 +26,12 @@ with a newly created disposable sandbox key. Do not use a public or existing key
 It has no durable record across invocations, so an uncertain submission must not
 be retried. Public operation needs a separate operator flow with restart-safe
 reconciliation and the D18/D19/B7 gates; the normal watcher remains read-only.
+
+To inspect the configured public network and scoped key without signing or
+sending, run `pnpm --filter @mrfund/watcher operator:preflight <guardian-id>`
+with the same `NEAR_NETWORK_ID`, `NEAR_RPC_URL`, `WATCHER_ACCOUNT_ID` and
+`WATCHER_KEYS_DIR` configuration as the watcher. The command exits nonzero and
+reports `read_only`, including when the key is valid: current chain views and a
+key nonce do not prove that an earlier signed transaction cannot still arrive.
+Errors are sanitized and never include key material or RPC details. This is a
+preflight only; it neither authorizes nor provides a public submission path.
