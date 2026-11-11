@@ -40,7 +40,7 @@ async function boundedJson(response: Response): Promise<unknown> {
   }
   return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as unknown;
 }
-/** Guardian, factory and NEP-145 views; nothing here can change state. */
+/** Guardian, factory, NEP-141/145 and Rhea account views; nothing here can change state. */
 const VIEW_METHODS = [
   "get_config",
   "get_status",
@@ -56,6 +56,9 @@ const VIEW_METHODS = [
   "storage_balance_of",
   "storage_balance_bounds",
   "ft_metadata",
+  // Guardian-held loan reads (task 5.5): the Guardian's Rhea account and its token balances.
+  "get_account",
+  "ft_balance_of",
 ];
 /** Public final-block views only. No signer, retry, account creation or mutation transport. */
 export function createGuardianClient(
