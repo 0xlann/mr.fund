@@ -4,7 +4,7 @@
 
 - **Decided by the founder on 2026-11-04:** D1 to D15 and D17 (verbatim table below), plus D20 to D23: 0xlann submits and owns `github.com/0xlann/mr.fund`; project skills are committed; `main` plus a `dev` branch; `docs/DESIGN.md` waits for frontend work.
 - **Decided 2026-11-05:** D16 tech stack, Option A (Next.js + Rust Guardian + Node watcher).
-- **Custody decided, network still open:** user selected D18 **G1 Guardian-held loan** on 2026-11-07. D19 demo network remains founder-owned and open (founder leans testnet; lead recommends the testnet-first ladder).
+- **Custody and network selected:** user selected D18 **G1 Guardian-held loan** on 2026-11-07 and testnet for the hackathon on 2026-11-11. Full testnet lending and Guardian acceptance still require observed evidence.
 - **The finding that changed the plan:** Rhea lending has **no repay-on-behalf** in its published source, so a Guardian cannot automatically repay a loan that lives in the user's wallet (D18, B1). Rhea's testnet lending contract exists, but its stablecoin price feeds returned `null` (D19, B2).
 - **Work that can proceed before those decisions:** the deterministic finance engine and Rhea read adapter are TypeScript under every viable stack option (BUILD-PLAN P1.1 to P1.5), and Phase 0 probes are read-only or testnet-only.
 
@@ -39,7 +39,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 | Id | Decision | Owner | Status | Needed by | Resolution |
 | --- | --- | --- | --- | --- | --- |
 | D18 | Guardian custody model | founder | Decided G1, 2026-11-07 | Phase 0 gate | User chose Guardian-held loan; owner position/factory implementation may proceed locally |
-| D19 | Demo network | founder | Open (founder leans testnet, 2026-11-04) | Phase 0 gate 2026-11-06 | Lead recommends the testnet-first ladder |
+| D19 | Demo network | founder | Testnet selected, 2026-11-11 | Phase 0 gate | User selected testnet for the hackathon; fresh-price versus fixed-price demo feasibility remains to be observed |
 | D20 | Submitter and GitHub owner | founder | Decided 2026-11-04 | P6.5 | 0xlann submits; repository `github.com/0xlann/mr.fund` |
 | D21 | Project skills tracked in git | founder | Decided 2026-11-04 | done | `.claude/skills/` committed with `skills-lock.json` |
 | D22 | Branches | founder | Decided 2026-11-04 | done | `main` and `dev` pushed to `origin` |
@@ -95,9 +95,11 @@ Caveat [U]: the deployed contracts do not match the published source. Mainnet `c
 
 Recommendation [I]: **G1**, with wallet loans served by chat, cards and manual repay (F1 to F5). The cards already give the G2 experience, so G3 needs little extra beyond alerts. The demo then shows a Guardian-held loan for steps 5 to 7 of the never-cut demo.
 
-Decision [user, 2026-11-07]: **G1 — Guardian-held loan**. This resolves B1 and permits local owner-position/factory work. Existing wallet loans remain manual repay/card flows; no automatic repayment on behalf is claimed. D19/B7 still gate public account creation, funding and deployment. Final provisioning ABI/storage evidence remains required before factory-dependent activation builders.
+Decision [user, 2026-11-07]: **G1 — Guardian-held loan**. This resolves B1 and permits local owner-position/factory work. Existing wallet loans remain manual repay/card flows; no automatic repayment on behalf is claimed. The user subsequently selected testnet and authorized account creation/funding; B7 token sourcing and the other named gates still apply to dependent operations. Final provisioning ABI/storage evidence remains required before factory-dependent activation builders.
 
-### D19. Demo network (Open; founder leans testnet)
+### D19. Demo network (Testnet selected; feasibility evidence pending)
+
+Decision [user, 2026-11-11]: focus the hackathon on testnet and authorize creation and faucet funding of the testnet accounts. This selects the target network; it does not establish that fresh-price lending or the Guardian loop works. Record the actual Gate 1 result before claiming acceptance or selecting which demo beats are Simulated. Mainnet deployment or transactions are not authorized.
 
 Observed facts [V, read-only RPC views, 2026-11-04]:
 
@@ -120,7 +122,7 @@ Observed facts [V, read-only RPC views, 2026-11-04]:
 | Judge credibility | Lower if prices are fixed; must label Simulated beats | Highest: a real position and real receipts |
 | Speed of iteration | Fast and free | Slow: each mistake costs money |
 
-Best solution (lead recommendation [I]): **a testnet-first ladder, decided with evidence at the Phase 0 gate**:
+Planned testnet feasibility ladder [I]; results still need evidence at the Phase 0 gate:
 
 1. **Testnet with fresh prices.** Pyth on NEAR is pull-based [I, to be proven]: P0.2 tries to post a fresh USDC price update to `pyth-oracle.testnet` and then borrow. If borrowing works, every demo transaction is real on testnet, and only scripted price shocks are labelled Simulated.
 2. **Testnet with fixed-price assets** if step 1 fails. Supply `wrap.testnet` and borrow a fixed-price asset; every transaction is still real, but any price-driven beat (Guardian trigger) is labelled Simulated, and the trigger is exercised by the over-limit rejection plus a labelled replay.
@@ -198,7 +200,7 @@ The user also superseded D17's historical lack of a commit-size rule for subsequ
 | B4 | Gate 3: in-contract trigger price source | lead | Open | P0.4, P2.5 | Contract reads a fresh price and computes the same health as the engine, or D27 fallback |
 | B5 | Tech stack (D16) | founder | Resolved 2026-11-05 | P0.7 and every app path | Option A chosen; see D16 |
 | B6 | NEAR AI Cloud API key and credits | founder | Resolved for local inference, 2026-11-08 | P0.6, Phase 3 | Local credential accepted by authenticated gateway; real GLM tool-calling turns exercised. Model acceptance is separate D25/P3.4 evidence; no credential is committed |
-| B7 | Testnet accounts, NEAR and listed test tokens | founder creates or authorizes the lead | Open | P0.2, P0.3, P2.8, P5 | Accounts listed in INTEGRATIONS "NEAR testnet accounts"; faucet NEAR; a way to obtain `usdc.fakes.testnet` [U] |
+| B7 | Testnet accounts, NEAR and listed test tokens | founder creates or authorizes the lead | Partially complete | P0.2, P0.3, P2.8, P5 | Six accounts funded on testnet; token sourcing remains [U]. See INTEGRATIONS "NEAR testnet accounts" |
 | B8 | Watcher host account (D29) | founder | Open | P5.3 | After D16 |
 | B9 | Team members and other entries of 0xlann | 0xlann | Open | P6.3, P6.5 | Confirm the team list and whether 0xlann is on another entry (READMEs must name each other) |
 | B10 | License of five committed skills | founder | Open | none (risk) | `near-api-js`, `near-dapp`, `near-ai-cloud` and `near-contract-audit` have no upstream license; `motion` declares MIT only in a package manifest. Accept, or untrack these five and restore them from the lock |
@@ -226,7 +228,7 @@ Unblock evidence: sandbox test showing the Guardian computes health from a live-
 
 ### B7. Accounts and tokens
 
-This planning session created no accounts. Unblock evidence: account ids (never keys) written to INTEGRATIONS and `.env`.
+On 2026-11-11 the user authorized account creation and faucet funding. Six testnet accounts were created and verified with 10 NEAR each; public ids and the pinned block are recorded in INTEGRATIONS. Private keys are in the local gitignored `.env` per user instruction. Listed test-token sourcing is still unproven, so B7 remains open.
 
 ### B10. Skills licensing
 

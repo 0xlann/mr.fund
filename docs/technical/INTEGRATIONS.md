@@ -137,6 +137,19 @@ Human steps (founder, or the lead with explicit authorization):
 
 Verification (planned): `near account view-account-summary <id> network-config testnet now` shows a non-zero balance. Stop if the faucet is empty and tell the founder.
 
+Observed [V, testnet, 2026-11-11 10:19 UTC]: the user authorized account creation and faucet funding. The following balances and matching full-access public keys were verified at final block `277201955` (`FvaZrGxaaAxMECLV6AxJnsrfie12fLYm97zUFddVWBEm`). Each balance was exactly `10000000000000000000000000` yoctoNEAR (10 NEAR); storage is locked within the account balance. The generated private keys are in the local gitignored `.env` per user instruction and are not recorded here.
+
+| Role | Account | Faucet creation transaction |
+| --- | --- | --- |
+| Deployer | `mrf-b1ce96af6a.testnet` | `6ddG2vUeF8QmZ83wKWyL7e29mN5qA1qQQ24wJCfr9J3G` |
+| Factory account | `f-mrf-b1ce96af6a.testnet` | `9QmsqfFs3zJy94Yho6W42YQQ9dfN285FNkhcsYhiExP2` |
+| Watcher | `w-mrf-b1ce96af6a.testnet` | `DxfmuHhWs6wC9oykGmjTc3zG6SN1pju3ZLdCWoSJRAVc` |
+| Demo user | `d-mrf-b1ce96af6a.testnet` | `Cue8aSHy5BBtXhWp58ic3z91B7VFdJwrVtTR7m4MEG7o` |
+| Fee recipient | `fee-mrf-b1ce96af6a.testnet` | `GXHjMGHrsf8kTyCzGH8c5XwWnxBfygsc4CQojV5QRnQY` |
+| Probe | `p-mrf-b1ce96af6a.testnet` | `J23KbzGVz5gCDuc99Ps79gSvzj4KXZykjbNm4h6zREbN` |
+
+The factory account has no deployment evidence yet. The watcher currently has a full-access key only; it must not be used for watcher submissions until a Guardian-specific function-call key is established and verified. A read-only `get_asset` confirmed `usdc.fakes.testnet` is listed on testnet Rhea with borrowing and deposit enabled; `ft_balance_of` returned zero for the demo user. A source of listed test tokens remains [U], so B7 and `prove-testnet-guardian-loop` 1.2 remain open.
+
 ### 2. Rhea lending reads (exercised read-only)
 
 Docs: https://guide.rhea.finance/developers/contracts.md ; source `https://github.com/ref-finance/burrowland` @ `2110c7047f2d72a9189abcbaad5eafb4e4a87f9e` (only published ref).
