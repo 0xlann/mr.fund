@@ -83,7 +83,7 @@ The native-fetch OpenAI-compatible provider uses temperature `0.2`, `max_tokens:
 
 The 36-case dataset uses 12 scenarios in English, Indonesian and Spanish. Position/prices/Guardian responses are explicitly **Simulated**, even when inference is live. It covers comparison, what-if, repayment drafts, glossary, Guardian limits/history/non-action, stale/missing inputs, unsupported transfers/protocols and injection. No testnet/mainnet execution is implied.
 
-Run offline checks with `pnpm exec vitest run packages/agent/test/eval.test.ts`. An authorized live run uses `LIVE_CHAT_EVAL=1`, configured `NEARAI_API_KEY` / `NEARAI_MODEL`, and `pnpm exec vitest run packages/agent/test/live-eval.test.ts --reporter=verbose`. Synthetic response reports and a review template are written to ignored `scratch/chat-eval/`; ordinary test runs skip inference.
+Run offline checks with `pnpm exec vitest run packages/agent/test/eval.test.ts`. An authorized live run uses `LIVE_CHAT_EVAL=1`, configured `NEARAI_API_KEY` / `NEARAI_MODEL`, and `pnpm exec vitest run packages/agent/test/live-eval.test.ts --reporter=verbose`. Synthetic response reports and a review template are written to ignored `scratch/chat-eval/`; ordinary test runs skip inference. The opt-in full-dataset harness allows 40 minutes so all 36 cases can reach their own 60 s turn deadline; a timeout/fallback is still scored as failure, not waived.
 
 Review the exact saved responses for language, financial meaning and forbidden claims. Re-score without new inference using `CHAT_EVAL_REVIEW_ONLY=1`, `CHAT_EVAL_REPORT_FILE`, `CHAT_EVAL_REVIEW_FILE`, and `pnpm exec vitest run packages/agent/test/eval-review.test.ts`. Reviews bind the original text, case and locale. Offline checks, fallbacks and unreviewed outputs never establish model acceptance. D25 records actual live acceptance evidence and remaining limits.
 
@@ -170,7 +170,7 @@ curl -X POST "http://127.0.0.1:3111/api/chat" -H "Content-Type: application/json
 
 ### Original default RPC, 30 s deadline
 
-All cells below are **median / max milliseconds** across the three turns. `n/a` means that stage was never reached, not zero work. Provider columns are actual provider round indices; repair calls are listed separately, never double-counted. Aborted call durations stop at cancellation, not at a hypothetical provider completion.
+All cells below are **median / max milliseconds** across the three turns, using only calls actually reached. `n/a` means that stage was never reached, not zero work. Provider columns are actual provider round indices; repair calls are listed separately, never double-counted. Aborted call durations stop at cancellation, not at a hypothetical provider completion.
 
 | Account | Question | Context | Provider 1 | Provider 2 | Provider 3 | Repair call | Total HTTP | Model / timeout / unavailable |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -240,3 +240,53 @@ Read durations include HTTP body consumption; calls remain individual POSTs, not
 [V] `pnpm exec vitest run apps/web/test/chat-context.test.ts apps/web/test/chat-handler.test.ts apps/web/test/chat-provider.test.ts apps/web/test/chat-route.test.ts`: **43 passed**. Workspace `pnpm typecheck` passed. The context-only runtime diagnostic used real public RPC and returned a real validated proposal context; it did not call a signer or submit that draft.
 
 [I] The remaining sequential snapshot reads live in the shared Rhea adapter, outside Worker A's ownership. This change deliberately does not wrap/reimplement that protocol adapter. Removing the provider continuation would require a new deterministic answer contract; no user-text regex, unguarded streaming or semantic shortcut was introduced.
+
+### Local regression boundary (2026-11-13)
+
+[V] After the complete code changes, `pnpm exec vitest run apps/web packages/agent` passed **76 files / 847 tests**, with **2 skipped** opt-in evaluation files. Two existing jsdom `Window.scrollTo` not-implemented notices were printed. `pnpm typecheck` passed across all seven workspace projects. `pnpm lint` checked **346 files** with no fixes/errors.
+
+[V] The broader `pnpm test` did **not** pass: **1380 passed / 4 failed / 3 skipped**, in **124 passed / 2 failed / 3 skipped files**. All failures are in watcher files untouched by this worker:
+
+| Test file | Failed case | Observed failure |
+| --- | --- | --- |
+| `apps/watcher/test/operator-journal.test.ts` | persists intent before signing and hash before broadcast, then blocks a new process | `Watcher request could not be reconciled` |
+| `apps/watcher/test/operator-journal.test.ts` | admits only one simultaneous attempt for a Guardian | expected one fulfilled admission, observed zero |
+| `apps/watcher/test/operator-journal.test.ts` | records sandbox identity without using a public-network journal | `Operator journal unavailable` |
+| `apps/watcher/test/runtime-keys.test.ts` | rejects symlinks, oversized files and network mismatch | Windows symlink `EPERM` |
+
+[I] The journal implementation opens and syncs its parent directory, a portability-sensitive operation on Windows; the caught underlying syscall error was not exposed by these tests, so that root cause is not asserted as verified. The symlink permission error is directly observed. [U, owner: lead/watcher owner] Reconcile these failures on the supported watcher runtime before claiming a green whole-project suite; no permission check, journal durability rule or test was weakened here.
+
+### Final state: FastNear, 60 s cap, concise persona and concurrent prerequisites
+
+[V] Completed another **24 real handler/provider turns** (three per account/question), final report time `2026-11-13T05:08:38.331Z`. Settings and model are unchanged. This run includes all shipped changes together, not an isolated causal estimate for the persona or deadline.
+
+| Account | Question | Context | Provider 1 | Provider 2 | Provider 3 | Repair call | Total HTTP | Model / timeout / unavailable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| juaner116.testnet | helo | 10024 / 16426 | 22082.5 / 22506 | n/a | n/a | n/a | 26572 / 38097 | 2 / 0 / 1 |
+| juaner116.testnet | Explain my position | 3961 / 4178 | 8216 / 8806 | 45280 / 47270 | n/a | 4723 / 5561 | 60016 / 60016 | 0 / 3 / 0 |
+| juaner116.testnet | saya mau tau dong lending position saya | 4935 / 5018 | 3144 / 5215 | 30328 / 38153 | n/a | 21739 / 23902 | 60029 / 60036 | 1 / 2 / 0 |
+| juaner116.testnet | What if NEAR drops 20%? | 4263 / 5253 | 8094 / 12681 | 28927 / 43211 | 22519.5 / 25517 | n/a | 60012 / 60016 | 0 / 3 / 0 |
+| d-mrf-b1ce96af6a.testnet | helo | 2185 / 3253 | 15436 / 18699 | n/a | n/a | n/a | 18690 / 20582 | 3 / 0 / 0 |
+| d-mrf-b1ce96af6a.testnet | Explain my position | 1768 / 1827 | 14600 / 19474 | 12756 / 22877 | n/a | n/a | 31324 / 34944 | 3 / 0 / 0 |
+| d-mrf-b1ce96af6a.testnet | saya mau tau dong lending position saya | 1689 / 1740 | 3369 / 3553 | 17203 / 18431 | n/a | n/a | 22283 / 23004 | 3 / 0 / 0 |
+| d-mrf-b1ce96af6a.testnet | What if NEAR drops 20%? | 1657 / 1762 | 8113 / 15149 | 8092 / 10341 | n/a | 19716 / 20190 | 32600 / 39932 | 3 / 0 / 0 |
+
+[V] Final whole-sample total: **33772 / 60036 ms** median/max; **15 guarded model answers / 8 timeouts / 1 unavailable**, with **4 guard hits** retained in successful summaries. Successful-turn-only total is **29184 / 49706 ms** (15 turns). Overall context is **3595 / 16426 ms**. Failed enclosing-handler summaries do not preserve earlier usage/guard counts, so these are not complete attempted-token or guard-hit totals.
+
+[V] Relative to the original default-RPC baseline (**43 / 30053 ms**, no model answers), the larger final median reflects reaching inference and allowing a longer budget, not slower successful default answers. Relative to the RPC-only 30 s run (**30006 / 30116 ms**, 8 model answers), completions increased to 15 but observed successful latency was higher. Concurrent authorized inference and external-service variability prevent attributing that provider difference to one code change.
+
+| Final RPC read | n | Median / max ms |
+| --- | --- | --- |
+| status | 24 | 328 / 10009 |
+| get_config | 23 | 234 / 1019 |
+| get_all_token_pyth_infos | 23 | 243 / 614 |
+| get_assets_paged_detailed | 23 | 671 / 1548 |
+| get_account | 23 | 257 / 404 |
+| ft_metadata | 55 | 237 / 548 |
+| get_price_no_older_than | 33 | 239 / 331 |
+| get_version | 11 | 249 / 275 |
+| ft_balance_of | 55 | 322 / 1738 |
+| storage_balance_of | 11 | 324 / 474 |
+| storage_balance_bounds | 11 | 233 / 314 |
+
+[U, owner: lead/D25] The positioned account's English position explanation and price-shock question still timed out in all three final repeats; the Indonesian explanation completed only once. A second provider call reached **47270 ms** before the enclosing deadline. This is not a passing latency acceptance for common positioned-account questions. The measured context reduction and endpoint recommendation are retained, but no model swap, fabricated tool-only answer or guard bypass is used to hide the remaining provider bottleneck.

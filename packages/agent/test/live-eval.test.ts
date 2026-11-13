@@ -61,5 +61,6 @@ it.skipIf(process.env.LIVE_CHAT_EVAL !== "1")(
     expect(report.evidence).toBe("live");
     expect(report.fixture.label).toBe("Simulated");
   },
-  1_200_000,
+  // Allow all cases to reach their own deadline; a slow/failed turn is still scored as such.
+  2_400_000,
 );
