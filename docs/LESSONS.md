@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-13: NEAR Connect sign-in needs the chooser inside the modal dialog and tolerates repeated accounts
+
+- What happened: on `/play` the NEAR Connect wallet chooser was invisible, then visible but unclickable, and after a Meteor approval the login failed with the generic "Sign-in was not completed".
+- Root cause: the SDK appends its chooser to `document.body`, but the wallet `<dialog>` is opened with `showModal()`, which paints above any z-index and makes everything outside it inert. Separately, Meteor returned the same testnet account six times without public keys, and the strict account validator rejects duplicates.
+- Rule: move SDK popups into the open modal dialog during login (`liftPopupsToTopLayer`); collapse repeated account ids at the adapter boundary and keep the validator strict. Check hit-testing with `elementFromPoint`, not only a screenshot. A real Meteor sign-in end to end is still unverified.
+
 ### 2026-11-13: A guard retry repeats the violation unless the feedback names it
 
 - What happened: every Indonesian glossary draft was rejected for "aman" ("safe"), and the one retry used the same word, so the turn fell back to the deterministic template.

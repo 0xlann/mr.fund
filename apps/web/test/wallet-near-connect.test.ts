@@ -89,12 +89,26 @@ describe("NEAR Connect browser account context", () => {
     ]);
   });
 
+  it("collapses the same account returned once per access key (Meteor sent six copies)", async () => {
+    const copies = Array.from({ length: 6 }, () => ({ accountId: "my-dev.testnet" }));
+    const adapter = createNearConnectAdapter(config, provider(copies).connector);
+    expect(await adapter.login()).toEqual([{ accountId: "my-dev.testnet" }]);
+    expect(await adapter.restore()).toEqual([{ accountId: "my-dev.testnet" }]);
+  });
+
+  it("still rejects a repeated id when another entry is malformed", async () => {
+    const adapter = createNearConnectAdapter(
+      config,
+      provider([{ accountId: "alice.testnet" }, { accountId: "alice.testnet" }, null]).connector,
+    );
+    await expect(adapter.login()).rejects.toThrow();
+  });
+
   it.each(
     [
       null,
       [{ accountId: "Invalid account" }],
       [{ accountId: "alice.testnet", publicKey: 7 }],
-      [{ accountId: "alice.testnet" }, { accountId: "alice.testnet" }],
       Array.from({ length: 21 }, (_, i) => ({ accountId: `user${i}.testnet` })),
     ].map((accounts) => ({ accounts })),
   )("rejects malformed provider accounts: $accounts", async ({ accounts }) => {
