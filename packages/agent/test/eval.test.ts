@@ -531,3 +531,22 @@ describe("rubric: shock percentage in the gap and the Spanish accepted verb", ()
     );
   });
 });
+
+describe("rubric: English 'no evidence' mirrors Spanish 'no hay prueba'", () => {
+  const sources = [{ value: "40", unit: "USDC" }];
+  const base =
+    "Attempt 7 had accepted spend 40 USDC. Attempt 8 was rejected above the max per action. Transaction links are unavailable.";
+  const check = (text: string) =>
+    evaluateResponse(
+      required(EVALUATION_CASES.find((c) => c.id === "guardian-history.en")),
+      result(text, { sources }),
+    ).semantic.pass;
+  it("accepts a heartbeat disclosure phrased as no evidence", () => {
+    expect(check(`${base} I have no heartbeat, so I have no evidence the watcher is online.`)).toBe(
+      true,
+    );
+  });
+  it("still refuses a watcher claim without a disclosure", () => {
+    expect(check(`${base} The watcher is running normally.`)).toBe(false);
+  });
+});
