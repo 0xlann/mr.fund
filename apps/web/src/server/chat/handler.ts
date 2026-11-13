@@ -75,18 +75,48 @@ export function createChatHandler(dependencies: ChatHandlerDependencies): ChatHa
   const allow = createAdmission(limit);
   return async (request) => {
     const started = Date.now();
+    const turnId = crypto.randomUUID();
+    let finished = false;
+    const timing = (
+      stage: "context" | "provider" | "repair" | "total",
+      since: number,
+      round?: number,
+    ) =>
+      console.info({
+        event: "chat_timing",
+        turnId,
+        stage,
+        elapsedMs: Math.max(0, Date.now() - since),
+        ...(round === undefined ? {} : { round }),
+      });
+    async function measured<T>(
+      stage: "context" | "provider" | "repair",
+      work: () => Promise<T>,
+      round?: number,
+    ): Promise<T> {
+      const since = Date.now();
+      try {
+        return await abortable(work(), controller.signal);
+      } finally {
+        timing(stage, since, round);
+      }
+    }
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
       controller.abort();
-    }, 30_000);
+    }, 60_000);
     const disconnect = () => controller.abort();
     request.signal.addEventListener("abort", disconnect, { once: true });
     if (request.signal.aborted) disconnect();
     const cleanup = () => {
       clearTimeout(timer);
       request.signal.removeEventListener("abort", disconnect);
+      if (!finished) {
+        finished = true;
+        timing("total", started);
+      }
     };
     const httpError = (status: number, code: string) => {
       cleanup();
@@ -130,18 +160,26 @@ export function createChatHandler(dependencies: ChatHandlerDependencies): ChatHa
           try {
             emit({ type: "progress", stage: "reading" });
             if (!dependencies.provider) throw new Error("Unavailable");
-            const context = await abortable(
+            const context = await measured("context", () =>
               dependencies.loadContext(input, controller.signal),
-              controller.signal,
             );
             controller.signal.throwIfAborted();
+            let round = 0;
+            const provider = dependencies.provider;
             await abortable(
               runChatTurn({
                 message: input.message,
                 ...(input.history === undefined ? {} : { history: input.history }),
                 ...(input.locale === undefined ? {} : { locale: input.locale }),
                 context,
-                provider: dependencies.provider,
+                provider: {
+                  complete: (call) =>
+                    measured(
+                      call.messages.at(-1)?.role === "system" ? "repair" : "provider",
+                      () => provider.complete(call),
+                      ++round,
+                    ),
+                },
                 signal: controller.signal,
                 emit,
               }),

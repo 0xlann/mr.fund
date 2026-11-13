@@ -48,10 +48,12 @@ After HTTP 200, consumers must inspect `error`/`done`, not assume inference succ
 
 ## Runtime limits and failure behavior
 
-- One 30-second server deadline begins before request body/context reads. Request-scoped RPC transports and provider calls inherit cancellation. The agent also enforces its own maximum and performs no new work after abort.
+- One 60-second server deadline begins before request body/context reads. Request-scoped RPC transports and provider calls inherit cancellation. The agent independently caps its loop at 60 seconds, without extending the enclosing server deadline.
 - At most six tool calls total, including calls in a provider batch and during regeneration. Oversized batches are refused before dispatch; tool ids must correlate uniquely.
 - Current successful tool facts are the only numerical authority. The existing number checker and additional claim checks run before prose emission. One regeneration is permitted; a second failure produces a localized, number-free fallback. These checks are rejection layers, not a proof of arbitrary natural-language truthfulness.
 - Provider HTTP/JSON failures are sanitized; no raw error, credential, reasoning trace or transcript is logged or returned.
+- Server `chat_timing` records contain only a generated turn id, static stage (`context`, `provider`, `repair`, `total`), elapsed milliseconds and provider round index. Repair denotes the provider call following guard rejection; it is not added twice to provider time. No account, message, reply, tool arguments, RPC endpoint, usage content or raw error enters these records. Context timing includes failed/aborted loads; total is recorded once on rejection, completion or cancellation. The ignored measurement harness additionally times each RPC through body consumption without logging its arguments.
+- The client transport has no shorter deadline. `useLiveConsultation.slow` becomes true after 15,000 ms of the current busy turn; completion, error, cancel, clear, account/network change and a replacement turn reset it. Cancellation remains available through `cancel()`. A timeout preserves the question for manual retry; no automatic retry is added.
 - Provider responses are byte-bounded. API credentials are sent only to `https://cloud-api.near.ai/v1/chat/completions`; alternate credential destinations and redirects are rejected.
 
 ## Server configuration

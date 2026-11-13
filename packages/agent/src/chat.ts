@@ -39,7 +39,7 @@ export async function runChatTurn(input: ChatTurnInput): Promise<TurnResult> {
   const timer = setTimeout(() => {
     interrupted = "timeout";
     controller.abort();
-  }, 30_000);
+  }, 60_000);
   const summary: TurnSummary = {
     via: "template",
     guardHits: 0,
@@ -81,7 +81,7 @@ export async function runChatTurn(input: ChatTurnInput): Promise<TurnResult> {
   function ensureActive() {
     if (interrupted) throw new TurnFailure(interrupted);
     // Covers synchronous work and event-loop delays as well as the scheduled timer.
-    if (Date.now() - startedAt >= 30_000) {
+    if (Date.now() - startedAt >= 60_000) {
       interrupted = "timeout";
       controller.abort();
       throw new TurnFailure("timeout");

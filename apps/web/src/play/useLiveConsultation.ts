@@ -1,6 +1,6 @@
 "use client";
 import type { ChatEvent, ConversationMessage } from "@mrfund/agent";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { LiveChatError, streamLiveChat } from "./source/liveChat";
 import { buildLiveChatRequest } from "./source/liveChatRequest";
 import { createLivePosition } from "./source/livePosition";
@@ -29,14 +29,29 @@ export function useLiveConsultation(account?: LiveAccountView) {
   const [card, setCard] = useState<Card | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [slow, setSlow] = useState(false);
+  const slowTimer = useRef<number | undefined>(undefined);
   const [progress, setProgress] = useState("");
   const [identity, setIdentity] = useState("");
   const currentIdentity = accountId && network ? `${network}:${accountId}` : "";
   const current = identity === currentIdentity;
   const turn = useRef<AbortController | null>(null);
+  const resetSlow = useCallback(() => {
+    window.clearTimeout(slowTimer.current);
+    slowTimer.current = undefined;
+    setSlow(false);
+  }, []);
+  function cancel() {
+    turn.current?.abort();
+    turn.current = null;
+    resetSlow();
+    setBusy(false);
+    setPartial("");
+  }
   useEffect(() => {
     const controller = new AbortController();
     turn.current?.abort();
+    resetSlow();
     setIdentity(currentIdentity);
     setMessages([]);
     setInput("");
@@ -48,16 +63,18 @@ export function useLiveConsultation(account?: LiveAccountView) {
     return () => {
       controller.abort();
       turn.current?.abort();
+      window.clearTimeout(slowTimer.current);
       position?.dispose();
     };
-  }, [position, currentIdentity]);
+  }, [position, currentIdentity, resetSlow]);
   useEffect(() => {
     if (state.status !== "network_mismatch") return;
     turn.current?.abort();
+    resetSlow();
     setBusy(false);
     setPartial("");
     setCard(null);
-  }, [state.status]);
+  }, [state.status, resetSlow]);
   async function send(text: string) {
     if (
       !account ||
@@ -69,6 +86,7 @@ export function useLiveConsultation(account?: LiveAccountView) {
     )
       return;
     turn.current?.abort();
+    resetSlow();
     const controller = new AbortController();
     turn.current = controller;
     const request = buildLiveChatRequest({
@@ -84,6 +102,9 @@ export function useLiveConsultation(account?: LiveAccountView) {
     setCard(null);
     setError("");
     setBusy(true);
+    slowTimer.current = window.setTimeout(() => {
+      if (!controller.signal.aborted && turn.current === controller) setSlow(true);
+    }, 15_000);
     setProgress("Connecting…");
     let answer = "";
     let nextCard: Card | null = null;
@@ -103,7 +124,8 @@ export function useLiveConsultation(account?: LiveAccountView) {
           setPartial(answer);
         }
         if (event.type === "card") nextCard = event.card;
-        if (event.type === "error") throw new LiveChatError("unavailable");
+        if (event.type === "error")
+          throw new LiveChatError(event.code === "timeout" ? "timeout" : "unavailable");
       }
       if (controller.signal.aborted) return;
       const answerId = ++messageId.current;
@@ -116,22 +138,26 @@ export function useLiveConsultation(account?: LiveAccountView) {
       setInput(text);
       setMessages((old) => old.slice(0, -1));
       setError(
-        caught instanceof LiveChatError && caught.code === "rate_limited"
-          ? "Too many requests. Please wait before trying again."
-          : caught instanceof LiveChatError && caught.code === "invalid_request"
-            ? "I could not read that question. Please edit it and try again."
-            : caught instanceof LiveChatError &&
-                (caught.code === "interrupted" || caught.code === "invalid_stream")
-              ? "The reply was interrupted. Please try again."
-              : "The assistant is unavailable. Please try again.",
+        caught instanceof LiveChatError && caught.code === "timeout"
+          ? "The reply timed out. Please try again."
+          : caught instanceof LiveChatError && caught.code === "rate_limited"
+            ? "Too many requests. Please wait before trying again."
+            : caught instanceof LiveChatError && caught.code === "invalid_request"
+              ? "I could not read that question. Please edit it and try again."
+              : caught instanceof LiveChatError &&
+                  (caught.code === "interrupted" || caught.code === "invalid_stream")
+                ? "The reply was interrupted. Please try again."
+                : "The assistant is unavailable. Please try again.",
       );
     } finally {
-      if (!controller.signal.aborted) setBusy(false);
+      if (turn.current === controller) {
+        resetSlow();
+        setBusy(false);
+      }
     }
   }
   function clear() {
-    turn.current?.abort();
-    setBusy(false);
+    cancel();
     setMessages([]);
     setPartial("");
     setCard(null);
@@ -146,9 +172,11 @@ export function useLiveConsultation(account?: LiveAccountView) {
     card: current ? card : null,
     error: current ? error : "",
     busy: current ? busy : false,
+    slow: current && busy && slow,
     progress,
     send,
     clear,
+    cancel,
     refresh: () => {
       void position?.refresh();
     },

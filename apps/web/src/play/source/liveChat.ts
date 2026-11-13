@@ -4,6 +4,7 @@ import type { LiveChatRequest } from "./liveChatRequest";
 export type ChatFailure =
   | "invalid_request"
   | "rate_limited"
+  | "timeout"
   | "unavailable"
   | "interrupted"
   | "invalid_stream";

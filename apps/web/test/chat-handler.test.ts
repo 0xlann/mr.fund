@@ -49,6 +49,25 @@ describe("public-read chat handler", () => {
     );
     expect(result.at(-1)).toMatchObject({ type: "done", summary: { status: "ok" } });
   });
+  it("delivers a guarded answer at 59900 ms without a nested agent timeout", async () => {
+    vi.useFakeTimers();
+    const handler = createChatHandler({
+      provider: {
+        complete: () =>
+          new Promise((resolve) =>
+            setTimeout(
+              () => resolve({ content: "Read your position next.", toolCalls: [], usage }),
+              59_900,
+            ),
+          ),
+      },
+      loadContext: async () => context(),
+    });
+    const body = (await handler(request())).text();
+    await vi.advanceTimersByTimeAsync(59_900);
+    expect(events(await body)).toContainEqual({ type: "text", text: "Read your position next." });
+    expect(events(await body).at(-1)).toMatchObject({ type: "done", summary: { status: "ok" } });
+  });
   it.each([
     { message: "Hello", accountId: "alice.testnet", network: "mainnet" },
     { message: "Hello", accountId: "alice.testnet", context: { sources: [999] } },
@@ -235,7 +254,9 @@ describe("public-read chat handler", () => {
     })(request());
     const response = await pending;
     const body = response.text();
-    await vi.advanceTimersByTimeAsync(30_001);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
     expect(signal?.aborted).toBe(true);
     expect(events(await body)).toContainEqual({ type: "error", code: "timeout" });
   });
@@ -288,6 +309,7 @@ describe("public-read chat handler", () => {
   it("does not log or return provider secrets or transcript content on failure", async () => {
     const errorLog = vi.spyOn(console, "error");
     const infoLog = vi.spyOn(console, "log");
+    const timings = vi.spyOn(console, "info").mockImplementation(() => {});
     try {
       const broken: ChatProvider = {
         complete: async () => {
@@ -303,9 +325,21 @@ describe("public-read chat handler", () => {
       expect(body).not.toContain("transcript-fragment");
       expect(errorLog).not.toHaveBeenCalled();
       expect(infoLog).not.toHaveBeenCalled();
+      const records = timings.mock.calls.map(([entry]) => entry);
+      expect(records.map((entry) => entry.stage)).toEqual(["context", "provider", "total"]);
+      for (const entry of records) {
+        expect(Object.keys(entry).sort()).toEqual(
+          (entry.stage === "provider"
+            ? ["event", "turnId", "stage", "elapsedMs", "round"]
+            : ["event", "turnId", "stage", "elapsedMs"]
+          ).sort(),
+        );
+      }
+      expect(JSON.stringify(records)).not.toMatch(/private-key|transcript-fragment|alice|Hello/);
     } finally {
       errorLog.mockRestore();
       infoLog.mockRestore();
+      timings.mockRestore();
     }
   });
 });

@@ -688,12 +688,12 @@ describe("runChatTurn whole-turn deadline and cancellation", () => {
       },
     };
     const pending = runChatTurn({ message: "Read", context: context(), provider });
-    await vi.advanceTimersByTimeAsync(29_999);
+    await vi.advanceTimersByTimeAsync(59_999);
     expect(providerSignal?.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     const result = await pending;
     expect(providerSignal?.aborted).toBe(true);
-    expect(result.summary).toMatchObject({ status: "timeout", elapsedMs: 30_000 });
+    expect(result.summary).toMatchObject({ status: "timeout", elapsedMs: 60_000 });
   });
 
   it("bounds an awaited Guardian read and never starts the next queued tool after timeout", async () => {
@@ -714,7 +714,7 @@ describe("runChatTurn whole-turn deadline and cancellation", () => {
       reply("This must not run."),
     ]);
     const pending = runChatTurn({ message: "Guardian status", context: ctx, provider: p.provider });
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(60_000);
     const result = await pending;
     expect(reads).toBe(1);
     expect(result.summary).toMatchObject({ status: "timeout", toolCalls: 1, providerCalls: 1 });
@@ -730,7 +730,7 @@ describe("runChatTurn whole-turn deadline and cancellation", () => {
         requests++;
         if (requests === 1)
           return new Promise((resolve) =>
-            setTimeout(() => resolve(reply("Debt: 99999 USDC.")), 29_000),
+            setTimeout(() => resolve(reply("Debt: 99999 USDC.")), 59_000),
           );
         return new Promise(() => {});
       },
@@ -742,13 +742,13 @@ describe("runChatTurn whole-turn deadline and cancellation", () => {
       provider,
       emit: (e) => events.push(e),
     });
-    await vi.advanceTimersByTimeAsync(30_000);
+    await vi.advanceTimersByTimeAsync(60_000);
     const result = await pending;
     expect(result.summary).toMatchObject({
       status: "timeout",
       providerCalls: 2,
       guardHits: 1,
-      elapsedMs: 30_000,
+      elapsedMs: 60_000,
     });
     expect(textOf(events)).not.toContain("99999");
   });
