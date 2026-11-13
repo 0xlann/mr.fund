@@ -111,3 +111,44 @@ Review the exact saved responses for language, financial meaning and forbidden c
 **BLOCKER (owner: lead):** D25, P3.4 and OpenSpec task 3.3 remain open until a complete live run satisfies the number/content/card/claim gates and independent review confirms at least 34/36 target-language answers and correct financial meaning. The completed assistant review fails the content/honesty gate; no human review or deployment readiness is claimed.
 
 [V, final branch checks, 2026-11-08] `pnpm test`: **744 passed, 3 skipped**; `pnpm typecheck`, `pnpm lint`, `pnpm --filter @mrfund/web build` and strict OpenSpec validation passed. A direct-runtime smoke also rejected an unsupported `.99%` rate before emitting corrected prose; eight regression cases failed before the leading-decimal tokenizer fix and passed afterward. Saved-review application passed separately without provider calls; its language count is independent from content approval. These are local implementation checks, not model acceptance. Raw synthetic response reports, review templates and credentials stay ignored/local, not committed.
+
+## Public testnet HTTP read smoke (2026-11-13)
+
+[V, local Next dev server with public RPC] Started from this worktree with `pnpm --filter @mrfund/web dev --port 3111`, inheriting the ignored root `.env` through a Node launcher and explicitly selecting FastNear in that process. No credentials were printed or copied into tracked files. Public read selector `juaner116.testnet` was discovered by paging `get_accounts_paged` on `contract.1689937928.burrow.testnet`; this is not authentication or a wallet connection. Its regular position has wNEAR collateral and wNEAR debt. Non-collateral supplied tokens include missing oracle prices; no synthetic quote was inserted.
+
+[V] Requests used these selectors against `http://127.0.0.1:3111`; the ignored smoke harness also re-read each exact response block through `createPositionLoader` and compared `healthBps` at the HTTP response's `readAtMs`/`computedAtMs`. Each engine result, source hash and height matched exactly (zero bps difference). A later block was never used as a parity reference.
+
+```sh
+curl "http://127.0.0.1:3111/api/position?accountId=juaner116.testnet&networkId=testnet"
+curl -X POST "http://127.0.0.1:3111/api/position" -H "Content-Type: application/json" -d '{"accountId":"juaner116.testnet","networkId":"testnet"}'
+# Explicit refresh: repeat the GET; no cached snapshot is reused.
+curl -X POST "http://127.0.0.1:3111/api/chat" -H "Content-Type: application/json" -d '{"accountId":"juaner116.testnet","message":"Explain my position","locale":"en"}'
+```
+
+| Request UTC | Operation | HTTP | Latency ms | Block | Data age ms | HTTP and engine health bps |
+| --- | --- | --- | --- | --- | --- | --- |
+| 04:48:20.266 | GET | 200 | 6027 | 277463304 | 3637 | 3026171622528 |
+| 04:48:29.677 | POST | 200 | 4398 | 277463319 | 4098 | 3026171426435 |
+| 04:48:37.773 | GET refresh | 200 | 3368 | 277463333 | 3114 | 3026171232697 |
+
+[V] All three report network `testnet`, Rhea `0.11.0`, lending id `contract.1689937928.burrow.testnet`. Corresponding block hashes, in table order:
+
+- `Atj8vwjPE6Y2wbyysgoYWBds2c7WZzz3pSqoqg9MyzP3`
+- `EgUQ7UB8yQ6r1PMSs7M128cjcCgo5LhDgCS3Q1XCJx1v`
+- `4zPfNjXJXxNiBGNgjhoEq54oqZ6LTQ2fdBVWNhoPXf49`
+
+[V] wNEAR's input is the protocol's fixed `default_price` (`960/10^26`), not a current market quote. Health rounds down from internal units; supplied tokens not designated as collateral are excluded. This is public-RPC/engine parity, **not** Rhea UI parity, moving-price evidence or a wallet-money-flow check.
+
+[V] The actual chat request returned HTTP 200/SSE but terminal `timeout`/template after **60622 ms**. Stages: context **5743 ms**, provider round one **6433 ms**, round two **38013 ms**, repair round three **9902 ms** (aborted). The server recorded **60114 ms** total. The handler's error summary zeroes counts on its enclosing timeout; timing records, not those zero counts, establish that inference was attempted. No candidate tokens reached the client before the full numeric guard.
+
+[U, owner: lead] A successful connected-wallet consultation and visually shown data-age label were not exercised by this HTTP-only worker. The provider exceeded the turn budget; no passing chat smoke or multilingual quality acceptance is claimed. `connect-consultation-to-live-chat` 4.2 remains open for that connected surface. `add-position-read-api` 4.1 now has public evidence; 4.2's broader BUILD-PLAN/integration reconciliation remains lead-owned outside Worker A's file ownership. ARCHITECTURE already records the explicit no-cache correction at lines 283–285; no new cache discrepancy was found.
+
+[V] This exercise created no account, signed no message/transaction, moved no funds, and used no fixture fallback. The read-only position route remains independent of model configuration. Raw local evidence stays ignored in `scratch/http-smoke.json`; no captured account-response body is committed.
+
+### Verification boundary
+
+- [V] The smoke server was stopped after the requests; no watcher or wallet process was launched.
+- [V] `pnpm exec vitest run apps/web/test/chat-context.test.ts apps/web/test/chat-handler.test.ts apps/web/test/chat-provider.test.ts apps/web/test/chat-route.test.ts` passed **43 tests**; workspace `pnpm typecheck` passed.
+- [V] GET, POST and refresh returned different final blocks. The health changes between them were retained, not forced to match an older read.
+- [I] The `provenance: live` response label describes public reads, not the freshness of a fixed protocol price. Missing non-collateral quotes do not authorize claims about those tokens.
+- [U] No browser rendering, account login, oracle update, transaction receipt or independent Rhea-app value was observed in this run.
