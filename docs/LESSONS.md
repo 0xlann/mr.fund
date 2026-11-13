@@ -1,10 +1,10 @@
 # Mr.Fund: lessons
 
-### 2026-11-13: A path-safety check can fail every test on macOS
+### 2026-11-13: A guard retry repeats the violation unless the feedback names it
 
-- What happened: nine `public-journal` tests failed on macOS with "Operator journal unavailable"; the Linux assumption hid it.
-- Root cause: the journal rejects a directory whose `realpath` differs from its resolved path (a deliberate symlink refusal), and macOS `tmpdir()` is `/var/folders/...`, a symlink to `/private/var`.
-- Rule: tests for symlink-refusing code create their directories through `realpath`; never weaken the product check to make a macOS run pass.
+- What happened: every Indonesian glossary draft was rejected for "aman" ("safe"), and the one retry used the same word, so the turn fell back to the deterministic template.
+- Root cause: the retry message only said "unsupported guarantee"; the model could not tell which word to drop. Separately, the number guard admits small integers as prose counts, so an invented "below 1" liquidation threshold passed it and only the independent review caught it.
+- Rule: guard feedback names the matched word; localized banned words are listed in the persona. Treat the small-integer allowance as a known gap until the lead decides how thresholds are guarded.
 
 ### 2026-11-13: Watcher filesystem guarantees differ on Windows
 

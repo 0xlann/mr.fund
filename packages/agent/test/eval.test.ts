@@ -414,3 +414,139 @@ describe("real turn evaluation runner", () => {
     expect(summarizeEvaluation(report.results, "offline").modelAccepted).toBe(false);
   });
 });
+
+// Widened 2026-11-13 (user-approved rubric review): correct wording observed in live runs that the
+// association rules missed. Each acceptance has a paired refusal so a wrong answer still fails.
+describe("rubric accepts natural word order without accepting wrong facts", () => {
+  const sources = [
+    { value: "100", unit: "USDC" },
+    { value: "20", unit: "USDC" },
+    { value: "200", unit: "USDC" },
+    { value: "120", unit: "%" },
+    { value: "40", unit: "USDC" },
+  ];
+  const check = (id: string, text: string) =>
+    evaluateResponse(required(EVALUATION_CASES.find((c) => c.id === id)), result(text, { sources }))
+      .semantic;
+
+  it("a number may come shortly before its term", () => {
+    expect(
+      check(
+        "guardian-status.en",
+        "The Guardian is active. Max per action is 100 USDC. Reserve: 200 USDC booked, with a 20 USDC floor. Trigger at 120%.",
+      ).pass,
+    ).toBe(true);
+    // The floor must still be the 20 USDC figure, not the 200 USDC reserve.
+    expect(
+      check(
+        "guardian-status.en",
+        "The Guardian is active. Max per action is 100 USDC. Trigger at 120%. Reserve is 200 USDC floor.",
+      ).failures,
+    ).toEqual(expect.arrayContaining([expect.stringMatching(/floor/)]));
+    expect(
+      check(
+        "guardian-history.en",
+        "Two attempts: one settled with 40 USDC accepted spend, one rejected above the max per action. Transaction links are unavailable. Watcher status is unknown.",
+      ).pass,
+    ).toBe(true);
+  });
+
+  it("Spanish verb order, Indonesian reserve and Spanish heartbeat wording", () => {
+    expect(
+      check(
+        "guardian-history.es",
+        "Intento 7: aceptó un gasto de 40 USDC. Intento 8 rechazado por superar el límite. No hay enlaces de transacción verificados. Watcher: no hay latido disponible.",
+      ).pass,
+    ).toBe(true);
+    expect(
+      check(
+        "guardian-history.es",
+        "Intento 7: aceptó un gasto de 40 USDC. Intento 8 rechazado por superar el límite. El watcher está en línea.",
+      ).pass,
+    ).toBe(false);
+    expect(
+      check(
+        "guardian-status.id",
+        "Guardian aktif. Maksimum per tindakan 100 USDC. Cadangan: saldo tercatat 200 USDC, batas minimum 20 USDC. Pemicu 120%.",
+      ).pass,
+    ).toBe(true);
+    expect(
+      check(
+        "guardian-status.id",
+        "Guardian aktif. Maksimum per tindakan 100 USDC. Cadangan minimum 20 USDC. Pemicu 120%.",
+      ).failures,
+    ).toEqual(expect.arrayContaining([expect.stringMatching(/reserve/)]));
+  });
+
+  it("stale wording in Indonesian and Spanish, still requiring a refusal", () => {
+    expect(
+      check(
+        "stale.id",
+        "Data posisi terlalu lama dibaca, jadi saya belum bisa memberi saran. Segarkan data.",
+      ).pass,
+    ).toBe(true);
+    expect(
+      check(
+        "stale.es",
+        "La lectura es más antigua que el límite de frescura, así que no puedo recomendar nada.",
+      ).pass,
+    ).toBe(true);
+    expect(
+      check("stale.id", "Data posisi terlalu lama dibaca. Silakan lunasi sekarang.").pass,
+    ).toBe(false);
+    expect(check("stale.es", "Tu posición está bien, puedes actuar ahora.").pass).toBe(false);
+  });
+});
+
+describe("rubric: shock percentage in the gap and the Spanish accepted verb", () => {
+  const check = (id: string, text: string, sources: { value: string; unit: string | null }[]) =>
+    evaluateResponse(required(EVALUATION_CASES.find((c) => c.id === id)), result(text, { sources }))
+      .semantic;
+  const whatIf = [
+    { value: "-20", unit: "%" },
+    { value: "114", unit: "%" },
+    { value: "142.5", unit: "%" },
+  ];
+  it("accepts the stated shock between the term and the scenario value", () => {
+    expect(
+      check("what-if.id", "Faktor kesehatan jika wNEAR turun 20% (skenario): 114%.", whatIf).pass,
+    ).toBe(true);
+    // The current value is not the scenario value, even with the shock in between.
+    expect(
+      check("what-if.id", "Faktor kesehatan jika wNEAR turun 20% (skenario): 142.5%.", whatIf).pass,
+    ).toBe(false);
+  });
+  it("accepts 'aceptó 40 USDC' but not the rejected attempt's zero", () => {
+    const sources = [
+      { value: "40", unit: "USDC" },
+      { value: "0", unit: "USDC" },
+    ];
+    const tail =
+      " El intento 8 fue rechazado por superar el límite. No hay enlaces de transacción verificados. El latido no está disponible.";
+    expect(check("guardian-history.es", `El intento 7 aceptó 40 USDC.${tail}`, sources).pass).toBe(
+      true,
+    );
+    expect(check("guardian-history.es", `El intento 8 aceptó 0 USDC.${tail}`, sources).pass).toBe(
+      false,
+    );
+  });
+});
+
+describe("rubric: English 'no evidence' mirrors Spanish 'no hay prueba'", () => {
+  const sources = [{ value: "40", unit: "USDC" }];
+  const base =
+    "Attempt 7 had accepted spend 40 USDC. Attempt 8 was rejected above the max per action. Transaction links are unavailable.";
+  const check = (text: string) =>
+    evaluateResponse(
+      required(EVALUATION_CASES.find((c) => c.id === "guardian-history.en")),
+      result(text, { sources }),
+    ).semantic.pass;
+  it("accepts a heartbeat disclosure phrased as no evidence", () => {
+    expect(check(`${base} I have no heartbeat, so I have no evidence the watcher is online.`)).toBe(
+      true,
+    );
+  });
+  it("still refuses a watcher claim without a disclosure", () => {
+    expect(check(`${base} The watcher is running normally.`)).toBe(false);
+  });
+});

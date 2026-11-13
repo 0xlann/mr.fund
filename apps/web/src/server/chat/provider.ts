@@ -4,7 +4,7 @@ import { readBoundedBody, record } from "../transport";
 /** Bounded GLM reasoning; the evaluator records these exact runtime settings. */
 export const CHAT_GENERATION_SETTINGS = {
   temperature: 0.2,
-  max_tokens: 1024,
+  max_tokens: 3072,
   thinking_token_budget: 256,
 } as const;
 

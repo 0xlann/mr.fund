@@ -54,7 +54,9 @@ export function chatOutputViolations(text: string): string[] {
     if (LIQUIDATION_GUARANTEE.test(clause)) violations.push("liquidation guarantee");
     for (const match of clause.matchAll(GUARANTEES)) {
       const prefix = clause.slice(Math.max(0, match.index - 45), match.index);
-      if (!NEGATED_GUARANTEE.test(prefix)) violations.push("unsupported guarantee");
+      // Naming the word lets the single retry replace it instead of repeating it.
+      if (!NEGATED_GUARANTEE.test(prefix))
+        violations.push(`unsupported guarantee: "${match[0].toLowerCase()}"`);
     }
   }
   return [...new Set(violations)];

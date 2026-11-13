@@ -64,7 +64,7 @@ Use the names in the root `.env.example`. Next.js starts in `apps/web`; ensure y
 
 | Configuration | Behavior |
 | --- | --- |
-| `NEARAI_API_KEY`, `NEARAI_MODEL` | Required to enable provider calls; initial candidate is `z-ai/glm-5.3-flash` |
+| `NEARAI_API_KEY`, `NEARAI_MODEL` | Required to enable provider calls; default model `anthropic/claude-haiku-5-5` (user choice 2026-11-13, D25) |
 | `NEARAI_BASE_URL` | Optional; only the official HTTPS gateway `/v1` is accepted |
 | `NEAR_NETWORK_ID`, `NEAR_RPC_URL`, `RHEA_LENDING_ID` | Required for real context; no implicit demo-network decision or browser-variable fallback |
 | `GUARDIAN_FACTORY_ID` | Optional; resolves existing Guardian for the selected owner |
@@ -79,7 +79,7 @@ Only configure trusted-edge headers if the edge overwrites them, supplies the se
 
 ## GLM settings and evaluation
 
-The native-fetch OpenAI-compatible provider uses temperature `0.2`, `max_tokens: 1024`, and `thinking_token_budget: 256`; the evaluator imports the same `CHAT_GENERATION_SETTINGS` constant rather than duplicating configuration. Minimal `reasoning_effort: "low"` was also exercised and did not consistently satisfy the acceptance gate. No extra SDK dependency is needed for this endpoint. [NEAR AI documentation](https://docs.near.ai/cloud/reasoning-models) explains the GLM-specific budget and that `enable_thinking: false` can move reasoning into answer content rather than improve latency. Reasoning content is never exposed by this adapter.
+The native-fetch OpenAI-compatible provider uses temperature `0.2`, `max_tokens: 3072` (raised from 1024 to 2048, then 3072, on 2026-11-13; see "Haiku 5.5 runs and the token limit" and "Haiku 5.5 acceptance attempt"), and `thinking_token_budget: 256`; the evaluator imports the same `CHAT_GENERATION_SETTINGS` constant rather than duplicating configuration. Minimal `reasoning_effort: "low"` was also exercised and did not consistently satisfy the acceptance gate. No extra SDK dependency is needed for this endpoint. [NEAR AI documentation](https://docs.near.ai/cloud/reasoning-models) explains the GLM-specific budget and that `enable_thinking: false` can move reasoning into answer content rather than improve latency. Reasoning content is never exposed by this adapter.
 
 The 36-case dataset uses 12 scenarios in English, Indonesian and Spanish. Position/prices/Guardian responses are explicitly **Simulated**, even when inference is live. It covers comparison, what-if, repayment drafts, glossary, Guardian limits/history/non-action, stale/missing inputs, unsupported transfers/protocols and injection. No testnet/mainnet execution is implied.
 
@@ -334,3 +334,64 @@ Read durations include HTTP body consumption; calls remain individual POSTs, not
 [V] Observed validated-reply usage: **99719 input tokens**, including **32256 cached**; **20619 output tokens**, including **15957 reasoning**. Subsets are not added again. Interrupted/failed calls can consume unreported tokens; no billing total or cost is inferred.
 
 **BLOCKER [U, owner: lead/D25]:** the current GLM does not meet the existing complete-dataset criteria: only 20 model answers, failed content/card checks, heuristic below 34/36 and no independent exact-output review. D25/P3.4 and `add-tool-driven-chat-api` 3.3 remain open. No acceptance test, numeric guard, tool boundary or model setting was weakened to obtain a passing recording test. The next decision is the lead's model/latency-quality review using these exact saved outputs, not a claim of deployment readiness.
+
+## Haiku 5.5 runs and the token limit (2026-11-13)
+
+[V, live inference on the **Simulated** fixture `chat-eval-2026-11-08-v1`] Two complete 36-case runs with `NEARAI_MODEL=anthropic/claude-haiku-5-5` (temperature 0.2, `thinking_token_budget` 256). Reports are ignored local files: `scratch/chat-eval/haiku-run1-max1024.json` and `scratch/chat-eval/anthropic-claude-haiku-5-5.json`. No independent review was done; `modelAccepted: false` for both. The default model is unchanged.
+
+| Run (`runAt` UTC) | `max_tokens` | Model answers | Timeouts | Mean / max latency ms | Numbers / forbidden claims / cards | Language heuristic | Semantic failures | Cut off mid-sentence |
+| --- | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: |
+| 07:42:37 | 1024 | 34/36 | 0 | 6213 / 13451 | pass / pass / pass | 36/36 | 10 | 8 |
+| 07:47:45 | 2048 | 34/36 | 0 | 6135 / 16684 | pass / pass / pass | 36/36 | 9 | 1 |
+
+Finding: with 1024 tokens, eight Haiku answers stopped mid-sentence although their visible text was 300–1400 characters (reported output tokens 1164–2301), so the limit, not the model, cut them off. At 2048 one answer (`guardian-history.id`, 2267 output tokens) was still cut. The limit is now 2048 for every model; GLM was not rerun with it.
+
+Remaining failures at 2048, classified by reading each exact answer [I, assistant reading, not independent review]:
+
+- Deterministic fallbacks after two guard rejections (model turn failed): `glossary.id`, `injection.es`.
+- Cut off by the limit: `guardian-history.id`.
+- Correct content that the association rubric did not match, for example "40 USDC accepted spend" (number before the term), "a 20 USDC floor", "aceptó un gasto de 40 USDC", "data posisi terlalu lama dibaca" for stale input: `guardian-status.en`, `guardian-status.id`, `guardian-history.en`, `guardian-history.es`, `stale.id`, `stale.es`. The rubric was not changed; widening it is a lead decision, because it is part of the acceptance gate.
+
+D25/P3.4/OpenSpec 3.3 stay open: acceptance needs 36/36 model answers, every semantic check passing and 36 independent reviews.
+
+## Haiku 5.5 acceptance attempt (2026-11-13)
+
+[V, live inference on the **Simulated** fixture] The user chose `anthropic/claude-haiku-5-5` as the default model and approved this sequence: fix the guard fallbacks, raise `max_tokens` to 3072, widen the rubric, run final evaluations, obtain an independent review and record the result.
+
+Changes before the final runs (each with failing-first tests; full suite 1541 passed / 3 skipped):
+
+- Guard fallbacks: every `glossary.id` draft was rejected as an unsupported guarantee for "aman" ("safe"), and the retry repeated it because the violation did not name the word. Violations now read `unsupported guarantee: "<word>"`, and the persona lists the Indonesian and Spanish guarantee words to avoid. The guard itself is unchanged.
+- `max_tokens` 3072, after one 2048-token answer was cut off.
+- Rubric (user-approved; each widening has a paired refusal test, and the existing regression set still passes): a figure may precede its term within a short comma-free span ("20 USDC floor"), the Spanish verb form "aceptó 40 USDC", Indonesian "cadangan", Spanish "latido"/"no hay enlaces", stale wording ("terlalu lama", "frescura", "más antigua"), Indonesian "belum bisa" as a refusal, and the stated shock between term and scenario value in what-if. The rubric was then locked: later misses were recorded, not tuned.
+
+| Run (`runAt` UTC) | Model answers | Mean ms | Numbers / claims / cards | Language heuristic | Automated content |
+| --- | ---: | ---: | --- | ---: | ---: |
+| 08:05:13 (before the last two rubric fixes) | 36/36 | 6627 | pass | 36/36 | 34/36 |
+| 08:09:58 | 36/36 | 6362 | pass | 36/36 | 34/36 (two correct answers missed: "el latido tampoco está disponible", "past the freshness limit") |
+| 08:13:47 | 36/36 | 6831 | pass | 36/36 | **36/36** |
+
+Independent review of the 08:13:47 run (`reviewer: independent assistant review (Claude subagent, not the evaluated model)`, 2026-11-13T08:19:49Z; not human review), applied to the saved report with `applyManualReviews`: correct language 34/36, semantically correct 30/36, no forbidden claims 33/36, 0 pending. **`modelAccepted: false`** because reviewed content fails. Rejections:
+
+- `glossary.en/id/es`: "below 1, the position can be liquidated" states a threshold no tool returned. The number guard admits small integers as prose counts (`allowedAsProse`), so this invented threshold passed it. Lead decision needed: tighten the guard or forbid thresholds in the persona.
+- `comparison.es`: says repaying reduces the distance to liquidation (backwards).
+- `position.es`: reassuring judgments ("lejos de la liquidación", "alto") and a grammar error.
+- `position.en`: does not state data age. **Spec conflict:** the eval criteria require data age, while the persona (polish-live-consultation 1.4, owner-approved) says to state it only when stale or missing. Lead must reconcile one with the other.
+- Language: `position.es` and `stale.es` ("una salud factor").
+
+Cost per 36-case run: about 220k input and 38k output tokens, roughly USD 0.04 at the catalog price (USD 0.10 / 0.50 per million). Reports: ignored `scratch/chat-eval/haiku-final-run{1,2,3}.json`, `haiku-final-run3-reviewed.json`, `reviews-run3.json`.
+
+### Follow-up: threshold source, persona direction and two more runs (2026-11-13)
+
+[V] Changes, each with failing-first tests (full suite passes):
+
+- The liquidation line is now an engine constant (`LIQUIDATION_LINE_BPS = 10_000` in `@mrfund/engine`). `explain_term` returns it as two facts (health factor `1` and `100` %) for `health_factor`, `liquidation` and `liquidation_price`, so "below 1" is sourced instead of invented.
+- The number guard no longer admits a small integer as a prose count when a comparison precedes it ("below", "under", "di bawah", "kurang dari", "por debajo de" and others). "2 attempts; 1 was rejected" still passes.
+- Persona: data age is never volunteered, but is stated from the tool when the user asks. This resolves the eval-versus-persona conflict without overriding the owner's rule. Repaying is stated to raise health and move the position away from liquidation, and judgments such as "high" or "far" need a tool-returned number.
+- Rubric: one symmetric addition, English "no evidence" mirroring the existing Spanish "no hay prueba", with a refusal test.
+
+| Run (`runAt` UTC) | Model answers | Mean ms | Numbers / claims / cards | Language heuristic | Automated content |
+| --- | ---: | ---: | --- | ---: | ---: |
+| 08:31:13 | 36/36 | 6609 | pass | 36/36 | 35/36 (correct "no evidence the watcher is online" missed; led to the symmetric addition) |
+| 08:35:37 | 36/36 | 7019 | pass | 36/36 | 33/36 (correct "batas bawah cadangan 20 USDC", "belum bisa memberi" and "no hay precio disponible" missed) |
+
+The glossary answers now quote the line as "1 (100%)" with a source, and `comparison.es` states the direction correctly. Each run surfaces one to three new correct phrasings that the regex rubric misses, so widening was stopped. Requiring the automated association rubric to pass 36/36 makes acceptance depend on wording luck rather than correctness. [I] Recommendation for the lead: keep the rubric as a screen, and let a recorded independent review be authoritative for semantic correctness when the rubric misses an answer the review approves. Numbers, forbidden claims, cards and the language minimum stay hard gates. No model is accepted until that decision is made and a run passes review.

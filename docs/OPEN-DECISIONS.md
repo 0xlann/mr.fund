@@ -45,7 +45,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 | D22 | Branches | founder | Decided 2026-11-04 | done | `main` and `dev` pushed to `origin` |
 | D23 | Visual design doc | founder | Decided 2026-11-04 | first frontend task (P4.4) | `docs/DESIGN.md` is skipped until frontend work starts |
 | D24 | Fee pricing | founder | Provisional REF Guardian fees approved 2026-11-13; final/mainnet open | P5.1 | Fixed-price testnet conversion below; manual execution remains USDC.e |
-| D25 | LLM model | lead | Open | P3.4 | Choose from the live NEAR AI catalog by multilingual tool-calling eval |
+| D25 | LLM model | lead | Open; default `anthropic/claude-haiku-5-5` chosen by the user 2026-11-13, not yet accepted | P3.4 | Choose from the live NEAR AI catalog by multilingual tool-calling eval |
 | D26 | Character rendering | founder (with D16) | Open | P4.4 | Options listed under D16 |
 | D27 | Guardian trigger verification | lead | Open, depends on Gate 3 | P2.5 | On-chain verification preferred; fallback drops the per-action fee |
 | D28 | Default comfort line and trigger | lead | Lead proposal | P1.5 | Comfort line health 150%, trigger default 120%, user-editable |
@@ -180,7 +180,11 @@ Live NEAR AI Cloud catalog (`https://cloud-api.near.ai/v1/models`, read 2026-11-
 | `anthropic/claude-haiku-5-5` (USD 0.10 / 0.50 per million tokens) | 34/36, 0 timeouts, 7 guard hits in 5 turns | 5915.749 / 5204.965 / 13052.889 | pass / pass | 36/36 | false |
 | `google/gemini-3.8-flash` | 9/36, 27 provider-unavailable | 6974.661 / 6783.098 / 11032.077 | pass / pass | 27/36 | false |
 
-Observation, not acceptance: on this run Haiku 5.5 finished every case inside the 60 s budget at roughly one tenth of GLM-flash latency for nearly the same list price. Semantic checks still failed for all three and all 36 independent reviews are pending per model, so no model is accepted. A `z-ai/glm-5.3` run was started and cancelled before it produced a report. Switching the model is an owner decision (`NEARAI_MODEL`); none was made. Raw reports stay in ignored `scratch/chat-eval/`.
+Observation, not acceptance: on this run Haiku 5.5 finished every case inside the 60 s budget at roughly one tenth of GLM-flash latency for nearly the same list price. Semantic checks still failed for all three and all 36 independent reviews are pending per model, so no model is accepted. A `z-ai/glm-5.3` run was started and cancelled before it produced a report. Switching the model is an owner decision (`NEARAI_MODEL`); none was made.
+
+[V, 2026-11-13] Two further complete Haiku 5.5 runs on the same Simulated fixture showed that `max_tokens: 1024` cut eight answers off mid-sentence; at 2048 (now the default setting for every model) one was cut, 34/36 model answers, 0 timeouts, mean 6135 ms, numbers/claims/cards and language heuristic all passing, 9 semantic failures (two guard fallbacks, one cut-off, six rubric mismatches on correct wording). `modelAccepted: false`; no independent review; no model switch. Details: CHAT-API "Haiku 5.5 runs and the token limit".
+
+[V, 2026-11-13] The user set `anthropic/claude-haiku-5-5` as the default model (`NEARAI_MODEL`). After guard-feedback, persona, `max_tokens` 3072 and user-approved rubric changes, one of two locked-rubric final runs passed every automated gate (36/36 model answers and content). Its independent assistant review (not human) rejected six answers: invented "below 1" thresholds in all three glossary answers (the number guard admits small prose integers), a backwards repay/liquidation claim, reassuring judgments, and a missing data age that conflicts with the owner-approved persona rule. `modelAccepted: false`; D25 stays open with the default chosen but not accepted. Details: CHAT-API "Haiku 5.5 acceptance attempt". Raw reports stay in ignored `scratch/chat-eval/`.
 
 **Current BLOCKER (owner: lead):** D25/P3.4/OpenSpec 3.3 remain open. The required complete live inference/content/card/language gates and independent exact-output review are not met; no deployment readiness or alternative model selection is claimed. Separately, the final public-position latency run still timed out on all three English explanation and price-shock repeats even with FastNear and the 60 s cap; numeric guards were not bypassed.
 

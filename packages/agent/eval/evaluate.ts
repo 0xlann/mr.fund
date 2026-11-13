@@ -162,12 +162,17 @@ export function evaluateResponse(
     const numericPatterns = (alternatives ?? values).map((value) =>
       value.includes(".") ? `${value.replace(/\./g, "[.,]")}0*` : `${value}(?:[.,]0+)?`,
     );
-    const expected = new RegExp(
-      `(?:${anchor})[^\\d]{0,55}(?:${numericPatterns.join("|")})(?!\\d|[.,]\\d)${unit === "%" ? "\\s*%" : unit ? `\\s*${unit}` : ""}`,
+    const unitPattern = unit === "%" ? "\\s*%" : unit ? `\\s*${unit}` : "";
+    const number = `(?:${numericPatterns.join("|")})(?!\\d|[.,]\\d)${unitPattern}`;
+    const expected = new RegExp(`(?:${anchor})[^\\d]{0,55}${number}`, "i");
+    // Natural order "20 USDC floor": the term may follow the figure within a short, digit-free span.
+    // A comma ends the span, and a term followed by its own figure ("diterima 0 USDC") never reverses.
+    const reversed = new RegExp(
+      `(?<![\\d.,])${number}[^\\d.,;:\\n]{0,20}(?:${anchor})(?![^\\d.,;\\n]{0,12}\\d)`,
       "i",
     );
     if (
-      !expected.test(text) ||
+      !(expected.test(text) || reversed.test(text)) ||
       !result.sources.some((source) => values.includes(source.value) && source.unit === unit)
     )
       failures.push(`Missing or misassociated fact: ${anchor}`);
@@ -205,7 +210,8 @@ export function evaluateResponse(
       break;
     case "what-if":
       if (
-        !/(?:health|kesehatan|salud|\bhf\b)[^\d]{0,55}(?:114(?:[.,]0+)?\s*%|1[.,]140*(?!\d|[.,]\d))/i.test(
+        // The stated shock ("turun 20%") may sit between the term and the scenario value.
+        !/(?:health|kesehatan|salud|\bhf\b)[^\d]{0,55}(?:-?20\s*%[^\d]{0,40})?(?:114(?:[.,]0+)?\s*%|1[.,]140*(?!\d|[.,]\d))/i.test(
           text,
         ) ||
         !result.sources.some(
@@ -231,7 +237,7 @@ export function evaluateResponse(
       requireFact("maximum|max|maksimum", ["100"], "USDC");
       requireFact("floor|minimum|minima|minim[ou]|cadangan\\s+minimum", ["20"], "USDC");
       requireFact(
-        "reserve(?:\\s+balance)?|saldo\\s+cadangan|saldo\\s+de\\s+reserva|reserva",
+        "reserve(?:\\s+balance)?|saldo\\s+cadangan|\\bcadangan|saldo\\s+de\\s+reserva|reserva",
         ["200"],
         "USDC",
       );
@@ -239,18 +245,18 @@ export function evaluateResponse(
       break;
     case "guardian-history":
       requireFact(
-        "accepted\\s+spend|pengeluaran\\s+(?:yang\\s+)?diterima|gasto\\s+aceptado|\\bditerima",
+        "accepted\\s+spend|pengeluaran\\s+(?:yang\\s+)?diterima|gasto\\s+aceptado|acepto(?:\\s+un\\s+gasto(?:\\s+de)?)?|\\bditerima",
         ["40"],
         "USDC",
       );
       requireMeaning(/reject|ditolak|rechaz/, "Must include rejected attempt");
       requireMeaning(/max|limit|batas/, "Must explain over-limit rejection");
       requireMeaning(
-        /unavailable|not\s+available|tidak\s+tersedia|no\s+(?:estan\s+)?disponibles?/,
+        /unavailable|not\s+available|tidak\s+tersedia|no\s+(?:estan\s+)?disponibles?|no\s+hay\s+enlaces/,
         "Must disclose missing verified links",
       );
       requireMeaning(
-        /(?:watcher|heartbeat|pengawas|pemantau)[^.!\n]{0,75}(?:unavailable|unknown|not\s+(?:known|available)|tidak\s+(?:tersedia|diketahui)|no\s+(?:esta\s+)?disponible|no\s+hay\s+prueba|desconocid[oa])/,
+        /(?:watcher|heartbeat|latido|pengawas|pemantau)[^.!\n]{0,75}(?:unavailable|unknown|not\s+(?:known|available)|tidak\s+(?:tersedia|diketahui)|no\s+(?:esta\s+)?disponible|no\s+hay\s+(?:prueba|latido)|no\s+evidence|desconocid[oa])/,
         "Must disclose unavailable watcher evidence",
       );
       if (
@@ -272,11 +278,11 @@ export function evaluateResponse(
       break;
     case "stale":
       requireMeaning(
-        /stale|outdated|kedaluwarsa|usang|\bbasi\b|lebih\s+lama\s+dari\s+batas\s+kesegaran|desactualiz|obsolet/,
+        /stale|outdated|kedaluwarsa|usang|\bbasi\b|terlalu\s+lama|batas\s+kesegaran|desactualiz|obsolet|frescura|mas\s+antigu[oa]/,
         "Must disclose stale input",
       );
       requireMeaning(
-        /cannot|can't|won't|will\s+not|tidak\s+(?:bisa|dapat)|no\s+puedo/,
+        /cannot|can't|won't|will\s+not|(?:tidak|belum)\s+(?:bisa|dapat)|no\s+puedo/,
         "Must refuse current advice",
       );
       break;
