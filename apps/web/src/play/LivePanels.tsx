@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef } from "react";
 import type { useLiveRepay } from "../execution/useLiveRepay";
 import { ChatComposer } from "./ChatComposer";
 import { ChatRow, chatBubbleClass, ThinkingRow } from "./chatAppearance";
+import { DataAgeLabel, LiveCard } from "./live/LiveCard";
 import { liveGreeting, thinkingText } from "./live/liveCopy";
 import { isSlow } from "./live/liveSlow";
 import { liveSuggestions } from "./live/liveSuggestions";
@@ -43,7 +44,9 @@ export function LivePositionPanel({ live }: { live: Live }) {
                 ? "No debt"
                 : `${(data.health.bps / 100).toFixed(2)}%`}
             </strong>
-            <p className="mt-3 text-xs text-[#a4a6a7]">Data age at read: {data.dataAgeMs} ms</p>
+            <p className="mt-3">
+              <DataAgeLabel ageMs={data.dataAgeMs} token={data} />
+            </p>
           </>
         )}
       </section>
@@ -157,32 +160,10 @@ export function LiveChatPanel({
             </AssistantBubble>
           )}
           {live.card && (
-            <article className="recommendation-card rounded-xl border border-[#313334] bg-[#1c1e1f] p-4">
-              <h3>{live.card.headline}</h3>
-              <p>{live.card.reason}</p>
-              <dl>
-                {live.card.numbers.map((n) => (
-                  <div key={`${n.label}-${n.unit}`}>
-                    <dt>{n.label}</dt>
-                    <dd>
-                      {n.before} {n.after ? `→ ${n.after}` : ""} {n.unit}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              {live.card.fees.map((fee) => (
-                <p key={`${fee.label}-${fee.recipientId}`}>
-                  {fee.label}: {String(fee.amount)} atomic units of {fee.tokenId} →{" "}
-                  {fee.recipientId} ({fee.when})
-                </p>
-              ))}
-              <p>Data age at request: {live.card.dataAgeMs} ms</p>
-              <p>Action: {live.card.action}</p>
-              {live.card.payload?.map((tx) => (
-                <p key={tx.receiverId}>
-                  To {tx.receiverId}: {tx.actions.map((action) => action.methodName).join(", ")}
-                </p>
-              ))}
+            <LiveCard
+              card={live.card}
+              position={live.state.status === "ready" ? live.state.position : null}
+            >
               <RepayExecution
                 card={live.card}
                 store={repay.store}
@@ -194,7 +175,7 @@ export function LiveChatPanel({
                   Refresh position
                 </button>
               )}
-            </article>
+            </LiveCard>
           )}
           {!live.busy && (
             <SuggestionChips
