@@ -399,6 +399,8 @@ describe("registry", () => {
       "guardian_history",
       "guardian_status",
       "propose_card",
+      "propose_opening",
+      "quote_opening",
       "what_if_price",
     ]);
     expect(

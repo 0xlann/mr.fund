@@ -10,9 +10,9 @@ export function normalizeReplyDashes(text: string): string {
 }
 
 const EXECUTION = [
-  /\b(?:I|we)(?:['’](?:ve|ll))?\s+(?:(?:have|had|already|just|successfully|will|can|did|do|am|are|was|were|not|never|cannot|can't|don't|didn't|haven't|won't)\s+){0,5}(?:signed|sign|sent|send|transferred|transfer|executed|execute|repaid|repay)\b/gi,
-  /\b(?:saya|aku|kami)\s+(?:(?:sudah|telah|akan|bisa|dapat|berhasil|tidak|belum|tak|pernah)\s+){0,5}(?:mengirim|mentransfer|menandatangani|mengeksekusi|melunasi|membayar)\b/gi,
-  /\b(?:(?:yo|nosotros)\s+)?(?:ya\s+)?(?:he|hemos|voy\s+a|puedo)\s+(?:(?:ya|no|nunca)\s+){0,3}(?:enviado|firmado|transferido|ejecutado|pagado|enviar|firmar|transferir|ejecutar|pagar)\b/gi,
+  /\b(?:I|we)(?:['’](?:ve|ll))?\s+(?:(?:have|had|already|just|successfully|will|can|did|do|am|are|was|were|not|never|cannot|can't|don't|didn't|haven't|won't)\s+){0,5}(?:signed|sign|sent|send|transferred|transfer|executed|execute|repaid|repay|deposited|deposit|borrowed|borrow)\b/gi,
+  /\b(?:saya|aku|kami)\s+(?:(?:sudah|telah|akan|bisa|dapat|berhasil|tidak|belum|tak|pernah)\s+){0,5}(?:mengirim|mentransfer|menandatangani|mengeksekusi|melunasi|membayar|meminjam|menyetor|mendeposit)\b/gi,
+  /\b(?:(?:yo|nosotros)\s+)?(?:ya\s+)?(?:he|hemos|voy\s+a|puedo)\s+(?:(?:ya|no|nunca)\s+){0,3}(?:enviado|firmado|transferido|ejecutado|pagado|depositado|enviar|firmar|transferir|ejecutar|pagar|depositar)\b/gi,
   /\b(?:your|the|this)\s+(?:transaction|tokens?|funds|repayment)\s+(?:(?:has|have|had)\s+)?(?:(?:already|not|never)\s+)*(?:been|was|were|is|are)\s+(?:(?:already|not|never|successfully)\s+)*(?:signed|sent|transferred|executed|repaid)\b/gi,
   /\b(?:transaksi|tokens?|dana|pembayaran)(?:\s+(?:Anda|kamu|ini|tersebut))?\s+(?:(?:sudah|telah|berhasil|tidak|belum|pernah|akan)\s+)*(?:dikirim|ditransfer|ditandatangani|dieksekusi|dilunasi)\b/gi,
   /\b(?:(?:tu|tus|su|sus|la|el|los|las)\s+)?(?:transacci[oó]n|tokens?|fondos|pago)\s+(?:(?:no|nunca|ya)\s+)*(?:(?:ha|han|hab[ií]a|hab[ií]an)\s+sido|fue|fueron|est[aá]n?)\s+(?:(?:no|nunca|ya)\s+)*(?:firmad[oa]s?|enviad[oa]s?|transferid[oa]s?|ejecutad[oa]s?|pagad[oa]s?)\b/gi,
