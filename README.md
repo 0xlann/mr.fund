@@ -69,8 +69,8 @@ Model acceptance is still open (D25/P3.4): the latest complete live-inference be
 Labels follow [CLAUDE.md](CLAUDE.md): planned, tested locally, exercised on a network.
 
 - **Tested locally or in a sandbox:** finance engine, Rhea read adapter, transaction builders and outcome parser, number-provenance checker, Guardian and factory contracts run against the deployed Rhea bytecode (testnet 0.11.0, mainnet 0.16.2) with **Simulated** prices.
-- **Exercised on public testnet (read-only):** position reads and refresh, with fixed `default_price` inputs, not market prices. Browser login worked for the owner.
-- **Not done:** no Guardian or factory is deployed, no wallet-signed repay, no automatic repay by the watcher on a public network, and the chat model is not accepted (D25/P3.4). Testnet USDC has no fresh oracle price, so the demo debt token is the fixed-price REF test token.
+- **Exercised on public testnet:** position reads and refresh; NEAR Connect (Meteor) login and live chat for the owner; and one **wallet-signed manual repay** of 0.01 REF from a live chat card (2026-11-13). The receipt read "confirmed from the chain" and an independent chain read matched it (debt 0.2 to 0.19 REF, execution fee 0.004 REF received). All of it uses fixed `default_price` inputs for REF and wNEAR, not market prices, and the fee for that run was charged in REF, not the decided USDC.e ([D24 note](docs/OPEN-DECISIONS.md)). Full transaction hashes are not yet recorded in the repository.
+- **Not done:** no Guardian or factory is deployed, so there is no automatic repay by the watcher on a public network and the Guardian screens use the labelled **Simulated** demo; the on-chain trigger check (D27) is undecided because testnet REF and wNEAR have no fresh oracle price. The chat model is not accepted (D25/P3.4). Testnet USDC has no oracle price, so the demo debt token is the fixed-price REF test token.
 - Mr.Fund makes no cross-chain claim and does not claim to be the first liquidation-protection tool.
 
 ## Prior art
