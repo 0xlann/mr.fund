@@ -44,7 +44,7 @@ Copied verbatim from the founder's decision table. "Decided" means the founder s
 | D21 | Project skills tracked in git | founder | Decided 2026-11-04 | done | `.claude/skills/` committed with `skills-lock.json` |
 | D22 | Branches | founder | Decided 2026-11-04 | done | `main` and `dev` pushed to `origin` |
 | D23 | Visual design doc | founder | Decided 2026-11-04 | first frontend task (P4.4) | `docs/DESIGN.md` is skipped until frontend work starts |
-| D24 | Fee pricing | founder | Provisional testnet values chosen, 2026-11-11; final/mainnet open | P5.1 | User delegated the testnet choice; values and token below; no deployment or fee-bearing transaction is implied |
+| D24 | Fee pricing | founder | Provisional REF Guardian fees approved 2026-11-13; final/mainnet open | P5.1 | Fixed-price testnet conversion below; manual execution remains USDC.e |
 | D25 | LLM model | lead | Open | P3.4 | Choose from the live NEAR AI catalog by multilingual tool-calling eval |
 | D26 | Character rendering | founder (with D16) | Open | P4.4 | Options listed under D16 |
 | D27 | Guardian trigger verification | lead | Open, depends on Gate 3 | P2.5 | On-chain verification preferred; fallback drops the per-action fee |
@@ -150,15 +150,17 @@ Founder: skip `docs/DESIGN.md` until frontend-related work exists. PRD "Function
 
 ### D24. Fee pricing (Provisional testnet decision; final/mainnet open)
 
-The user delegated the provisional testnet fee choice to the lead on 2026-11-11. For the USDC.e testnet demo, use `usdc.fakes.testnet` (6 decimals) and recipient `fee-mrf-b1ce96af6a.testnet`:
+[V, owner authorization, 2026-11-13] Guardian debt is `ref.fakes.testnet` (18 decimals), recipient `fee-mrf-b1ce96af6a.testnet`. The owner approved the following fixed-price conversion of the 2026-11-11 USDC.e Guardian fees. Manual execution is unchanged.
 
-| Fee | USDC.e testnet | Token atomic units |
-| --- | ---: | ---: |
-| Guardian activation, once | 1 | `1000000` |
-| Guardian automatic action, per settled repay | 0.01 | `10000` |
-| Manual execution, per action | 0.01 | `10000` |
+| Fee | Testnet token | Token amount | Token atomic units |
+| --- | --- | ---: | ---: |
+| Guardian activation, once | REF | 0.4 | `400000000000000000` |
+| Guardian automatic action, per settled repay | REF | 0.004 | `4000000000000000` |
+| Manual execution, per action | USDC.e | 0.01 | `10000` |
 
-These are small demo values chosen for testnet, not measured costs, final product pricing or mainnet approval. The P1 managed-placement fee remains undecided. Guardian activation and action fees are denominated in the Guardian's debt token; this decision covers USDC.e debt only, not a future REF-denominated fixed-price loan. D27 fallback, if separately chosen, has its own action-fee requirement and is not selected by this decision. The fee recipient's `storage_balance_of` on the token returned `null` on 2026-11-11; register and verify it before a fee-bearing flow. Selecting these values authorizes no fee-bearing signature or deployment.
+[V, read-only testnet, 2026-11-13, final block 277467441] Rhea maps REF to `default_price {multiplier:"250", decimals:20}` with token decimals 18: `250 / 10^(20-18) = 2.5` USD per REF. Therefore the earlier 1 USDC.e activation corresponds to `1 / 2.5 = 0.4` REF and the 0.01 USDC.e action to `0.01 / 2.5 = 0.004` REF. This is a fixed testnet protocol price, not a market quote. wNEAR's fixed value is `960 / 10^(26-24) = 9.60` USD.
+
+These are testnet-only demo values, not measured costs, final product pricing or mainnet approval. P1 managed-placement pricing remains open. Guardian activation is fixed in the factory template; `action_fee` is a field of the owner-signed policy, not a template field. The UI must disclose and use the approved amount. D27 fallback, if separately selected, drops the action fee; it has not been selected. The owner separately authorized this wave's factory deployment and fee-recipient registration, but not demo-user Guardian creation or mainnet signatures.
 
 ### D25. LLM model (Open, lead)
 
@@ -169,6 +171,16 @@ Live NEAR AI Cloud catalog (`https://cloud-api.near.ai/v1/models`, read 2026-11-
 **Historical blocker (2026-11-08):** that complete run produced 34/36 model answers and two guarded comparison fallbacks (`comparison.id`, `comparison.es`). Automated number/card/claim and language-heuristic checks passed, but comparison content failed. Independent assistant review of all 36 exact outputs completed at `2026-11-08T04:44:14.735636Z`: 36/36 correct language, 22 content/honesty approvals and 14 rejections, including provenance uncertainty; this is not human review or provider self-assessment. Findings and the ignored review artifact are summarized in CHAT-API. A later two-case repeat succeeded after rejecting an invented-number/unsupported-assurance candidate; it does not replace the complete dataset.
 
 [V, 2026-11-13] Full rerun (`runAt: 2026-11-13T05:07:58.374Z`, same model/settings, explicitly **Simulated** fixture) completed: **20/36 model answers, 16 timeouts**, 36/36 numeric and forbidden-claim checks passed, **20/36 automated content**, **35/36 card**, **33/36 language heuristic** passes; **36 independent reviews pending**. Mean/max latency **50858.671/60025.881 ms**; `modelAccepted: false`. The initial 20-minute harness expired before a full report; allowing 40 minutes let each case reach its existing 60 s deadline without waiving failures. Full scenario matrix and observed-only usage are in [CHAT-API](technical/CHAT-API.md#live-multilingual-rerun-2026-11-13).
+
+[V, 2026-11-13] Alternative-model comparison on the same **Simulated** fixture and settings (`runAt: 2026-11-13T05:51:41.843Z`, 36 cases each, run concurrently, independent review not done for any of them):
+
+| Model | Model answers | Latency mean / median / max (ms) | Numeric / forbidden-claim | Language heuristic | `modelAccepted` |
+| --- | ---: | --- | --- | ---: | --- |
+| `z-ai/glm-5.3-flash` (selected, 2026-11-13 rerun above) | 20/36, 16 timeouts | 50858.671 / 55801.304 / 60025.881 | pass / pass | 33/36 | false |
+| `anthropic/claude-haiku-5-5` (USD 0.10 / 0.50 per million tokens) | 34/36, 0 timeouts, 7 guard hits in 5 turns | 5915.749 / 5204.965 / 13052.889 | pass / pass | 36/36 | false |
+| `google/gemini-3.8-flash` | 9/36, 27 provider-unavailable | 6974.661 / 6783.098 / 11032.077 | pass / pass | 27/36 | false |
+
+Observation, not acceptance: on this run Haiku 5.5 finished every case inside the 60 s budget at roughly one tenth of GLM-flash latency for nearly the same list price. Semantic checks still failed for all three and all 36 independent reviews are pending per model, so no model is accepted. A `z-ai/glm-5.3` run was started and cancelled before it produced a report. Switching the model is an owner decision (`NEARAI_MODEL`); none was made. Raw reports stay in ignored `scratch/chat-eval/`.
 
 **Current BLOCKER (owner: lead):** D25/P3.4/OpenSpec 3.3 remain open. The required complete live inference/content/card/language gates and independent exact-output review are not met; no deployment readiness or alternative model selection is claimed. Separately, the final public-position latency run still timed out on all three English explanation and price-shock repeats even with FastNear and the 60 s cap; numeric guards were not bypassed.
 
