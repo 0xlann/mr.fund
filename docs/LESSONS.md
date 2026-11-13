@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-13: A path-safety check can fail every test on macOS
+
+- What happened: nine `public-journal` tests failed on macOS with "Operator journal unavailable"; the Linux assumption hid it.
+- Root cause: the journal rejects a directory whose `realpath` differs from its resolved path (a deliberate symlink refusal), and macOS `tmpdir()` is `/var/folders/...`, a symlink to `/private/var`.
+- Rule: tests for symlink-refusing code create their directories through `realpath`; never weaken the product check to make a macOS run pass.
+
 ### 2026-11-13: Watcher filesystem guarantees differ on Windows
 
 - What happened: the Windows watcher suite exposed directory `fsync` failures and an unavailable `O_NOFOLLOW` flag; creating test symlinks also requires privileges on some Windows installations.
@@ -10,7 +16,7 @@
 
 - What happened: the first public Gate 1 borrow (`Borrow` 0.5 REF then `Withdraw` 0.5 REF) reverted with `Not enough asset balance`; the sandbox flow with the same shape had passed.
 - Root cause: Rhea rounds shares down when crediting the borrow to `supplied` and up when withdrawing an exact amount, so on a pool with accrued interest the withdraw needs one more share than was credited. Sandbox pools were fresh and 1:1, which hid it.
-- Rule: never pair `Borrow(x)` with `Withdraw(x)`; omit the `Withdraw` amount (or withdraw what the account view shows). Sandbox tests must include a pool whose share price is not 1. The Guardian's `owner_borrow` and `owner_withdraw_collateral` use the exact form and need review before deployment.
+- Rule: never pair `Borrow(x)` with `Withdraw(x)`; omit the `Withdraw` amount (or withdraw what the account view shows). Sandbox tests must include a pool whose share price is not 1. The Guardian's `owner_borrow` and `owner_withdraw_collateral` used the exact form; fixed 2026-11-13 (both now omit the `Withdraw` amount), reproduced first in the imported-0.11.0 sandbox with `guardian_accrued_*` tests (two failed with the live error before the fix, all pass after).
 
 ### 2026-11-11: Stopping the scheduler must also stop an in-progress read from submitting
 

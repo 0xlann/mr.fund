@@ -152,8 +152,8 @@ Check order matters: authentication first, then state, then arguments, then exte
 | Method | Deposit | Effect | Notes |
 | --- | --- | --- | --- |
 | `owner_register(target_id, storage_deposit: U128)` | 1 yocto | `storage_deposit(registration_only)` on `lending_id`, the debt token or the collateral token, paid from the Guardian's own NEAR | Any other target is refused; the deposit must be positive |
-| `owner_borrow(amount: U128)` | 1 yocto | `lending.execute_with_pyth([Borrow(debt, amount), Withdraw(debt, amount)])` with 1 yocto; tokens arrive at the Guardian; callback event `owner_borrowed` | Needs fresh prices (Rhea) |
-| `owner_withdraw_collateral(amount: U128)` | 1 yocto | `execute_with_pyth([DecreaseCollateral, Withdraw])` for the collateral token | Needs prices while debt remains |
+| `owner_borrow(amount: U128)` | 1 yocto | `lending.execute_with_pyth([Borrow(debt, amount), Withdraw(debt)])` with 1 yocto (the Withdraw omits its amount so Rhea withdraws the whole supplied balance; an exact amount reverts on a pool whose share price is not 1); tokens arrive at the Guardian; callback event `owner_borrowed` | Needs fresh prices (Rhea) |
+| `owner_withdraw_collateral(amount: U128)` | 1 yocto | `execute_with_pyth([DecreaseCollateral(amount), Withdraw(token)])` for the collateral token, Withdraw without an amount | Needs prices while debt remains |
 | `owner_sweep(token_id: AccountId)` | 1 yocto | `ft_balance_of(self)` then transfer to owner everything above `reserve + in_flight.amount` (debt token) or the full balance (other tokens) | Borrowed tokens and Rhea refunds leave this way |
 | `owner_withdraw_reserve(amount: U128)` | 1 yocto | Requires no in-flight; `reserve -= amount`; `ft_transfer(owner, amount)`; restores on failure | Floor binds the Guardian, not the owner |
 | `owner_repay_from_reserve(amount: U128)` | 1 yocto | Same transfer as step 11, without fee, without trigger check | Manual, owner-signed |

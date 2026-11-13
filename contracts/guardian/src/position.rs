@@ -70,7 +70,10 @@ impl Guardian {
         let op_id = self.lock_position(0, PositionOperation::Borrow);
         self.rhea_execute(json!([
             {"Borrow":{"token_id":token,"amount":U128(internal)}},
-            {"Withdraw":{"token_id":token,"amount":U128(internal)}}
+            // No amount: an exact Withdraw rounds in shares and reverts on a pool whose
+            // share price is not 1 (LESSONS 2026-11-11). Rhea withdraws the whole supplied
+            // balance; the Borrow amount stays the owner's bound.
+            {"Withdraw":{"token_id":token}}
         ]))
         .then(self.position_callback(op_id))
     }
@@ -88,7 +91,7 @@ impl Guardian {
         let op_id = self.lock_position(0, PositionOperation::Release);
         self.rhea_execute(json!([
             {"DecreaseCollateral":{"token_id":token,"amount":U128(internal)}},
-            {"Withdraw":{"token_id":token,"amount":U128(internal)}}
+            {"Withdraw":{"token_id":token}}
         ]))
         .then(self.position_callback(op_id))
     }

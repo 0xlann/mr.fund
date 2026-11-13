@@ -185,7 +185,7 @@ fn borrow_and_release_use_fixed_lending_targets_in_rhea_internal_units() {
         call.args,
         json!({"actions":[
             {"Borrow":{"token_id":"debt.test.near","amount":"5000000000000"}},
-            {"Withdraw":{"token_id":"debt.test.near","amount":"5000000000000"}}
+            {"Withdraw":{"token_id":"debt.test.near"}}
         ]})
     );
     assert_eq!(
@@ -202,7 +202,7 @@ fn borrow_and_release_use_fixed_lending_targets_in_rhea_internal_units() {
         call.args,
         json!({"actions":[
             {"DecreaseCollateral":{"token_id":"collateral.test.near","amount":"7"}},
-            {"Withdraw":{"token_id":"collateral.test.near","amount":"7"}}
+            {"Withdraw":{"token_id":"collateral.test.near"}}
         ]})
     );
 }

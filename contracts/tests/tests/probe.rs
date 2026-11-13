@@ -12,6 +12,8 @@ use support::encodings;
 mod outcome_recordings;
 #[path = "support/position_flow.rs"]
 mod position_flow;
+#[path = "support/rounding_flow.rs"]
+mod rounding_flow;
 
 async fn capture_outcome(
     worker: &near_workspaces::Worker<near_workspaces::network::Sandbox>,
@@ -1311,7 +1313,7 @@ async fn guardian_reserve_flow(
     Ok(())
 }
 
-async fn cycle(network: &str) -> Result<()> {
+async fn cycle_with_rounding(network: &str, rounding: Option<&str>) -> Result<()> {
     let metadata: Value = serde_json::from_slice(
         &std::fs::read(target(&format!("probes/rhea-{network}.json")))
             .context("Run scripts/probes/fetch-rhea-wasm.mjs first")?,
@@ -1367,8 +1369,10 @@ async fn cycle(network: &str) -> Result<()> {
         asset["supplied_limit"] = json!(u128::MAX.to_string());
         asset["borrowed_limit"] = json!(u128::MAX.to_string());
         asset["min_borrowed_amount"] = json!("1");
-        asset["target_utilization_rate"] = json!("1000000000000000000000000000");
-        asset["max_utilization_rate"] = json!("1000000000000000000000000000");
+        if rounding.is_none() {
+            asset["target_utilization_rate"] = json!("1000000000000000000000000000");
+            asset["max_utilization_rate"] = json!("1000000000000000000000000000");
+        }
         call(
             &owner,
             &lending,
@@ -1457,6 +1461,12 @@ async fn cycle(network: &str) -> Result<()> {
         NearToken::from_yoctonear(0),
     )
     .await?;
+    if let Some(case) = rounding {
+        return rounding_flow::run(
+            &worker, &owner, &attacker, [&lending, &collateral, &debt, &oracle],
+            &metadata, case,
+        ).await;
+    }
     call(
         &owner,
         &collateral,
@@ -1694,6 +1704,25 @@ async fn cycle(network: &str) -> Result<()> {
     );
     Ok(())
 }
+async fn cycle(network: &str) -> Result<()> {
+    cycle_with_rounding(network, None).await
+}
+
+#[tokio::test]
+async fn guardian_accrued_borrow() -> Result<()> {
+    cycle_with_rounding("testnet", Some("borrow")).await
+}
+
+#[tokio::test]
+async fn guardian_accrued_release() -> Result<()> {
+    cycle_with_rounding("testnet", Some("release")).await
+}
+
+#[tokio::test]
+async fn guardian_accrued_surplus_then_borrow() -> Result<()> {
+    cycle_with_rounding("testnet", Some("surplus")).await
+}
+
 
 #[tokio::test]
 async fn probe_testnet_wasm_cycle() -> Result<()> {
