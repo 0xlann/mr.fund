@@ -328,6 +328,10 @@ Status [V, local only]: the live chat card's Execute runs `prepare (get_version 
 - Material change since the card [I, chosen rule]: debt lower than the card's, debt more than 0.1 % above it, or engine health more than 50 bps away. Each blocks with "ask for a new one".
 - Never exercised with a real wallet. Live evidence is `prove-testnet-guardian-loop` 4.2.
 
+#### Plain-wallet opening verification (`add-chat-open-position` 3.2 and 3.3, 2026-11-13)
+
+Status [V, local only]: `verifyOpeningPayload` in `apps/web/src/execution/open-position-verify.ts` is the browser-side gate for the future deposit and borrow cards; nothing renders or executes them yet (tasks 4 and 5). Permission boundary: only the connected NEAR Connect wallet signs, and `createTransactionSigner` accepts an opening only if this verifier issued it for that account and network (OP-1). It allows exactly: bounded registrations the fresh context says are missing, a 1-yocto collateral `ft_transfer_call` with only `IncreaseCollateral`, or `execute_with_pyth` with one `Borrow` and a `Withdraw` that has no amount, plus an optional fee. Invariants: OP-1 (only verified calls to configured lending, tokens and fee recipient reach the signer) and OP-2 (displayed and payload amounts are one number; an amount-omitted action never runs against an account that already supplies the token). Negative tests: `apps/web/test/open-position-verify.test.ts`, 66 tests and 28 guard mutations. Does not guarantee: a faithful wallet display, Rhea accepting the action, or an unchanged context at inclusion; gas floors are the probe's 240 Tgas and the 100 Tgas transfer default, not measured minimums.
+
 #### Live Guardian activation and controls (`add-guardian-live-activation-ui`, 2026-11-11)
 
 Status [V, local only]: implemented and tested against fake RPC clients and recorded-shape views; never run against a deployed factory (none exists, SMART-CONTRACT "Not deployed"). Live evidence belongs to `prove-testnet-guardian-loop` 4.3.
