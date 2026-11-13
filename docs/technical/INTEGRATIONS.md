@@ -117,6 +117,18 @@ node --input-type=module -e "const endpoint='http://127.0.0.1:3148/api/position'
 | `CHAT_PROXY_SECRET_HEADER`, `CHAT_PROXY_IP_HEADER` | chat/position APIs / trusted edge | Header names used only with the matching proxy secret; otherwise all direct requests share one IP bucket | public names |
 | `MAX_DATA_AGE_MS` | engine consumers | Freshness limit for advice and cards (default proposal 120000) | public |
 
+### Public position read evidence (2026-11-13)
+
+[V, public testnet RPC through a local Next dev server] `add-position-read-api` 4.1: GET, POST and a repeated GET for the public read selector `juaner116.testnet` on Rhea testnet `0.11.0` returned HTTP 200 at blocks 277463304/319/333 with data ages 3637/4098/3114 ms, and exact-block re-reads through the shared loader and engine matched health with zero bps difference. Commands, block hashes and latencies are in CHAT-API "Public testnet HTTP read smoke".
+
+Reconciled reading of the API after that run:
+
+- Read-only: `/api/position` only performs final-block view calls; it never signs, sends, asserts wallet ownership or chooses an RPC URL, contract or version from the request.
+- No cache: every request, including the repeated GET, starts a fresh final-block read (ARCHITECTURE "Rhea read adapter", explicit no-cache decision of 2026-11-10; the earlier cache-table proposal is removed there).
+- Network match: consumers discard any response whose account or network differs from the session's, and any superseded response (409 on a network mismatch).
+- Provenance: the observed wNEAR input is Rhea's fixed `default_price`, not a market quote; the 2026-11-10 local replay above uses a recording with **Simulated** current oracle quotes and is never live evidence.
+- Not covered: public Rhea UI parity (P1.2/P1.4), moving prices, wallet signing and public repayment (P4.3/P4.5) remain open under their own acceptances.
+
 ### Watcher local runtime
 
 The watcher's public path runs on Linux, macOS or WSL2 only: durable journal
