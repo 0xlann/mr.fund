@@ -292,6 +292,19 @@ The factory was deployed to a new faucet-created account `f2-mrf-b1ce96af6a.test
 
 [U]: the deploy transaction hash was not captured in the repository, and the 2.9 to 3.5 NEAR funding bounds are a proposal derived from the measured 2.75325 NEAR floor, not a final value.
 
+### First Guardian on testnet: creation, activation, loan and one repay [V, testnet, 2026-11-13, owner signed in Meteor; chain re-read by the agent]
+
+Owner `my-dev.testnet` created Guardian `db96d75ceb76d9bc8693963a3a0a53d8.f2-mrf-b1ce96af6a.testnet` from the factory above through the web panel, registered it on Rhea, REF and wNEAR (one transaction each, in that order), and activated it with a 0.5 REF transfer (0.1 REF reserve plus the 0.4 REF activation fee). Policy read back with `get_policy`: max per action 0.05 REF, lifetime cap 0.1 REF, reserve floor 0.02 REF, act below 300% (`trigger_hf_bps` 30000), no target, cooldown 300 s, action fee 0.004 REF. The Guardian holds a Rhea loan of its own: 0.1 wNEAR collateral and 0.08 REF debt, health 216% from `/api/position`, both tokens on Rhea `0.11.0` at fixed `default_price`.
+
+One `request_repay(50000000000000000)` (0.05 REF) was then submitted with 300 Tgas and zero deposit, signed by the **owner** `my-dev.testnet`, transaction [`Hb5nC4Sb…`](https://testnet.nearblocks.io/txns/Hb5nC4SboDszVExBibSSJ24eFAazecrf9v8N6PqGmzA) (`repay_requested`, op id 7). The Guardian's own on-chain trigger check passed (health 216% below 30000 bps), and after the callbacks: Guardian debt 0.030000008 REF, health 57,600 bps, reserve 0.1 to 0.046 REF, `spent_total` 0.054 REF (0.05 repay plus 0.004 fee), no operation in flight, and the fee recipient's REF balance rose to 0.408 REF (0.004 earlier manual fee, 0.4 activation, 0.004 action fee).
+
+What this does **not** show:
+
+- It was not the watcher. `request_repay` accepts the owner or the configured watcher, and the repository's watcher process cannot submit (its public submission gate is hard-disabled; WATCHER section of INTEGRATIONS). This is an operator-submitted request that the contract verified and executed, not an autonomous watcher run.
+- Prices are Rhea's fixed `default_price` for wNEAR and REF; health did not fall because of a market move, the trigger was set above the loan's health. The protocol-trigger path took the fixed price, not a fresh oracle price.
+- Only the repay transaction hash is recorded here. The hashes of creation, the three registrations, activation, the collateral deposit and the borrow were signed in the wallet and were not captured, so none is claimed.
+- No negative test was run on a public network (non-owner rejection, over-limit, cooldown), and the factory build is not reproducible.
+
 ### Final ABI for the client (task 4.3)
 
 All amounts are decimal-string `U128`; account ids are strings. The client builds unsigned payloads only; nothing here is signed by the agent.
