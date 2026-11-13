@@ -2,6 +2,10 @@ import type { AccountId, Atomic } from "./errors";
 
 export type CardAction =
   | "repay"
+  /** Plain-wallet opening, stage 1: collateral into Rhea (`add-chat-open-position`). */
+  | "wallet_collateral_deposit"
+  /** Plain-wallet opening, stage 2: a borrow quoted again after the deposit is observed. */
+  | "wallet_borrow"
   | "guardian_activate"
   | "guardian_deactivate"
   | "guardian_withdraw";

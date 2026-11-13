@@ -78,3 +78,12 @@ describe("fees", () => {
     expect(() => fees("repay", { ...schedule, executionFee: -1n })).toThrow(RangeError);
   });
 });
+
+describe("opening actions never get an implicit zero fee", () => {
+  it.each(["wallet_collateral_deposit", "wallet_borrow"] as const)(
+    "%s is priced only by an explicit opening fee policy",
+    (action) => {
+      expect(() => fees(action, schedule)).toThrow(/opening fee policy/);
+    },
+  );
+});

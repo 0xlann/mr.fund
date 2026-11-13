@@ -52,6 +52,11 @@ export function fees(action: CardAction, schedule: FeeSchedule): Computed<FeeLin
     case "guardian_withdraw":
       assumptions.push("No fee is charged for this action.");
       break;
+    case "wallet_collateral_deposit":
+    case "wallet_borrow":
+      // D24 prices manual repay and Guardian actions; opening has no approved schedule yet, and a
+      // missing policy must block the stage rather than read as zero.
+      throw new RangeError("opening actions are priced by an explicit opening fee policy");
   }
 
   return {

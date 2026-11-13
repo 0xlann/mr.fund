@@ -3,8 +3,11 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
   type BorrowPools,
+  borrowCardDraft,
   borrowCardNumbers,
+  depositCardDraft,
   maxBorrow,
+  type OpeningFee,
   type OpenPositionInput,
   projectBorrow,
   quoteBorrow,
@@ -472,5 +475,105 @@ describe("pool conversions mirror Burrow's amount_to_shares and shares_to_amount
     };
     const p = projectBorrow(pools, 0n, 999_999_999_999n);
     expect(p.deliveredInternal / 10n ** 12n).toBe(0n);
+  });
+});
+
+describe("opening card drafts", () => {
+  const none: OpeningFee = { kind: "none" };
+  const FEE_LINE = {
+    label: "Opening fee",
+    amount: 10_000n,
+    tokenId: USDC,
+    recipientId: "fees.testnet",
+    when: "Once, in the same signed batch.",
+  };
+
+  it("borrow draft: exact numbers, interest cost, no fee when approved as none", () => {
+    const d = unwrap(borrowCardDraft(input(), 37_500_000n, none, NOW));
+    expect(d).toMatchObject({
+      action: "wallet_borrow",
+      headline: "Borrow 37.5 USDC",
+      amount: 37_500_000n,
+      tokenId: USDC,
+      fees: [],
+      cappedBy: null,
+      maxDataAgeMs: 120_000,
+    });
+    // 21% APR on 200 USDC = 42; on 237.5 USDC = 49.875 (rounded up).
+    expect(d.numbers.at(-1)).toEqual({
+      label: "Annual interest cost",
+      before: "42",
+      after: "49.875",
+      unit: "USDC",
+    });
+    expect(d.assumptions).toContain("No fee is charged for this stage (explicitly approved).");
+    expect(d.risks.join(" ")).toMatch(/Borrowing adds debt and liquidation risk/);
+    expect(d.risks.join(" ")).toMatch(/a few units lower/);
+  });
+
+  it("an explicit fee line is carried into the draft unchanged", () => {
+    const d = unwrap(borrowCardDraft(input(), 1_000_000n, { kind: "fee", line: FEE_LINE }, NOW));
+    expect(d.fees).toEqual([FEE_LINE]);
+  });
+
+  it.each([
+    ["a missing policy", undefined],
+    ["a fee of zero", { kind: "fee", line: { ...FEE_LINE, amount: 0n } }],
+    ["an unknown kind", { kind: "free" }],
+  ])("refuses %s instead of reading it as zero", (_name, fee) => {
+    for (const r of [
+      borrowCardDraft(input(), 1_000_000n, fee as unknown as OpeningFee, NOW),
+      depositCardDraft(input(), 1n, 5n, fee as unknown as OpeningFee, NOW),
+    ])
+      expect(r).toMatchObject({ ok: false, error: { kind: "invalid_input" } });
+  });
+
+  it("an amount above the maximum is refused by the draft", () => {
+    expect(borrowCardDraft(input(), 37_500_001n, none, NOW)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_amount" },
+    });
+  });
+
+  it("the stricter oracle window becomes the card's freshness limit", () => {
+    const d = unwrap(borrowCardDraft(input({ oracleValidityMs: 60_000 }), 1_000_000n, none, NOW));
+    expect(d.maxDataAgeMs).toBe(60_000);
+  });
+
+  it("fixed default prices put a fixed-price warning on the card", () => {
+    const fixed = { ...usdcPrice, publishTimeMs: null, source: "default_price" as const };
+    const snap = baseSnapshot({ prices: { ...baseSnapshot().prices, [USDC]: fixed } });
+    const d = unwrap(borrowCardDraft(input({ snapshot: snap }), 1_000_000n, none, NOW));
+    expect(d.risks).toContain("Prices here are fixed protocol values, not market quotes.");
+  });
+
+  it("deposit draft: amount, collateral before and after, and a conditional borrowing power", () => {
+    const empty = input({
+      snapshot: baseSnapshot({ collateral: [], borrowed: [] }),
+      accountBorrowedShares: 0n,
+    });
+    const d = unwrap(depositCardDraft(empty, 10n * 10n ** 24n, 20n * 10n ** 24n, none, NOW));
+    expect(d).toMatchObject({
+      action: "wallet_collateral_deposit",
+      headline: "Deposit 10 wNEAR as collateral",
+      amount: 10n * 10n ** 24n,
+      tokenId: WNEAR,
+      fees: [],
+    });
+    expect(d.numbers).toEqual([
+      { label: "Deposit", after: "10", unit: "wNEAR" },
+      { label: "Collateral in Rhea", before: "0", after: "10", unit: "wNEAR" },
+      { label: "Borrowing power after it settles (conditional)", after: "23.75", unit: "USDC" },
+      { label: "Target health", after: "120", unit: "%" },
+    ]);
+    expect(d.risks.join(" ")).toMatch(/does not borrow anything/);
+    expect(d.risks.join(" ")).toMatch(/Nothing returns it automatically/);
+  });
+
+  it("a deposit above the wallet balance is refused", () => {
+    expect(depositCardDraft(input(), 5n, 4n, none, NOW)).toMatchObject({
+      ok: false,
+      error: { kind: "invalid_amount" },
+    });
   });
 });
