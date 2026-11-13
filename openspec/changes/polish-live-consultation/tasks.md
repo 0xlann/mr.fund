@@ -19,7 +19,7 @@ Gate summary: all implementation is local and needs no external gate. Live laten
 ## 3. Live chat UI (C)
 
 - [x] 3.1 Safe renderer for the markdown subset (paragraphs, bold, `- ` and `1. ` lists). Tests: unclosed `**`, nested markers, HTML-looking text stays literal, long words wrap. Evidence: `live/richTextParser.ts` + `live/RichText.tsx` (parser file renamed from `richText.ts`: it collides with `RichText.tsx` on case-insensitive file systems), `apps/web/test/live-rich-text.test.ts` 11 passed.
-- [ ] 3.2 Live chat uses the demo chat look: Mr.Fund avatar, bubble styles and spacing, user bubble like the demo, auto-scroll, thinking and `slow` states, error with Retry.
+- [x] 3.2 Live chat uses the demo chat look: Mr.Fund avatar, bubble styles and spacing, user bubble like the demo, auto-scroll, thinking and `slow` states, error with Retry. Evidence: shared `ChatRow`/`ThinkingRow` in `chatAppearance.tsx` (demo ChatMessages DOM byte-identical before/after, compared with a throwaway dump), `apps/web/test/live-chat-panel.test.ts` 10 passed; `slow` is read via `live/liveSlow.ts` until the hook field lands.
 - [ ] 3.3 State-aware suggestion chips (no position, ready, stale, unavailable), hidden while busy, sent through `live.send`.
 - [ ] 3.4 Data-age label for the live position and each live card; card numbers and fees laid out like the demo card without changing any value.
 - [ ] 3.5 Live header shows health and debt from the live position (`—` when absent), never fixture values.

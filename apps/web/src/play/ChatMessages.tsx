@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import { ChatBrandAvatar, chatBubbleClass } from "./chatAppearance";
+import { ChatRow, chatBubbleClass, promptGridClass, ThinkingRow } from "./chatAppearance";
 import { percent } from "./display";
 import { ProvenanceTag, Tag } from "./ProvenanceTag";
 import { ReplyText } from "./ReplyText";
@@ -26,10 +26,6 @@ const prompts = [
   { label: "Meet my Guardian", text: "What can Guardian do for me?" },
   { label: "Explain my position", text: "Explain my position" },
 ];
-function ChatAvatar() {
-  return <ChatBrandAvatar className="max-md:hidden" />;
-}
-
 export function ChatMessages({
   messages,
   streamingId,
@@ -43,11 +39,7 @@ export function ChatMessages({
     <>
       {" "}
       {messages.map((message) => (
-        <div
-          key={message.id}
-          className={`chat-message mb-5 flex items-end gap-2.5 ${message.role === "user" ? "justify-end pl-9 max-md:pl-28" : "pr-4 sm:pr-8 max-md:pl-[88px] max-md:pr-0"}`}
-        >
-          {message.role === "assistant" && <ChatAvatar />}
+        <ChatRow key={message.id} speaker={message.role}>
           <div className={chatBubbleClass(message.role)}>
             <span className="sr-only">{message.role === "assistant" ? "MR.FUND" : "YOU"}</span>
             {message.role === "assistant" ? (
@@ -78,10 +70,10 @@ export function ChatMessages({
               </div>
             )}
           </div>
-        </div>
+        </ChatRow>
       ))}
       {messages.length === 1 && (
-        <div className="prompt-grid mb-6 ml-[42px] max-md:ml-[88px] flex flex-wrap gap-2 [&_button]:inline-flex [&_button]:items-center [&_button]:gap-2 [&_button]:rounded-full [&_button]:border [&_button]:border-[#313334] [&_button]:bg-transparent [&_button]:px-3.5 [&_button]:py-2.5 [&_button]:text-left [&_button]:text-[11px] [&_button]:font-medium [&_button]:text-[#a2a4a5] [&_button]:transition-colors [&_button:hover]:bg-[#1f2122] [&_button:hover]:text-[#edf3f5]">
+        <div className={promptGridClass}>
           {prompts.map((p) => (
             <button type="button" key={p.label} onClick={() => sendMessage(p.text)}>
               <span>{p.label}</span>
@@ -90,19 +82,9 @@ export function ChatMessages({
         </div>
       )}
       {thinking && (
-        <div className="mb-5 flex items-end gap-2.5 max-md:pl-[88px]" role="status">
-          <ChatAvatar />
-          <div className="flex items-center gap-1.5 rounded-[22px] rounded-bl-[6px] bg-[#1f2122] px-4 py-4">
-            {[0, 150, 300].map((delay) => (
-              <span
-                key={delay}
-                aria-hidden="true"
-                className={`size-1.5 rounded-full bg-[#a2a4a5] motion-safe:animate-pulse ${delay === 150 ? "[animation-delay:150ms]" : delay === 300 ? "[animation-delay:300ms]" : ""}`}
-              />
-            ))}
-            <span className="sr-only">Checking the numbers…</span>
-          </div>
-        </div>
+        <ThinkingRow>
+          <span className="sr-only">Checking the numbers…</span>
+        </ThinkingRow>
       )}
     </>
   );

@@ -61,7 +61,7 @@ describe("real wallet playground", () => {
     render(createElement(() => Playground({ source, wallet })));
     fireEvent.click(screen.getByRole("button", { name: "Start consultation" }));
     act(() => scene.enter());
-    expect(await screen.findByText("Ask about your Rhea position.")).toBeTruthy();
+    expect(await screen.findByText(/I don.t see a Rhea lending position/)).toBeTruthy();
     expect(screen.queryByText("$1,800.00")).toBeNull();
     expect(screen.queryByText(/scripted demo/i)).toBeNull();
     expect(screen.getAllByText("alice.testnet").length).toBeGreaterThan(0);

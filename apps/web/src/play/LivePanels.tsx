@@ -1,6 +1,10 @@
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import type { useLiveRepay } from "../execution/useLiveRepay";
 import { ChatComposer } from "./ChatComposer";
+import { ChatRow, chatBubbleClass, ThinkingRow } from "./chatAppearance";
+import { liveGreeting, thinkingText } from "./live/liveCopy";
+import { isSlow } from "./live/liveSlow";
+import { RichText } from "./live/RichText";
 import { RepayExecution } from "./RepayExecution";
 import { formatAtomic } from "./source/formatAtomic";
 import type { useLiveConsultation } from "./useLiveConsultation";
@@ -81,78 +85,116 @@ export function LiveChatPanel({
   openPanel: (v: "chat" | "voice" | "position" | "guardian" | "activity" | null) => void;
 }) {
   const root = useRef<HTMLElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const slow = isSlow(live);
   useEffect(() => {
     if (live.error) root.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
   }, [live.error]);
+  // Follow the newest line. Assigning scrollTop never animates, so reduced motion is respected.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: these values are the scroll triggers
+  useEffect(() => {
+    const el = scroller.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [live.messages.length, live.partial, live.busy, slow, live.error, live.card]);
   return (
     <section
       ref={root}
       className={`chat-panel flex min-h-0 flex-1 flex-col px-4 text-[#edf3f5] sm:px-5 ${phone ? "bg-transparent" : "bg-[#121415] bg-[url(/play/chat-texture.svg)] bg-repeat"}`}
     >
-      <div className="max-md:hidden shrink-0 pb-2 pt-5 text-center text-sm font-semibold">
+      <div className="max-md:hidden shrink-0 pb-2 pt-5 text-center font-[family-name:var(--font-display)] text-sm font-semibold tracking-[-.4px] text-[#edf3f5]">
         mr.fund
       </div>
       <div
-        className="min-h-0 flex-1 space-y-4 overflow-y-auto py-6"
+        ref={scroller}
+        className="chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-0.5 pb-2 pt-6 [scrollbar-width:thin] [scrollbar-color:#313334_transparent] sm:pt-8"
         aria-live="polite"
         aria-busy={live.busy}
       >
-        <p>Ask about your Rhea position.</p>
-        {live.messages.map((message) => (
-          <p
-            key={message.id}
-            className={
-              message.role === "user"
-                ? "ml-auto max-w-[85%] rounded-2xl bg-[#304438] p-3"
-                : "max-w-[90%] rounded-2xl bg-[#1f2122] p-3"
-            }
-          >
-            {message.content}
-          </p>
-        ))}
-        {live.partial && <p className="rounded-2xl bg-[#1f2122] p-3">{live.partial}</p>}
-        {live.busy && <p role="status">{live.progress}</p>}
-        {live.error && <p role="alert">{live.error}</p>}
-        {live.card && (
-          <article className="recommendation-card rounded-xl border border-[#313334] bg-[#1c1e1f] p-4">
-            <h3>{live.card.headline}</h3>
-            <p>{live.card.reason}</p>
-            <dl>
-              {live.card.numbers.map((n) => (
-                <div key={`${n.label}-${n.unit}`}>
-                  <dt>{n.label}</dt>
-                  <dd>
-                    {n.before} {n.after ? `→ ${n.after}` : ""} {n.unit}
-                  </dd>
+        <div className="flex min-h-full flex-col justify-end">
+          <AssistantBubble>
+            <p>{liveGreeting(live.state.status)}</p>
+          </AssistantBubble>
+          {live.messages.map((message) =>
+            message.role === "user" ? (
+              <ChatRow key={message.id} speaker="user">
+                <div className={chatBubbleClass("user")}>
+                  <span className="sr-only">YOU</span>
+                  <p>{message.content}</p>
                 </div>
+              </ChatRow>
+            ) : (
+              <AssistantBubble key={message.id}>
+                <RichText text={message.content} />
+              </AssistantBubble>
+            ),
+          )}
+          {live.partial && (
+            <AssistantBubble>
+              <RichText text={live.partial} />
+            </AssistantBubble>
+          )}
+          {live.busy && !live.partial && (
+            <ThinkingRow>
+              <span className="ml-2 text-xs text-[#a2a4a5]">
+                {thinkingText(live.progress, slow)}
+              </span>
+            </ThinkingRow>
+          )}
+          {live.error && (
+            <AssistantBubble>
+              <p role="alert">{live.error}</p>
+              {live.input.trim() && (
+                <button
+                  type="button"
+                  onClick={() => void live.send(live.input)}
+                  className="mt-3 rounded-full border border-[#313334] px-3.5 py-2 text-[11px] font-medium text-[#edf3f5] transition-colors hover:bg-[#2b2d2e]"
+                >
+                  Retry
+                </button>
+              )}
+            </AssistantBubble>
+          )}
+          {live.card && (
+            <article className="recommendation-card rounded-xl border border-[#313334] bg-[#1c1e1f] p-4">
+              <h3>{live.card.headline}</h3>
+              <p>{live.card.reason}</p>
+              <dl>
+                {live.card.numbers.map((n) => (
+                  <div key={`${n.label}-${n.unit}`}>
+                    <dt>{n.label}</dt>
+                    <dd>
+                      {n.before} {n.after ? `→ ${n.after}` : ""} {n.unit}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              {live.card.fees.map((fee) => (
+                <p key={`${fee.label}-${fee.recipientId}`}>
+                  {fee.label}: {String(fee.amount)} atomic units of {fee.tokenId} →{" "}
+                  {fee.recipientId} ({fee.when})
+                </p>
               ))}
-            </dl>
-            {live.card.fees.map((fee) => (
-              <p key={`${fee.label}-${fee.recipientId}`}>
-                {fee.label}: {String(fee.amount)} atomic units of {fee.tokenId} → {fee.recipientId}{" "}
-                ({fee.when})
-              </p>
-            ))}
-            <p>Data age at request: {live.card.dataAgeMs} ms</p>
-            <p>Action: {live.card.action}</p>
-            {live.card.payload?.map((tx) => (
-              <p key={tx.receiverId}>
-                To {tx.receiverId}: {tx.actions.map((action) => action.methodName).join(", ")}
-              </p>
-            ))}
-            <RepayExecution
-              card={live.card}
-              store={repay.store}
-              view={repay.view}
-              onSettled={live.refresh}
-            />
-            {live.state.status === "stale" && (
-              <button type="button" onClick={live.refresh}>
-                Refresh position
-              </button>
-            )}
-          </article>
-        )}
+              <p>Data age at request: {live.card.dataAgeMs} ms</p>
+              <p>Action: {live.card.action}</p>
+              {live.card.payload?.map((tx) => (
+                <p key={tx.receiverId}>
+                  To {tx.receiverId}: {tx.actions.map((action) => action.methodName).join(", ")}
+                </p>
+              ))}
+              <RepayExecution
+                card={live.card}
+                store={repay.store}
+                view={repay.view}
+                onSettled={live.refresh}
+              />
+              {live.state.status === "stale" && (
+                <button type="button" onClick={live.refresh}>
+                  Refresh position
+                </button>
+              )}
+            </article>
+          )}
+        </div>
       </div>
       <ChatComposer
         input={live.input}
@@ -171,5 +213,16 @@ export function LiveChatPanel({
         openPanel={openPanel}
       />
     </section>
+  );
+}
+
+function AssistantBubble({ children }: { children: ReactNode }) {
+  return (
+    <ChatRow speaker="assistant">
+      <div className={chatBubbleClass("assistant")}>
+        <span className="sr-only">MR.FUND</span>
+        {children}
+      </div>
+    </ChatRow>
   );
 }
