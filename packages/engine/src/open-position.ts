@@ -3,7 +3,8 @@
  * borrow at a disclosed target health, what that borrow leaves as debt and health, and what a
  * collateral deposit adds. Pure functions over validated inputs; no I/O, no model numbers.
  *
- * Rhea's share arithmetic is mirrored, not approximated. A borrow issues
+ * Rhea's share arithmetic is mirrored, not approximated (ref-finance/burrowland@2110c704
+ * `pool.rs`, `actions.rs` `internal_borrow` and `internal_withdraw`). A borrow issues
  * `ceil(amount x debtShares / debtBalance)` debt shares; the account's debt is then
  * `ceil(shares x debtBalance' / debtShares')` on the updated pool; the borrowed tokens are credited
  * to `supplied` as `floor(amount x suppliedShares / suppliedBalance)` shares and an amount-omitted
@@ -64,7 +65,9 @@ export interface BorrowProjection {
 }
 
 function amountToShares(amount: bigint, shares: bigint, balance: bigint, roundUp: boolean) {
-  if (shares === 0n) return amount;
+  // Burrow's pool.rs: an empty balance means one share per unit (shares-to-amount special cases
+  // return the same numbers as the formula while the pool invariant balance >= shares holds).
+  if (balance === 0n) return amount;
   const n = shares * amount;
   return roundUp ? ceilDiv(n, balance) : n / balance;
 }

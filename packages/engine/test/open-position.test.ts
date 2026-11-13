@@ -431,3 +431,46 @@ describe("deposit quote and card numbers", () => {
     ]);
   });
 });
+
+describe("pool conversions mirror Burrow's amount_to_shares and shares_to_amount", () => {
+  // Source: ref-finance/burrowland@2110c704 pool.rs. Its shares-to-amount special cases (every
+  // share, or shares not below the balance) return the same number as the formula while the pool
+  // invariant balance >= shares holds, so no separate branch is modelled.
+  it("an account holding every share of a pool is worth the whole balance", () => {
+    const pools: BorrowPools = {
+      borrowedShares: 1_000n,
+      borrowedBalance: 1_001n,
+      suppliedShares: 5_000n,
+      suppliedBalance: 5_003n,
+    };
+    // The account is the only debtor: its shares are the pool's total shares.
+    const p = projectBorrow(pools, 1_000n, 100n);
+    // issued = ceil(100 * 1000 / 1001) = 100; shares 1100 of 1100 total => whole balance 1101.
+    expect(p.issuedShares).toBe(100n);
+    expect(p.debtAfterInternal).toBe(1_101n);
+  });
+
+  it("an empty supplied pool credits one share per unit and returns the whole balance", () => {
+    const pools: BorrowPools = {
+      borrowedShares: 1_000n,
+      borrowedBalance: 1_000n,
+      suppliedShares: 0n,
+      suppliedBalance: 0n,
+    };
+    const p = projectBorrow(pools, 0n, 50n);
+    expect(p.creditedShares).toBe(50n);
+    expect(p.deliveredInternal).toBe(50n);
+  });
+
+  it("an amount-omitted withdraw of shares worth less than one token unit delivers nothing", () => {
+    // 10^12 extra decimals: Rhea sends amount / 10^12 and drops the rest.
+    const pools: BorrowPools = {
+      borrowedShares: 10n ** 24n,
+      borrowedBalance: 10n ** 24n,
+      suppliedShares: 5n * 10n ** 24n,
+      suppliedBalance: 5n * 10n ** 24n,
+    };
+    const p = projectBorrow(pools, 0n, 999_999_999_999n);
+    expect(p.deliveredInternal / 10n ** 12n).toBe(0n);
+  });
+});
