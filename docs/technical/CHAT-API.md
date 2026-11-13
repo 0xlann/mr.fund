@@ -152,3 +152,70 @@ curl -X POST "http://127.0.0.1:3111/api/chat" -H "Content-Type: application/json
 - [V] GET, POST and refresh returned different final blocks. The health changes between them were retained, not forced to match an older read.
 - [I] The `provenance: live` response label describes public reads, not the freshness of a fixed protocol price. Missing non-collateral quotes do not authorize claims about those tokens.
 - [U] No browser rendering, account login, oracle update, transaction receipt or independent Rhea-app value was observed in this run.
+
+## Measured turn stages and RPC choice (2026-11-13)
+
+[V] The ignored measurement harness calls the actual `createChatHandler`, `createContextLoader` and `createNearAIProvider`, loading the worktree `.env` without printing values. Each run is a new turn with no history. Four questions × two accounts × three repeats = **24 turns per configuration**. Provider: `z-ai/glm-5.3-flash`, unchanged runtime generation settings. The default-RPC and RPC-only comparison both used the original 30 s deadline/persona/sequential prerequisites; later final-state measurements are distinguished below. Runs overlapped with other authorized inference, so provider timing is observational rather than a controlled model benchmark.
+
+[V] Read-only discovery called `get_num_accounts` (54 accounts), then `get_accounts_paged({from_index:0,limit:50})` on testnet lending. `juaner116.testnet` has a regular position with fixed-price wNEAR collateral/debt; `d-mrf-b1ce96af6a.testnet` is the registered empty-position selector specified in the brief. No account was created or funded. Public source ids are documented; live response bodies and model replies are not committed.
+
+### RPC control probe
+
+| Public endpoint | Read | Repeats | Median ms | Max ms |
+| --- | --- | --- | --- | --- |
+| `https://rpc.testnet.near.org` | `get_num_accounts` | 3 | 3281 | 3533 |
+| `https://test.rpc.fastnear.com` | `get_num_accounts` | 3 | 252 | 348 |
+
+[I, recommendation grounded in the probe and successful HTTP reads] Use **`https://test.rpc.fastnear.com`** for both `NEAR_RPC_URL` and `NEXT_PUBLIC_NEAR_RPC_URL` in this worktree/deployment. The application has no endpoint fallback and does not silently change the network. The smoke launcher overrides those two values for its process only; the ignored `.env` was not edited. The faster read does not establish an availability SLA or solve provider latency.
+
+### Original default RPC, 30 s deadline
+
+All cells below are **median / max milliseconds** across the three turns. `n/a` means that stage was never reached, not zero work. Provider columns are actual provider round indices; repair calls are listed separately, never double-counted. Aborted call durations stop at cancellation, not at a hypothetical provider completion.
+
+| Account | Question | Context | Provider 1 | Provider 2 | Provider 3 | Repair call | Total HTTP | Model / timeout / unavailable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| juaner116.testnet | helo | 30002 / 30005 | n/a | n/a | n/a | n/a | 30003 / 30053 | 0 / 3 / 0 |
+| juaner116.testnet | Explain my position | 30011 / 30013 | n/a | n/a | n/a | n/a | 30012 / 30014 | 0 / 3 / 0 |
+| juaner116.testnet | saya mau tau dong lending position saya | 42 / 29690 | n/a | n/a | n/a | n/a | 43 / 29691 | 0 / 0 / 3 |
+| juaner116.testnet | What if NEAR drops 20%? | 33 / 45 | n/a | n/a | n/a | n/a | 33 / 46 | 0 / 0 / 3 |
+| d-mrf-b1ce96af6a.testnet | helo | 43 / 44 | n/a | n/a | n/a | n/a | 44 / 45 | 0 / 0 / 3 |
+| d-mrf-b1ce96af6a.testnet | Explain my position | 35 / 53 | n/a | n/a | n/a | n/a | 36 / 54 | 0 / 0 / 3 |
+| d-mrf-b1ce96af6a.testnet | saya mau tau dong lending position saya | 36 / 43 | n/a | n/a | n/a | n/a | 37 / 43 | 0 / 0 / 3 |
+| d-mrf-b1ce96af6a.testnet | What if NEAR drops 20%? | 38 / 41 | n/a | n/a | n/a | n/a | 39 / 41 | 0 / 0 / 3 |
+
+[V] Default-RPC aggregate: **43 / 30053 ms** total, **0 model answers / 6 timeouts / 18 unavailable**. Six complete turns exhausted their deadline in context; later context reads failed quickly, including `status`. [U] Their underlying public-service refusal cause was not retained; do not relabel the short failure times as successful latency or assume a rate-limit status. No provider stage was reached in this configuration.
+
+### FastNear only, original 30 s deadline
+
+| Account | Question | Context | Provider 1 | Provider 2 | Provider 3 | Repair call | Total HTTP | Model / timeout / unavailable |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| juaner116.testnet | helo | 5547 / 5624 | 10145 / 14565 | n/a | n/a | n/a | 15336 / 20169 | 3 / 0 / 0 |
+| juaner116.testnet | Explain my position | 5681 / 6480 | 6463 / 9505 | 18357 / 19775 | n/a | n/a | 30010 / 30013 | 0 / 3 / 0 |
+| juaner116.testnet | saya mau tau dong lending position saya | 5555 / 5627 | 4918 / 4970 | 19966 / 20976 | n/a | n/a | 30007 / 30022 | 0 / 3 / 0 |
+| juaner116.testnet | What if NEAR drops 20%? | 5475 / 5826 | 9257 / 14156 | 10368 / 17016 | 7340 / 7340 | n/a | 30018 / 30116 | 0 / 3 / 0 |
+| d-mrf-b1ce96af6a.testnet | helo | 1659 / 2050 | 5357 / 5720 | n/a | n/a | n/a | 7018 / 7881 | 3 / 0 / 0 |
+| d-mrf-b1ce96af6a.testnet | Explain my position | 1611 / 1767 | 6252 / 7064 | 21379 / 22561 | n/a | n/a | 29402 / 30004 | 2 / 1 / 0 |
+| d-mrf-b1ce96af6a.testnet | saya mau tau dong lending position saya | 1638 / 8935 | 2921 / 4312 | 25580 / 25796 | n/a | n/a | 30010 / 30010 | 0 / 3 / 0 |
+| d-mrf-b1ce96af6a.testnet | What if NEAR drops 20%? | 1684 / 1694 | 8843 / 10099 | 11763 / 19478 | 8917 / 8917 | 7110 / 7770 | 30009 / 30010 | 0 / 3 / 0 |
+
+[V] RPC-only aggregate: **30006 / 30116 ms** total, **8 model answers / 16 timeouts / 0 unavailable**; successful-turn-only total **13181 / 29402 ms** (8 turns). This is improved reachability, **not a successful-response speedup relative to the failed default baseline**. Provider continuation/repair, not just RPC, still dominates common questions.
+
+### RPC stages within the FastNear comparison
+
+Read durations include HTTP body consumption; calls remain individual POSTs, not JSON-RPC batching. Counts differ because empty positions do not need metadata, quotes or proposal prerequisites.
+
+| RPC read | n | Median / max ms |
+| --- | --- | --- |
+| status | 24 | 330.5 / 3033 |
+| get_config | 24 | 235 / 1114 |
+| get_all_token_pyth_infos | 24 | 237.5 / 434 |
+| get_assets_paged_detailed | 24 | 631.5 / 3036 |
+| get_account | 24 | 246 / 1316 |
+| ft_metadata | 60 | 234 / 323 |
+| get_price_no_older_than | 36 | 233.5 / 273 |
+| get_version | 12 | 238 / 263 |
+| ft_balance_of | 60 | 235.5 / 738 |
+| storage_balance_of | 12 | 242 / 288 |
+| storage_balance_bounds | 12 | 238.5 / 401 |
+
+[V] Baseline RPC reads that completed before context cancellation were typically about 3.2 s each: `get_config` **3265 / 3477 ms** (7), asset-page read **3615 / 3687 ms** (7), `get_account` **3248 / 3343 ms** (7), metadata **3237 / 3388 ms** (21), oracle **3236.5 / 3421 ms** (14). This supports choosing the measured faster endpoint rather than introducing a cache or weakening freshness.
