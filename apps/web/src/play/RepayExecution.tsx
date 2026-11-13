@@ -72,7 +72,7 @@ export function RepayExecution({
         className="space-y-2 rounded-xl border border-white/10 p-3"
       >
         <h4 className="text-sm font-semibold">Confirm in your wallet next</h4>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
           <dt>Repay</dt>
           <dd>
             {c.amount} to {c.lendingId}
@@ -166,7 +166,7 @@ function ResultView({
     <section aria-label="Repay receipt" className="space-y-2 text-xs" role="status">
       <p className="text-sm font-semibold">{STATUS_COPY[r.status]}</p>
       {o && (
-        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
           <dt>Debt before</dt>
           <dd>{internal(o.debtBeforeInternal ?? "0")}</dd>
           <dt>Debt after</dt>
