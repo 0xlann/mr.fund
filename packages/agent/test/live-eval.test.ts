@@ -11,12 +11,12 @@ import { type ManualReview, runEvaluation } from "../eval/run";
 // Command: LIVE_CHAT_EVAL=1 pnpm exec vitest run packages/agent/test/live-eval.test.ts --reporter=verbose
 // PowerShell: $env:LIVE_CHAT_EVAL='1'; pnpm exec vitest run packages/agent/test/live-eval.test.ts --reporter=verbose
 it.skipIf(process.env.LIVE_CHAT_EVAL !== "1")(
-  "records authorized real GLM turns on a Simulated fixture",
+  "records authorized real model turns on a Simulated fixture",
   async () => {
     const apiKey = process.env.NEARAI_API_KEY;
     if (!apiKey)
       throw new Error("LIVE_CHAT_EVAL requires NEARAI_API_KEY; credentials were not loaded.");
-    const model = process.env.NEARAI_MODEL || "z-ai/glm-5.3-flash";
+    const model = process.env.NEARAI_MODEL || "anthropic/claude-haiku-5-5";
     const directory = resolve("scratch/chat-eval");
     await mkdir(directory, { recursive: true });
     let manualReviews: ManualReview[] = [];
