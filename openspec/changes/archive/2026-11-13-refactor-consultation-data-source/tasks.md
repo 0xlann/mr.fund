@@ -42,4 +42,4 @@ Gate summary: no external gate. No D19, B7, D24, credentials or network access i
 
 ## 5. Known honesty gap (deliberate visible change)
 
-- [ ] 5.1 Add visible Simulated labels to chat and 360 px surfaces; deliberate visible change, to be done with `add-live-wallet-session-ui` task 2.1 where the demo entry is labelled.
+- [x] 5.1 Moved to polish-live-consultation 3.6: visible Simulated labels on chat and 360 px surfaces. This move does not claim the labels are implemented.
