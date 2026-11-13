@@ -88,8 +88,11 @@ export function LiveCard({
         {list(card.risks).map((r) => (
           <p key={r}>{r}</p>
         ))}
-        {list(card.payload).map((tx) => (
-          <p key={tx.receiverId}>
+        {list(card.payload).map((tx, index) => (
+          // A repay card holds several transactions to one token (repay and fee), so the receiver
+          // alone repeats. The payload is a fixed list, so its position is a stable key.
+          // biome-ignore lint/suspicious/noArrayIndexKey: static ordered payload, receivers repeat
+          <p key={`${index}:${tx.receiverId}`}>
             To {tx.receiverId}: {tx.actions.map((action) => action.methodName).join(", ")}
           </p>
         ))}
