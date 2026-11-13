@@ -317,6 +317,8 @@ The engine rounds health down and debt up. Verification is split: shared-vector 
 | `propose_card` | `action` (enum), `amount?` | Card built by the engine, or a typed refusal | Creates a draft card shown in the UI; no signing |
 | `guardian_status` | none | Validated status/policy/reserve/config, block provenance; correlated heartbeat observation or explicit unavailable | None |
 | `guardian_history` | `sinceMs?`, `limit` 1–50 | Backend-filtered retained attempts/reasons and known spend/fees; truncation and unavailable transaction links disclosed | None |
+| `quote_opening` | `target_health_percent?` | Engine maximum additional borrow, target, collateral in Rhea, wallet balance, APR, health, data age | None |
+| `propose_opening` | `stage` (deposit or borrow), `amount`, `token?`, `target_health_percent?` | One draft opening card built by the engine and the Rhea builders, or a typed refusal | Creates a draft card shown in the UI; no signing |
 | `explain_term` | `term` (enum of glossary terms) | Short fixed explanation | None |
 
 No tool signs, sends, changes a policy or calls the watcher. A card's payload is created by `rhea` or `guardian-client` builders from engine-validated parameters; the LLM's text never becomes payload bytes.
@@ -333,12 +335,14 @@ Existing-instance owner controls: `guardianOwnerPayload` builds only fixed-targe
 
 Activation is deliberately unavailable: `guardianOwnerPayload({kind:"activate",…})` refuses until the final provisioning ABI is verified; the tool registry does not advertise it. No registration/create/fund sequence, factory method or funding amount is guessed. User requested stopping at client/tools; the separate factory work remains outside this merge. OpenSpec conditional tasks stay open, so the change is not archived while activation/provisioning tests are incomplete.
 
+Plain-wallet opening (local, 2026-11-13): `quote_opening` and `propose_opening` read their inputs from `ToolContext.opening`, which the server fills lazily through `ToolContext.openingLoader` only when the model calls one of them (a block-pinned `readOpenPositionContext` plus the fee recipient registration). No config, a failed read or a missing fee policy answers `not_available` or `fee_policy_missing`; nothing is guessed. The browser side is `apps/web/src/execution/open-position-live.ts` (store), `useLiveOpening` and `play/OpeningExecution.tsx`: prepare re-reads and verifies the card, shows the in-app confirmation, then one wallet request per card; results come only from the reconciler. Imports follow the existing rules: `agent` imports no signer, `rhea` does not import `engine`, the store imports the runner, verifier and signer from `apps/web/src/execution`. Deposit and borrow are separate cards; the borrow card exists only for collateral Rhea already holds. Not exercised in a real wallet yet; see `openspec/changes/add-chat-open-position/handoff.md`.
+
 ### Card (`packages/shared`)
 
 P4.3 backend update [V, local, 2026-11-07]: `packages/rhea` exports a pure outcome parser, bounded read-only outcome RPC adapter, ordered batch aggregation and fresh position reconciliation. Execution, token acceptance/refunds and debt/supplied deltas remain separate. `toCardReceipt` confirms repayment only when the entire batch succeeds and a valid post-read observes debt reduction; terminal execution without post-state stays separately visible as execution evidence while the receipt remains submitted. Health is injected from the deterministic engine by the composition root. Full API, limits, receipt mapping and sandbox fixture provenance: [REPAY-OUTCOMES](REPAY-OUTCOMES.md). Wallet/UI integration remains incomplete.
 
 ```ts
-type CardAction = "repay" | "guardian_activate" | "guardian_deactivate" | "guardian_withdraw";  // P1 adds "deposit"
+type CardAction = "repay" | "guardian_activate" | "guardian_deactivate" | "guardian_withdraw" | "wallet_collateral_deposit" | "wallet_borrow";
 interface Card {
   id: string; action: CardAction; headline: string;
   reason: string;                       // LLM text, number-checked
