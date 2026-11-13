@@ -28,7 +28,7 @@ Gate summary: all implementation is local and needs no external gate. Live laten
 
 ## 4. OpenSpec housekeeping and follow-up proposals (D)
 
-- [ ] 4.1 Record the owner's 2026-11-13 report that NEAR Auth and NEAR Connect logins work on testnet, tick the tasks that evidence covers, mark moved tasks with their new home, and archive `add-dual-near-auth`, `add-live-wallet-session-ui`, `add-guardian-client-and-tools` and `refactor-consultation-data-source` following the existing archive pattern. DESIGN.md items move to the owner (5.2).
+- [ ] 4.1 Record the owner's 2026-11-13 report, tick only supported tasks, move remaining work, and archive the four named changes. Partial evidence [V, owner-reported, 2026-11-13, testnet]: both login methods worked and live chat answered; no transaction was signed. Archived guardian-client and consultation-source changes; moved simulated labels to 3.6, accessibility to 3.7 and DESIGN to owner 5.2. **BLOCKER (owner: lead):** wallet UI 4.1/4.3/4.4 lack the named browser, passkey and metadata evidence; dual-auth 4.1 names a connection route/home link and its spec requires `/connect`, whereas inspected wiring is a `/play` dialog. These changes remain active rather than claiming unobserved acceptance.
 - [ ] 4.2 Write `add-chat-open-position` marked **[EXTEND]**: proposal, design, spec and tasks for opening a position from chat. No code.
 - [ ] 4.3 Write `plan-production-deployment`: the deployment specification for the web app (frontend and API routes), the watcher (keeper) host, contract ids and environment matrix, to be executed by a deployment owner, not by the build team. No deployment is performed.
 

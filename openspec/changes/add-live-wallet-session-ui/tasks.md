@@ -11,18 +11,18 @@ Gate summary: local work (sections 1–3) needs no external gate, no D19 decisio
 - [x] 2.2 Status and recovery states for all six `WalletState.status` values, passive-restore checking state, and explicit configuration errors (missing config, mainnet without client id, wrong-network accounts). Tests per state. (Wrong-network accounts surface as the controller's sign-in error plus the configured network name.)
 - [x] 2.3 Account display, network badge and account picker (only when several accounts); the capability line derived from `method`. Tests: only session accounts shown; Auth shows read-only copy; no enabled sign action.
 - [x] 2.4 Logout and remote-logout-failure copy ("this device is signed out; the provider session may remain"). Tests for success and failure paths.
-- [ ] 2.5 Accessibility and responsive pass: focus trap and restore, Escape rule, live-region announcements, 360 px, reduced motion. Keyboard-only test of the login path. **Open (2026-11-10):** Escape/close blocked while busy, polite live region, native modal dialog focus handling and existing reduced-motion variants are in place; no keyboard-only test and no 360 px check yet.
+- [x] 2.5 Moved to polish-live-consultation 3.7: accessibility, focus, keyboard, 360 px and reduced motion. Existing partial implementation evidence is recorded in the 2026-11-10 note; the real-browser pass remains open there.
 
 ## 3. Documentation
 
-- [ ] 3.1 Update `docs/DESIGN.md` with the connect surfaces and the demo-entry rule. Record the route-scoped provider as a deliberate narrowing of `add-dual-near-auth` task 3.3 wording. Do not tick any task yet. **Open (2026-11-10):** Skipped by user instruction: `docs/DESIGN.md` is not edited in frontend work.
+- [x] 3.1 Moved to polish-live-consultation 5.2 (owner): update `docs/DESIGN.md` for connect surfaces and demo entry. [V, source inspection, 2026-11-13] `app/play/layout.tsx` mounts the route-scoped provider, rather than the root-scoped provider originally described in dual-auth 3.3.
 
 ## 4. Evidence (observed only)
 
 - [ ] 4.1 Run `next dev`, exercise: first load (checking → disconnected), cancel, error recovery, demo entry, wrong/missing config, keyboard-only path and 360 px. Record the observed results and screenshots (ignored `scratch/` unless small and useful). **Open (2026-11-10):** Not run: browser checks are done by the user.
 - [x] 4.2 Run `pnpm test`, `pnpm typecheck`, `pnpm lint` and the production build; record counts and the landing-bundle check. (2026-11-10: `pnpm test` 1078 passed / 3 skipped, `pnpm typecheck` and `pnpm lint` clean, `next build` succeeded with testnet public env.)
-- [ ] 4.3 **Human gate (lead):** complete one real NEAR Auth login (passkey) and one real NEAR Connect login on the configured network. Record account ids, method, network, date, browser, and any origin/callback rejection as observed. This changes no balance and signs nothing. Until done, tasks 3.3, 4.1 and 4.2 of `add-dual-near-auth` and P4.3a stay unchecked.
-- [ ] 4.4 After 4.1–4.3, update `add-dual-near-auth` tasks 3.3/4.1/4.2 and BUILD-PLAN P4.3a with the evidence actually observed.
+- [ ] 4.3 **Human gate (lead):** complete one real NEAR Auth login (passkey) and one real NEAR Connect login on the configured network, recording account ids, method, network, date and browser. Partial evidence [V, owner-reported, 2026-11-13, testnet]: both login methods worked in the app; Auth session account `0b9ef00080505625d3444960ab8bb50d75a6fac77e4d98828a7f40c186aa7cde`; owner imported `d-mrf-b1ce96af6a.testnet` into a wallet, but its identity as the connected account is [U]. Auth passkey use and browser [U]; NEAR Connect account id, wallet and browser [U]. Chat answered in live mode; no transaction was signed. The named passkey and metadata acceptance remains unobserved.
+- [ ] 4.4 After 4.1–4.3, update `add-dual-near-auth` tasks 3.3/4.1/4.2 and BUILD-PLAN P4.3a with the evidence actually observed. Partial update [V, 2026-11-13]: dual-auth 3.3 and the moved accessibility portion of 4.2 were recorded; 4.1 and the complete browser/passkey evidence remain open.
 
 ## Commit contract
 
