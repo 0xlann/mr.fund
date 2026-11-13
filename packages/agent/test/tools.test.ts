@@ -269,6 +269,8 @@ describe("what_if_price", () => {
   });
 });
 
+const LINE_TERMS = ["health_factor", "liquidation", "liquidation_price"];
+
 describe("explain_term", () => {
   it.each(GLOSSARY_TERMS)(
     "explains %s in plain words with no numbers or banned claims",
@@ -278,7 +280,15 @@ describe("explain_term", () => {
       expect(text.length).toBeGreaterThan(20);
       expect(text).not.toMatch(/\d/);
       expect(findBannedPhrases(text)).toEqual([]);
-      expect(ok(r).facts).toEqual([]);
+      // Terms that name the liquidation line carry it as an engine fact, so a model may quote it.
+      expect(ok(r).facts).toEqual(
+        LINE_TERMS.includes(term)
+          ? [
+              { label: "health factor at the liquidation line", value: "1", unit: null },
+              { label: "health factor at the liquidation line", value: "100", unit: "%" },
+            ]
+          : [],
+      );
     },
   );
 
