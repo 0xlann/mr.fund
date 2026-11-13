@@ -226,6 +226,8 @@ Costs: 0.010645 NEAR burnt in gas across the 11 transactions (rejected ones incl
 
 Share rounding [V, testnet arithmetic at the failed borrow]: Rhea credits a borrow to `supplied` as `floor(amount × shares / balance)` shares and debits an exact-amount `Withdraw` as `ceil(…)`. With the REF pool at 370481008160211288092408 shares / 377384644082526848374484 balance, 0.5 REF credited `490853316330478637` shares and the same-amount withdraw needed `…638`. Any pool whose share price is not exactly 1 makes `Borrow(x)` + `Withdraw(x)` revert; omitting the `Withdraw` amount takes what was credited (1 atomic less). The sandbox did not show this because its fresh pools were 1:1. **Consequence for the Guardian [I, not yet exercised]:** `owner_borrow` and `owner_withdraw_collateral` (P2.4) send exact-amount `Withdraw` actions, so on these testnet pools they are expected to revert; and the demo's planned USDC debt cannot be borrowed until a fresh USDC price exists. Both need a lead decision before P2.8 (`prove-testnet-guardian-loop` 4.1).
 
+Update [V, 2026-11-13]: the `owner_borrow` half was fixed and confirmed on testnet with a throwaway Guardian; `owner_withdraw_collateral` passed on unchanged code in the sandbox. Hashes and limits: SMART-CONTRACT "owner_borrow rounding fix".
+
 ### 4. Testnet price freshness (P0.2, B2)
 
 Observed (lead, 2026-11-04): `pyth-oracle.testnet` `get_price_no_older_than({"price_id":"41f3625971ca2ed2263e78573fe5ce23e13d2558ed3f2e47ab0f84fb9e7ae722","age":60})` returned `null` at block 276211786 (this is the USDC feed id mapped by the testnet lending contract).

@@ -47,3 +47,11 @@ Names only; set values after verification: `GUARDIAN_FACTORY_ID`, `NEXT_PUBLIC_G
 ## Constraints that still apply
 
 Mainnet, real funds, account creation and public posts need explicit owner approval. The watcher account must not submit publicly until a scoped function-call key exists. Hosting for the watcher (D29/B8) is undecided.
+
+## Update 2026-11-13 (step 1 and a testnet check)
+
+- Step 1 result [V, sandbox, unchanged Guardian]: `guardian_accrued_borrow` failed with `Not enough asset balance`; `guardian_accrued_release` passed (954 s); `guardian_accrued_surplus_then_borrow` was cut off and has no result. So the defect is real for `owner_borrow` and not shown for `owner_withdraw_collateral`.
+- Fix applied to `owner_borrow` only (amountless `Withdraw`), with a unit test; the patch's `reproducible_build` metadata was not applied (image and digest unverified).
+- Confirmed on a throwaway testnet Guardian (SMART-CONTRACT "owner_borrow rounding fix"). The sandbox cases were not rerun against the fixed code and the sandbox test files are not committed.
+- Still open: steps 3 and 4 (reproducible wasm with `cargo-near`, frozen template, factory deploy and fee-recipient registration).
+

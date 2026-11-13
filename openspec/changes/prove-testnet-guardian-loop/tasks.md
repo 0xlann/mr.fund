@@ -19,6 +19,7 @@ Gate summary: [I, planned evidence-only] The user selected testnet and authorize
 ## 3. Gate 2 live contract proof — lead
 
 - [ ] 3.1 **Lead; gate: B7, usable Gate 1 assets, authorized probe deploy.** Deploy the current probe and run registration/collateral/borrow/withdraw as the contract under P0.3 Gate 2: can a contract own and repay a Rhea loan without anyone's private key? Acceptance: hashes/code hash, account keys, all receipts and views show debt attributed to probe and withdrawn token balance at probe, separately from sandbox evidence. Stop on unknown outcomes; include measured public costs.
+  - Partial evidence [V, testnet, 2026-11-13]: a throwaway Guardian contract (not the probe) registered with Rhea, held wNEAR collateral, borrowed 0.5 REF and swept it to its owner on testnet, all FINAL with no failed receipt (SMART-CONTRACT "owner_borrow rounding fix"). The probe deploy, repay, release and withdraw legs and the non-owner rejection remain open, so the box stays unchecked.
 - [ ] 3.2 **Lead; gate: known probe state and authorized testnet negative attempts.** Complete probe repayment/release/withdraw and record non-owner rejection plus another account's unchanged-by-this-action debt. Acceptance: finalized receipts/post-state and actual version/units establish the live negative boundaries; any unrecoverable probe balances are disclosed. P0.3 stays open until both its referenced sandbox and full live acceptance are observed.
 
 ## 4. Factory/Guardian deployment and manual wallet proof
