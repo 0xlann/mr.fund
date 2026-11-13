@@ -284,6 +284,14 @@ Refund ABI: the callback `on_guardian_created(owner_id, guardian_id, deposit)` r
 
 Usable funding [V for the parts, I for the sum]: registration is cheap because the counterparty refunds the excess of a registration-only deposit. Measured on both imported Rhea versions, the net cost to the Guardian was 0.1 NEAR for the lending contract and 0.00125 NEAR for each token. Adding the 2.75325 NEAR creation floor and about 0.034 NEAR of growth headroom for a full 50-entry history (computed from the 67-byte attempt record [I]) gives about 2.89 NEAR for a Guardian that is registered and can run its whole history. A Guardian holding only that cannot also absorb a later policy change that grows state much, so P2.8 sets the factory's `min_funding` and `max_funding` from this figure (a reasonable choice is a minimum of 2.9 NEAR and a maximum near 3.5 NEAR [I]); they are init parameters, not code.
 
+### Testnet factory deployment [V, testnet, 2026-11-13, owner authorized in chat]
+
+The factory was deployed to a new faucet-created account `f2-mrf-b1ce96af6a.testnet` (the earlier `f-mrf-b1ce96af6a.testnet` was left unused; its key was not imported). The build is **non-reproducible** (`cargo near build non-reproducible-wasm`, host environment), not the reproducible build the plan prefers, so the hash cannot yet be reproduced by others. Factory wasm 470,389 B, SHA-256 `c7640774a399e551d869d0571aa5da86196d13f7614a533bab161a3472d110af` (bs58 `ERLbh55fMnhfXqYoNuaxKECJXsv7YYC5hnRfQXNK1yen`), equal to the on-chain code at block 277536234; the embedded Guardian is 274,565 B (`get_code_len`).
+
+`new` succeeded with the D24 REF template: watcher `w-mrf-b1ce96af6a.testnet`, lending `contract.1689937928.burrow.testnet` (`0.11.0`), oracle `pyth-oracle.testnet`, debt `ref.fakes.testnet`, collateral `wrap.testnet`, fee recipient `fee-mrf-b1ce96af6a.testnet`, activation fee 0.4 REF, `max_price_age_sec` 60, funding bounds 2.9 to 3.5 NEAR (read back with `get_template` and `get_limits`). The two price ids are the placeholders Rhea reports for wNEAR (`…b37928`) and REF (all zeros); both tokens use Rhea `default_price`, which `protocol-trigger` honours before the oracle, so the on-chain trigger uses the fixed price and health does not follow a market. No Guardian has been created yet; `get_guardian` for `my-dev.testnet` returns `null`.
+
+[U]: the deploy transaction hash was not captured in the repository, and the 2.9 to 3.5 NEAR funding bounds are a proposal derived from the measured 2.75325 NEAR floor, not a final value.
+
 ### Final ABI for the client (task 4.3)
 
 All amounts are decimal-string `U128`; account ids are strings. The client builds unsigned payloads only; nothing here is signed by the agent.
