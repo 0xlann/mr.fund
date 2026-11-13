@@ -21,9 +21,12 @@ export function ModalFrame({
   const titleId = useId();
   useEffect(() => {
     const el = ref.current;
+    // The dialog unmounts with its focused control, so hand focus back to whatever opened it.
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     el?.showModal();
     return () => {
       el?.close();
+      if (opener?.isConnected) opener.focus();
     };
   }, []);
   return (
