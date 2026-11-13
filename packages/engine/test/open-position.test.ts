@@ -500,7 +500,7 @@ describe("opening card drafts", () => {
       maxDataAgeMs: 120_000,
     });
     // 21% APR on 200 USDC = 42; on 237.5 USDC = 49.875 (rounded up).
-    expect(d.numbers.at(-1)).toEqual({
+    expect(d.numbers.find((n) => n.label === "Annual interest cost")).toEqual({
       label: "Annual interest cost",
       before: "42",
       after: "49.875",
@@ -575,5 +575,91 @@ describe("opening card drafts", () => {
       ok: false,
       error: { kind: "invalid_amount" },
     });
+  });
+});
+
+describe("card provenance, APR and storage lines (task 2.4)", () => {
+  const none: OpeningFee = { kind: "none" };
+  const storage = [
+    { label: "Rhea registration", depositYocto: 10n ** 23n },
+    { label: "USDC registration", depositYocto: 1_250n * 10n ** 18n },
+  ];
+
+  it("a borrow card names its source, block, price source and borrow APR", () => {
+    const d = unwrap(borrowCardDraft(input(), 37_500_000n, none, NOW));
+    expect(d.assumptions).toContain("Source: Rhea 0.11.0 on testnet at block 276211785.");
+    expect(d.numbers).toContainEqual({ label: "Borrow APR", after: "21", unit: "%" });
+    // Oracle prices carry their own age; fixed ones carry a warning (covered above).
+    expect(d.assumptions.join(" ")).not.toMatch(/fixed price/);
+  });
+
+  it("storage deposits are listed separately from fees and are not service fees", () => {
+    const d = unwrap(borrowCardDraft(input(), 37_500_000n, none, NOW, { storage }));
+    expect(d.numbers).toContainEqual({
+      label: "Rhea registration deposit",
+      after: "0.1",
+      unit: "NEAR",
+    });
+    expect(d.numbers).toContainEqual({
+      label: "USDC registration deposit",
+      after: "0.00125",
+      unit: "NEAR",
+    });
+    expect(d.assumptions).toContain(
+      "Storage deposits are paid once to register your account with a contract. They are not service fees.",
+    );
+    expect(d.fees).toEqual([]);
+    const dep = unwrap(
+      depositCardDraft(
+        input({
+          snapshot: baseSnapshot({ collateral: [], borrowed: [] }),
+          accountBorrowedShares: 0n,
+        }),
+        10n * 10n ** 24n,
+        20n * 10n ** 24n,
+        none,
+        NOW,
+        { storage },
+      ),
+    );
+    expect(dep.numbers).toContainEqual({
+      label: "Rhea registration deposit",
+      after: "0.1",
+      unit: "NEAR",
+    });
+  });
+
+  it("no storage lines when nothing needs registering", () => {
+    const d = unwrap(borrowCardDraft(input(), 37_500_000n, none, NOW));
+    expect(d.numbers.some((n) => n.unit === "NEAR")).toBe(false);
+    expect(d.assumptions.join(" ")).not.toMatch(/Storage deposits/);
+  });
+
+  it("a storage line that is zero, negative or unlabeled is refused", () => {
+    for (const bad of [
+      { label: "x", depositYocto: 0n },
+      { label: "x", depositYocto: -1n },
+      { label: "", depositYocto: 1n },
+    ])
+      expect(borrowCardDraft(input(), 1_000_000n, none, NOW, { storage: [bad] })).toMatchObject({
+        ok: false,
+        error: { kind: "invalid_input" },
+      });
+  });
+
+  it("the deposit card names its source too", () => {
+    const d = unwrap(
+      depositCardDraft(
+        input({
+          snapshot: baseSnapshot({ collateral: [], borrowed: [] }),
+          accountBorrowedShares: 0n,
+        }),
+        10n * 10n ** 24n,
+        20n * 10n ** 24n,
+        none,
+        NOW,
+      ),
+    );
+    expect(d.assumptions).toContain("Source: Rhea 0.11.0 on testnet at block 276211785.");
   });
 });
