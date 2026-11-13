@@ -199,4 +199,73 @@ describe("trusted RPC chat context", () => {
       ),
     ).rejects.toThrow(/unavailable/i);
   });
+
+  describe("plain-wallet opening", () => {
+    const pair = {
+      OPENING_COLLATERAL_TOKEN_ID: "wrap.testnet",
+      OPENING_DEBT_TOKEN_ID: "ref.fakes.testnet",
+    };
+    it("is off unless the pair is configured, and incomplete choices never half-enable it", () => {
+      expect(readChatConfig({ ...environment, ...fees })?.opening).toBeUndefined();
+      expect(
+        readChatConfig({ ...environment, OPENING_COLLATERAL_TOKEN_ID: "wrap.testnet" })?.opening,
+      ).toBeUndefined();
+      expect(
+        readChatConfig({
+          ...environment,
+          OPENING_COLLATERAL_TOKEN_ID: "wrap.testnet",
+          OPENING_DEBT_TOKEN_ID: "wrap.testnet",
+        })?.opening,
+      ).toBeUndefined();
+      const ok = readChatConfig({ ...environment, ...pair })?.opening;
+      expect(ok).toEqual({
+        collateralTokenId: "wrap.testnet",
+        debtTokenId: "ref.fakes.testnet",
+        defaultTargetBps: 15_000,
+      });
+    });
+    it("takes the fee from the complete schedule only; zero is an explicit approved none", () => {
+      const noSchedule = readChatConfig({ ...environment, ...pair, OPENING_FEE_ATOMIC: "5" });
+      expect(noSchedule?.opening?.collateralTokenId).toBe("wrap.testnet");
+      expect(noSchedule?.opening?.fee).toBeUndefined();
+      expect(
+        readChatConfig({ ...environment, ...fees, ...pair, OPENING_FEE_ATOMIC: "5" })?.opening?.fee,
+      ).toEqual({ tokenId: "usdc.fakes.testnet", recipientId: "fees.testnet", amountAtomic: 5n });
+      expect(
+        readChatConfig({ ...environment, ...fees, ...pair, OPENING_FEE_ATOMIC: "0" })?.opening?.fee
+          ?.amountAtomic,
+      ).toBe(0n);
+    });
+    it("rejects malformed values and wrong-network tokens as a whole config", () => {
+      for (const bad of [
+        { ...pair, OPENING_DEFAULT_TARGET_BPS: "10000" },
+        { ...pair, OPENING_DEFAULT_TARGET_BPS: "150.5" },
+        { ...pair, OPENING_COLLATERAL_TOKEN_ID: "wrap.near" },
+        { ...pair, ...fees, OPENING_FEE_ATOMIC: "1.5" },
+      ])
+        expect(readChatConfig({ ...environment, ...bad })).toBeNull();
+    });
+    it("attaches a loader that reads nothing until a tool asks, and rejects on bad data", async () => {
+      const { fetchImpl, calls } = transport();
+      const context = await createContextLoader(
+        requiredConfig({ ...environment, ...pair }),
+        fetchImpl,
+      )({ message: "Hi", accountId }, new AbortController().signal);
+      expect(context.opening).toBeUndefined();
+      expect(typeof context.openingLoader).toBe("function");
+      expect(calls.some((c) => c.method === "get_asset_pools" || c.method === "get_version")).toBe(
+        false,
+      );
+      // The recording has no pool views for this pair: the read fails, it never invents values.
+      await expect(context.openingLoader?.()).rejects.toThrow();
+    });
+    it("has no loader when opening is not configured", async () => {
+      const { fetchImpl } = transport();
+      const context = await createContextLoader(requiredConfig(), fetchImpl)(
+        { message: "Hi", accountId },
+        new AbortController().signal,
+      );
+      expect(context.openingLoader).toBeUndefined();
+    });
+  });
 });

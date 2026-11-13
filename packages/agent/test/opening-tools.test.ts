@@ -507,3 +507,69 @@ describe("registry and boundaries", () => {
     expect(r.ok).toBe(false);
   });
 });
+
+describe("the opening context is loaded lazily and only when a tool needs it", () => {
+  const base = () => {
+    const c = ctx();
+    const { opening, ...rest } = c;
+    return { rest, opening: opening as NonNullable<ToolContext["opening"]> };
+  };
+
+  it("never loads for any other tool, and loads for each opening tool call", async () => {
+    const { rest, opening } = base();
+    let loads = 0;
+    const c: ToolContext = {
+      ...rest,
+      openingLoader: async () => {
+        loads++;
+        return opening;
+      },
+    };
+    await dispatch({ name: "get_position", arguments: {} }, c);
+    await dispatch({ name: "explain_term", arguments: { term: "collateral" } }, c);
+    expect(loads).toBe(0);
+    expect((await run("quote_opening", { target_health_percent: "120" }, c)).ok).toBe(true);
+    expect(loads).toBe(1);
+    expect(
+      (
+        await run(
+          "propose_opening",
+          { stage: "borrow", amount: "1", target_health_percent: "120" },
+          c,
+        )
+      ).ok,
+    ).toBe(true);
+    expect(loads).toBe(2);
+  });
+
+  it("a loader that returns null or throws makes the tools unavailable, never a guess", async () => {
+    const { rest } = base();
+    for (const openingLoader of [
+      async () => null,
+      async () => {
+        throw new Error("rpc down");
+      },
+    ]) {
+      const c: ToolContext = { ...rest, openingLoader };
+      expect(refusalOf(await run("quote_opening", {}, c)).code).toBe("not_available");
+      expect(
+        refusalOf(await run("propose_opening", { stage: "borrow", amount: "1" }, c)).code,
+      ).toBe("not_available");
+    }
+  });
+
+  it("an already-supplied opening context wins over the loader", async () => {
+    const { opening } = base();
+    let loads = 0;
+    const c: ToolContext = {
+      ...ctx(),
+      opening,
+      openingLoader: async () => {
+        loads++;
+        return null;
+      },
+    };
+    expect((await run("quote_opening", {}, c)).ok).toBe(true);
+    expect(loads).toBe(0);
+  });
+});

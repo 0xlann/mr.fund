@@ -1,6 +1,8 @@
 import type { SourceNumber } from "./numbers";
 import { RUNNERS, type ToolContext, type ToolResult } from "./tools";
 
+const OPENING_TOOLS: ReadonlySet<string> = new Set(["quote_opening", "propose_opening"]);
+
 export interface ToolCall {
   name: string;
   /** Untrusted: whatever the model produced. */
@@ -18,7 +20,13 @@ export async function dispatch(call: ToolCall, ctx: ToolContext): Promise<ToolRe
     };
   }
   try {
-    return await run(call.arguments as Record<string, unknown>, ctx);
+    let context = ctx;
+    if (OPENING_TOOLS.has(call.name) && !ctx.opening && ctx.openingLoader) {
+      // A loader that throws or returns null leaves the tool "not available"; never a guess.
+      const opening = await ctx.openingLoader().catch(() => null);
+      context = opening ? { ...ctx, opening } : ctx;
+    }
+    return await run(call.arguments as Record<string, unknown>, context);
   } catch {
     return {
       ok: false,
