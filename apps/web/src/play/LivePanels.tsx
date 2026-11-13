@@ -1,4 +1,5 @@
 import { type ReactNode, useEffect, useRef } from "react";
+import type { useLiveOpening } from "../execution/useLiveOpening";
 import type { useLiveRepay } from "../execution/useLiveRepay";
 import { ChatComposer } from "./ChatComposer";
 import { ChatRow, chatBubbleClass, ThinkingRow } from "./chatAppearance";
@@ -9,6 +10,7 @@ import { liveSuggestions } from "./live/liveSuggestions";
 import { RepayFocus } from "./live/RepayFocus";
 import { RichText } from "./live/RichText";
 import { SuggestionChips } from "./live/SuggestionChips";
+import { OpeningExecution } from "./OpeningExecution";
 import { RepayExecution } from "./RepayExecution";
 import { formatAtomic } from "./source/formatAtomic";
 import type { useLiveConsultation } from "./useLiveConsultation";
@@ -80,6 +82,7 @@ export function LivePositionPanel({ live }: { live: Live }) {
 export function LiveChatPanel({
   live,
   repay,
+  opening,
   phone,
   setComposerFocused,
   setKeyboardHeight,
@@ -87,6 +90,7 @@ export function LiveChatPanel({
 }: {
   live: Live;
   repay: ReturnType<typeof useLiveRepay>;
+  opening: ReturnType<typeof useLiveOpening>;
   phone: boolean;
   setComposerFocused: (v: boolean) => void;
   setKeyboardHeight: (v: number | null) => void;
@@ -174,6 +178,14 @@ export function LiveChatPanel({
                   card={live.card}
                   store={repay.store}
                   view={repay.view}
+                  onSettled={live.refresh}
+                />
+              </RepayFocus>
+              <RepayFocus phase={opening.view.phase}>
+                <OpeningExecution
+                  card={live.card}
+                  store={opening.store}
+                  view={opening.view}
                   onSettled={live.refresh}
                 />
               </RepayFocus>
