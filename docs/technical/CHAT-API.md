@@ -46,6 +46,10 @@ After HTTP 200, consumers must inspect `error`/`done`, not assume inference succ
 
 `summary.elapsedMs` measures the agent loop after context reads; measure full HTTP latency separately to include RPC preparation and framework overhead. Cached input and reasoning token counts are subsets of input/output, not extra tokens to add again. Usage is provider-reported, observed-only: absent metadata is represented as zero and interrupted/failed calls may consume unreported tokens. It is not a billing statement.
 
+## Opening-position tools (2026-11-13, `add-chat-open-position` 5.1)
+
+Status [V, local only]: the agent has two more tools, both closed to anything but the values below. `quote_opening({target_health_percent?})` is read-only and returns the engine's maximum additional borrow, target, collateral, wallet balance, APR, health and data age. `propose_opening({stage, amount, token?, target_health_percent?})` builds one draft card for a `deposit` or, as a separate later card, a `borrow`. Every other value (lending contract, version, account, pools, liquidity, registrations, fee, receivers, gas, messages) comes from a server-supplied `OpeningToolContext`; no argument can name one, and the payload never appears in the model's tool message. The tools answer `not_available` until the server supplies that context, and `fee_policy_missing` until an approved opening fee (or an approved none) is configured; neither is wired yet. A reply that quotes a maximum, health or threshold no tool returned fails the number guard, and claims of having deposited or borrowed are refused as execution claims. The persona was extended for this; the live model evaluation has not been rerun with it.
+
 ## Runtime limits and failure behavior
 
 - One 60-second server deadline begins before request body/context reads. Request-scoped RPC transports and provider calls inherit cancellation. The agent independently caps its loop at 60 seconds, without extending the enclosing server deadline.
