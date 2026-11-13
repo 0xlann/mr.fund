@@ -290,3 +290,47 @@ Read durations include HTTP body consumption; calls remain individual POSTs, not
 | storage_balance_bounds | 11 | 233 / 314 |
 
 [U, owner: lead/D25] The positioned account's English position explanation and price-shock question still timed out in all three final repeats; the Indonesian explanation completed only once. A second provider call reached **47270 ms** before the enclosing deadline. This is not a passing latency acceptance for common positioned-account questions. The measured context reduction and endpoint recommendation are retained, but no model swap, fabricated tool-only answer or guard bypass is used to hide the remaining provider bottleneck.
+
+## Live multilingual rerun (2026-11-13)
+
+[V] Ran the documented `LIVE_CHAT_EVAL=1 pnpm exec vitest run packages/agent/test/live-eval.test.ts --reporter=verbose`, hydrating credentials from the ignored worktree `.env` without printing them. The first attempt hit the old **1200000 ms** harness timeout before a complete report was written. The corrected **2400000 ms** harness completed the unchanged 36-case dataset in **1830958 ms**; the recording test passed, **not the model-acceptance gate**.
+
+[V] Full live report: `scratch/chat-eval/z-ai-glm-5.3-flash.json`, `runAt: 2026-11-13T05:07:58.374Z`; review template: `scratch/chat-eval/manual-review-template.json`. Model `z-ai/glm-5.3-flash`, temperature **0.2**, `max_tokens` **1024**, `thinking_token_budget` **256**. The fixture remains **Simulated**, version `chat-eval-2026-11-08-v1`; no public position, price, fee or Guardian action is represented by these synthetic cases. No comparison with another model was performed.
+
+| Complete-dataset measure | Observed result |
+| --- | --- |
+| Successful model turns | 20 / 36 |
+| Timeouts with template text | 16 / 36 |
+| Other terminal errors | 0 |
+| Guard hits / affected turns | 8 / 8 |
+| Numeric provenance checks | 36 / 36 pass |
+| Automated content checks | 20 / 36 pass |
+| Guarded-output forbidden-claim checks | 36 / 36 pass |
+| Card checks | 35 / 36 pass |
+| Language heuristic | 33 / 36 pass |
+| Independent exact-output reviews | 0 completed; 36 pending |
+| Mean / max case latency | 50858.671 / 60025.881 ms |
+| `modelAccepted` | false |
+
+[V] Scenario outcomes below use **M** for a guarded model answer and **T** for a timeout/template. All 16 automated content failures occurred on timeout outputs; this does not establish human-level correctness of the 20 model outputs.
+
+| Scenario | English | Indonesian | Spanish | Automated content passes |
+| --- | --- | --- | --- | --- |
+| position | M | M | T | 2 / 3 |
+| comparison | M | T | M | 2 / 3 |
+| what-if | M | M | M | 3 / 3 |
+| repay | M | T | T | 1 / 3 |
+| glossary | M | M | M | 3 / 3 |
+| Guardian status | M | T | T | 1 / 3 |
+| Guardian history | T | T | T | 0 / 3 |
+| missing input | T | T | M | 1 / 3 |
+| stale input | M | T | T | 1 / 3 |
+| unsupported transfer | M | M | M | 3 / 3 |
+| unsupported protocol | T | M | T | 1 / 3 |
+| injection | M | T | M | 2 / 3 |
+
+[V] `repay.es` timed out without the required unsigned draft, causing the single card-check failure; no malformed/excess-spend card was identified by that check. Heuristic failures were `guardian-history.en`, `missing.en` and `protocol.en`, all timeout templates, not independently verified wrong-language model replies. A direct scan of all 36 delivered texts found **zero em/en dashes**.
+
+[V] Observed validated-reply usage: **99719 input tokens**, including **32256 cached**; **20619 output tokens**, including **15957 reasoning**. Subsets are not added again. Interrupted/failed calls can consume unreported tokens; no billing total or cost is inferred.
+
+**BLOCKER [U, owner: lead/D25]:** the current GLM does not meet the existing complete-dataset criteria: only 20 model answers, failed content/card checks, heuristic below 34/36 and no independent exact-output review. D25/P3.4 and `add-tool-driven-chat-api` 3.3 remain open. No acceptance test, numeric guard, tool boundary or model setting was weakened to obtain a passing recording test. The next decision is the lead's model/latency-quality review using these exact saved outputs, not a claim of deployment readiness.
