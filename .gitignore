@@ -18,6 +18,8 @@ dist/
 build/
 out/
 .next/
+# Next dev regenerates this local framework-reference file.
+/apps/web/AGENTS.md
 coverage/
 *.tsbuildinfo
 *.wasm.map
@@ -34,3 +36,9 @@ desktop.ini
 *.swp
 .idea/
 .vscode/
+
+# Test runner artifacts.
+.vitest/
+
+# Original download archive; the extracted runtime GLB is versioned.
+apps/web/public/businessman-rigged.zip

@@ -18,7 +18,7 @@ The PRD defines scope, the technical specs define interfaces, and the BUILD-PLAN
 ## Deadlines and authority
 
 - Build window 2026-11-05 to 2026-11-14 UTC. Phase 0 gate 2026-11-06 23:59; core gate 2026-11-11 23:59; feature freeze 2026-11-12 23:59; submission target 2026-11-14 12:00; hard deadline 2026-11-14 23:59:00 (event rules, nearhackathon.com/HACKATHON.md).
-- Stack (D16), Guardian custody (D18) and demo network (D19) are open until the Phase 0 gate. Do not scaffold an app framework before D16 is decided.
+- Stack is decided: D16 Option A (2026-11-05). Guardian custody (D18) and demo network (D19) stay open until the Phase 0 gate.
 - Needs explicit human authorization every time: mainnet transactions or deployments, spending real funds, creating accounts, logins, public posts, submissions, adding remotes, force pushes, destructive git operations. Testnet probes and deployments in BUILD-PLAN Phase 0 and P2.8 are authorized for the lead.
 - Never commit secrets. Keys live in local `.env` (gitignored) or the NEAR CLI keychain.
 
@@ -62,7 +62,13 @@ Amounts are integers in token atomic units (`bigint` in TypeScript, `u128` in Ru
 - Do not suppress errors or warnings to make a demo pass. Unclear permission or an unverified external prerequisite becomes an owner-tagged BLOCKER, never a mock success.
 - Delete obsolete paths when cutting over; migrate every caller.
 
-Stack-specific standards are added here at BUILD-PLAN P0.7 after D16 is decided.
+Stack-specific standards (D16 Option A, BUILD-PLAN P0.7):
+
+- TypeScript in a pnpm 12 workspace (`apps/*`, `packages/*`); strict mode with `noUncheckedIndexedAccess` and `exactOptionalPropertyTypes` from `tsconfig.base.json`. Dependencies are pinned to exact versions; add one only for a task that needs it.
+- Workspace packages ship TypeScript source (`exports` points at `src/index.ts`) with no build step; the web app compiles them (`transpilePackages`). A package imports another only if it lists it in `dependencies`, which enforces the ARCHITECTURE import rules.
+- `apps/web` is Next.js App Router; the chat API is Route Handlers. `apps/watcher` is a plain Node process. Browser-visible env vars use the `NEXT_PUBLIC_` prefix and are never secret.
+- Lint and format with Biome on code files only (`pnpm lint`; `biome format --write` is for `apps/` and `packages/`). Never run a formatter over `docs/` or `CLAUDE.md`.
+- Tests: `pnpm test` (Vitest, all packages) or `npx vitest run packages/<name>`; `pnpm typecheck`; `pnpm contracts:test` (`cargo test` in `contracts/`). Contract dependencies (`near-sdk` 5.30.0, `near-workspaces` 0.24.0) are added by the task that first needs them.
 
 ## UX bar
 

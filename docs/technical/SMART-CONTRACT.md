@@ -11,6 +11,10 @@ This is the interface contract among the Guardian implementation, its clients (w
 
 ## Storage and state machine
 
+P2.1 implementation [V, 2026-11-06]: `new(config: GuardianConfig, policy: Policy)` groups immutable ids internally and initializes `created`. Enums serialize snake_case to match shared TypeScript; amounts, op ids and nanosecond times are decimal strings. `set_policy` also requires `lifetime_cap >= spent_total`, preserving I3 across updates. History `from` indexes the retained ring and `limit` clamps to 50. P2.2 below adds the token receiver and reserve lifecycle; automatic repay, upgrade and access-key methods are absent. Keyless factory creation remains separate evidence.
+
+P0.4 read-only evidence [V, 2026-11-06]: joined position/config/feed/price reads reproduce shared engine vectors exactly, with null/expired/future prices rejected and derivative `extra_call` positions unsupported. Read-only gas burnt was 30.586–32.106 Tgas. Composed prototype evidence [V, 2026-11-07]: both imported 0.11.0 and 0.16.2 execute reads → repayment → resolver → fee callback with a 300 Tgas root allocation, including full-refund, token-failure and fee-failure paths. These use sandbox tokens and Simulated prices; they do not establish production token/oracle gas performance, liquidation protection or public deployment readiness. See [settlement evidence](GUARDIAN-SETTLEMENT.md). D18/D19/B7 remain open; no watcher-only D27 fallback has been selected.
+
 Units: token amounts are `U128` atomic units of that token (JSON decimal strings). Health and thresholds are basis points, `u32`, where 10000 = 100%. Time is nanoseconds from `env::block_timestamp()` stored as `u64`; durations in policy are seconds.
 
 ### Guardian
@@ -48,14 +52,19 @@ pub struct Policy {
 
 pub struct InFlight { op_id: u64, amount: u128, fee: u128, started_ns: u64 }
 pub struct Attempt { op_id: u64, at_ns: u64, requested: U128, outcome: Outcome, reason: Option<RejectReason>, used: U128, fee: U128 }
-pub enum Outcome { Rejected, Started, Settled, Failed }
+pub enum Outcome { Rejected, Started, Settled, Failed, Unresolved }
 pub enum RejectReason {
     NotActive, InFlight, Cooldown, ZeroAmount, AboveMaxPerAction, AboveLifetimeCap,
     BelowReserveFloor, TriggerNotMet, StalePrice, UnsupportedPositionShape,
+    InvalidConfig, BadResponse, ArithmeticOverflow,
 }
 ```
 
 Constants: `MIN_TRIGGER_HF_BPS = 10500`, `MIN_COOLDOWN_SEC = 300`, `HISTORY_LEN = 50`. These are lead proposals [I] (D28) and are measured against gas in P2.7.
+
+Settlement ABI additions (local rebuild required): immutable `GuardianConfig` additionally requires `lending_version: String` (exactly `0.11.0` or `0.16.2`), `debt_extra_decimals: u8`, `collateral_extra_decimals: u8` (both ≤38), `collateral_price_id: String`, `debt_price_id: String` (64 hex characters), and `max_price_age_sec: u32` (1–3600). `get_config()` exposes this snapshot. Runtime reads must match version, both asset extra-decimal values, oracle id, feed ids and Rhea's freshness limit before dispatch. Unknown/mismatched configuration refuses without retry. Client/factory builders must supply verified configuration rather than model-selected targets.
+
+`get_status().in_flight.repay_phase` is `null` for reserve operations, `"reading"`, `"repaying"`, `{"fee":{"used":"…"}}`, or `"unresolved"`. The same `in_flight` lock spans reads, repayment and fee settlement. Unresolved operations intentionally block deposits, withdrawals, policy updates and subsequent repayments. There is no timeout unlock, balance overwrite, administrative recovery or upgrade entrypoint; recovery is not implemented because a provable reconciliation boundary has not been established.
 
 ### State machine
 
@@ -74,19 +83,28 @@ stateDiagram-v2
 
 ### Factory
 
+Decided in task 1.3 of `add-guardian-position-and-factory` from the measured experiment below [I, design; measurements [V]]. This replaces the earlier sketch that had an admin-settable code hash and caller-chosen labels.
+
 ```rust
 #[near(contract_state)]
 pub struct GuardianFactory {
-    admin_id: AccountId,            // can set code for future Guardians only
-    guardian_code_hash: Base58CryptoHash, // code used for new Guardians (global contract or stored bytes, decided in P2.6)
-    lending_id: AccountId, oracle_id: AccountId, fee_recipient_id: AccountId,
-    allowed_debt_tokens: Vec<AccountId>, allowed_collateral_tokens: Vec<AccountId>,
-    activation_fee: U128,           // per debt token, D24
-    created: LookupMap<AccountId, AccountId>, // guardian -> owner
+    template: GuardianTemplate,          // every GuardianConfig field except owner_id; immutable after init
+    min_funding: U128, max_funding: U128, // NEAR bounds on the attached deposit
+    nonce: LookupMap<AccountId, u32>,     // per owner; advances only after a successful creation
+    pending: LookupSet<AccountId>,        // owners with a creation in flight
+    latest: LookupMap<AccountId, AccountId>, // owner -> newest ready Guardian
+    created: LookupMap<AccountId, AccountId>, // guardian -> owner, written after init succeeded
+    unclaimed: LookupMap<AccountId, U128>,   // refunds whose transfer to the owner failed
 }
 ```
 
+The Guardian code is the factory's own bytes (`include_bytes!` of the prepared Guardian build). There is no `set_guardian_code`: a different Guardian build needs a newly deployed factory, which by construction affects new Guardians only. The factory has no method that touches an existing Guardian.
+
 ## Public interfaces
+
+P2.2 implementation [V, 2026-11-06]: `GuardianConfig` now includes immutable `activation_fee: U128`; this is not a chosen product price (D24 remains open). `ft_on_transfer` accepts only owner-sent debt tokens with strict `activate`/`reserve` messages. Deposits during a pending operation return the full amount to serialize accounting. Activation books reserve and enters Active only after fee success; fee failure returns the full incoming amount to the outer NEP-141 resolver. Withdrawals debit before transfer and restore on observed failure. Private callbacks check operation id and reserve-operation kind. Owner withdrawal works in every status, including Created, to avoid trapping preactivation topups (I9). Added failure events: `activation_failed`, `reserve_withdraw_failed`.
+
+Boundary: owner predecessor + exactly 1 yocto for withdrawals; configured debt-token predecessor + owner sender for deposits. Invariants exercised: I1's owner-withdrawal exception, I4, I5, I8, I9. Negative tests include unauthorized/wrong-token deposits, below-minimum activation, pending withdrawals and real NEP-141 recipient-registration failures. This does not guarantee Rhea repayment or trigger verification and assumes a conforming configured token.
 
 Check order matters: authentication first, then state, then arguments, then external calls. All JSON. Every rejection by an authorized caller returns a value and writes history; unauthorized calls panic and change nothing.
 
@@ -94,9 +112,9 @@ Check order matters: authentication first, then state, then arguments, then exte
 
 | Method | Caller | Deposit | Preconditions | Effects | Returns |
 | --- | --- | --- | --- | --- | --- |
-| `create_guardian(label: String, debt_token_id, collateral_token_id, watcher_id, policy: Policy)` | anyone (becomes owner) | NEAR ≥ storage estimate + Rhea registration (0.1 NEAR live minimum) + token registrations | label valid and unused; tokens allowed; policy valid | Create `<label>.<factory>` with **no access keys**, deploy code, call `new`, then the Guardian registers itself with lending and tokens | `Promise` resolving to the Guardian account id |
-| `set_guardian_code(...)` | `admin_id` | 1 yocto | none | Changes code for future Guardians only | `()` |
-| `get_guardian(account_id)`, `get_config()` | anyone (view) | none | none | none | Owner, config |
+| `create_guardian(policy: Policy)` | anyone; the predecessor becomes the owner | NEAR in `[min_funding, max_funding]`; anything outside is rejected up front and the deposit returns automatically | caller has no creation in flight; policy parses | Derive `<32 hex of sha256(owner ‖ nonce)>.<factory>`, then in ONE batch: create account, transfer the deposit, deploy the embedded code, call `new(template + owner, policy)`. No key action is ever added. A private callback publishes the owner mapping only after the batch succeeded | `Promise` resolving to `CreateOutcome` |
+| `claim_refund()` | owner | 1 yocto | `unclaimed[owner] > 0` | Debit then transfer; restore on observed failure | `Promise` |
+| `get_guardian(owner_id)`, `get_owner(guardian_id)`, `get_template()`, `get_limits()`, `get_unclaimed(owner_id)` | anyone (view) | none | none | none | Ids, template, bounds |
 
 ### Guardian: token receiver
 
@@ -106,8 +124,8 @@ Check order matters: authentication first, then state, then arguments, then exte
 | --- | --- | --- | --- | --- |
 | `{"activate":{}}` | owner, status `Created` | debt token | `amount ≥ activation_fee + policy.reserve_floor + policy.max_per_action + policy.action_fee`; forward `activation_fee` to fee recipient; book the rest as reserve; status → `Active`; event `activated` | 0, or full amount if rejected |
 | `{"reserve":{}}` | owner | debt token | Book as reserve; event `reserve_deposited` | 0 |
-| `{"collateral":{}}` | owner | an allowed collateral token | `ft_transfer_call(lending_id, amount, "{\"Execute\":{\"actions\":[{\"IncreaseCollateral\":{\"token_id\":…,\"amount\":null,\"max_amount\":null}}]}}")` with 1 yocto from Guardian balance [exact message shape proven in P0.3] | Amount Rhea returns as unused |
-| `{"repay":{}}` | owner | debt token | `ft_transfer_call(lending_id, amount, "\"OnlyRepay\"")`; excess becomes Guardian supplied balance, sweepable by owner | Amount Rhea returns |
+| `{"collateral":{}}` | owner | the configured collateral token | `ft_transfer_call(lending_id, amount, {"Execute":{"actions":[{"IncreaseCollateral":{"token_id":…}}]}})` with 1 yocto from the Guardian balance (the form proven in P0.3; no `amount`/`max_amount` fields). Takes the shared lock until `on_collateral_resolved` | Amount Rhea did not use; the full amount when the result is missing, malformed, oversized or above the amount (the outer resolver refunds at most what the Guardian still holds) |
+| `{"repay":{}}` (not implemented; owner repays from the reserve with `owner_repay_from_reserve`) | owner | debt token | `ft_transfer_call(lending_id, amount, "\"OnlyRepay\"")`; excess becomes Guardian supplied balance, sweepable by owner | Amount Rhea returns |
 | anything else, or any other sender or token | — | — | Reject | Full amount |
 
 ### Guardian: automatic action
@@ -122,19 +140,20 @@ Check order matters: authentication first, then state, then arguments, then exte
 6. `amount ≤ max_per_action`, else `Rejected(AboveMaxPerAction)`. **This is the demo's over-limit rejection.**
 7. `spent_total + amount + action_fee ≤ lifetime_cap`, else `Rejected(AboveLifetimeCap)`.
 8. `reserve − amount − action_fee ≥ reserve_floor` (checked subtraction), else `Rejected(BelowReserveFloor)`.
-9. D27 preferred path: promise `lending.get_account(self)` and `lending.get_assets([collateral, debt])` and `lending.get_token_pyth_info` (cached at activation) and `oracle.get_price_no_older_than(price_id, age = lending pyth_price_valid_duration_sec)` per asset, then callback `on_trigger_checked(op_id, amount)`. The callback re-runs checks 2 to 8 (state may have changed), rejects `StalePrice` on any null price, `UnsupportedPositionShape` if the account holds anything other than the one collateral and one debt token, `TriggerNotMet` if the computed health ≥ `trigger_hf_bps`. Under the D27 fallback this step is skipped and `action_fee` must be 0.
-10. Lock: `in_flight = Some({op_id, amount, fee: action_fee})`, `reserve -= amount`, `last_action_started_ns = now`; event `repay_started`.
-11. `ft_transfer_call(lending_id, amount, "\"OnlyRepay\"")` on `debt_token_id` with 1 yocto and fixed gas, then callback `on_repay_resolved(op_id)`.
-12. `on_repay_resolved`: read the `ft_transfer_call` result as the used amount (the token's `ft_resolve_transfer` has already refunded the unused part to the Guardian). `reserve += amount − used`. If `used > 0` and `fee > 0`: `reserve -= fee`, `ft_transfer(fee_recipient_id, fee)`. `spent_total += used + fee_charged`. Clear `in_flight`. Event `repay_settled {op_id, used, refunded, fee}`. On promise failure: `reserve += amount` (tokens never left, or were refunded), clear `in_flight`, event `repay_failed`. Rejections in step 9 also clear any partial state and record history.
+9. Lock **before** asynchronous reads, allocate an op id and record a Started attempt (`repay_requested`). Read the account, two assets, two feed mappings, two prices, lending config and version on each request. Legacy uses `get_price(price_identifier)`; modern uses `get_price_no_older_than(price_id, age)`. Private `on_trigger_checked(op_id)` verifies the Reading phase, rechecks status/cooldown/bounds, verifies runtime config and evaluates the stored policy's strict threshold with current timestamp. Pause/deactivation prevents dispatch. Invalid reads reject and release the read lock without spending. There is no watcher-only fallback implemented.
+10. At dispatch reserve **amount plus fee**, set the Repaying phase and `last_action_started_ns = now`, emit `repay_started`. A failed or refunded dispatch still starts cooldown.
+11. Call the fixed debt token's `ft_transfer_call` with 1 yocto, 85 Tgas, and the version-specific message: modern `"OnlyRepay"`; legacy `Execute → Repay.max_amount` in checked internal units. Attach `on_repay_resolved(op_id)` with 40 Tgas and zero unused-gas weight.
+12. A validated decimal-string used amount within `[0, amount]` restores `amount − used` and adds **accepted token spend** to `spent_total`. Full refund restores the reserved fee, records Failed and unlocks with no charge. Positive use and nonzero fee schedule a 10 Tgas transfer plus 10 Tgas `on_repay_fee_resolved(op_id)`; keep the lock through this terminal callback. An explicit failed fee transfer restores the fee; successful fee increases cumulative spend. Malformed, oversized, missing, impossible or failed repayment resolver results enter Unresolved with **no assumed refund** and retain the lock. A failed outer promise does not prove tokens returned. Terminal history/events carry `used`, refunded amount and actual fee; accepted surplus supplied at Rhea is counted as spend rather than claimed debt reduction.
 
-`RequestOutcome = Rejected { reason } | Executed { op_id, used, fee } | Failed { op_id }`.
+`RequestOutcome` uses an internal `outcome` tag: `{"outcome":"rejected","op_id":"…","reason":"…"}`, `{"outcome":"executed","op_id":"…","used":"…","fee":"…"}`, `{"outcome":"failed","op_id":"…"}` or `{"outcome":"unresolved","op_id":"…"}`. U128/U64 values are decimal strings. History retains at most 50 attempts, updating an existing started attempt when still retained; NEP-297 events preserve full operation correlation. Additional events: `repay_requested`, `repay_fee_failed`, `repay_unresolved`.
 
 ### Guardian: owner methods
 
 | Method | Deposit | Effect | Notes |
 | --- | --- | --- | --- |
-| `owner_borrow(amount: U128)` | 1 yocto | `lending.execute_with_pyth([Borrow(debt, amount), Withdraw(debt, amount)])` with 1 yocto; tokens arrive at the Guardian; callback event `owner_borrowed` | Needs fresh prices (Rhea) |
-| `owner_withdraw_collateral(amount: U128)` | 1 yocto | `execute_with_pyth([DecreaseCollateral, Withdraw])` for the collateral token | Needs prices while debt remains |
+| `owner_register(target_id, storage_deposit: U128)` | 1 yocto | `storage_deposit(registration_only)` on `lending_id`, the debt token or the collateral token, paid from the Guardian's own NEAR | Any other target is refused; the deposit must be positive |
+| `owner_borrow(amount: U128)` | 1 yocto | `lending.execute_with_pyth([Borrow(debt, amount), Withdraw(debt)])` with 1 yocto (the Withdraw omits its amount so Rhea withdraws the whole supplied balance; an exact amount reverts on a pool whose share price is not 1); tokens arrive at the Guardian; callback event `owner_borrowed` | Needs fresh prices (Rhea) |
+| `owner_withdraw_collateral(amount: U128)` | 1 yocto | `execute_with_pyth([DecreaseCollateral(amount), Withdraw(token)])` for the collateral token, Withdraw without an amount | Needs prices while debt remains |
 | `owner_sweep(token_id: AccountId)` | 1 yocto | `ft_balance_of(self)` then transfer to owner everything above `reserve + in_flight.amount` (debt token) or the full balance (other tokens) | Borrowed tokens and Rhea refunds leave this way |
 | `owner_withdraw_reserve(amount: U128)` | 1 yocto | Requires no in-flight; `reserve -= amount`; `ft_transfer(owner, amount)`; restores on failure | Floor binds the Guardian, not the owner |
 | `owner_repay_from_reserve(amount: U128)` | 1 yocto | Same transfer as step 11, without fee, without trigger check | Manual, owner-signed |
@@ -143,6 +162,17 @@ Check order matters: authentication first, then state, then arguments, then exte
 | `pause()`, `resume()`, `deactivate()` | 1 yocto | Status transitions above; events | `deactivate` is terminal for automation |
 
 The 1 yocto deposit on owner methods forces a full-access-key (wallet) confirmation; a function-call key can never call them.
+
+P2.4 implementation [V, local sandbox and unit tests, 2026-11-07]: `contracts/guardian/src/position.rs` adds `owner_register`, `owner_borrow`, `owner_withdraw_collateral`, `owner_repay_from_reserve`, `owner_sweep` and the `collateral` receiver message. Amounts into Rhea actions are token atomic units times `10^extra_decimals`; overflow and zero panic before any state change. The manual repay uses the same version-specific message builder as the automatic path (`repay_message`).
+
+- **Permission boundary:** the stored owner plus exactly 1 yocto for every method; fixed targets (configured lending contract and the two configured tokens); callbacks are `#[private]` and bound to the operation id and kind. The watcher cannot call any of them.
+- **Lock:** each operation sets the shared `in_flight` plus a `pending_position` kind. `request_repay`, reserve deposits, withdrawals and every other position method are refused until the callback releases it. An ambiguous manual-repay result sets the terminal `Unresolved` kind: the reserve debit stays, nothing is restored and there is no administrative unlock, the same rule as the automatic path.
+- **Invariants:** I4 (reserve leaves only through the fixed repay message, to the fee recipient, or to the owner), I5, I9 and the reserve-exclusion rule. Manual repay debits the reserve before the transfer and restores only `amount − used` for an explicitly observed used amount in `[0, amount]`. It adds nothing to `spent_total` and charges no fee: the lifetime cap and floor bound the automatic path, not the owner.
+- **Sweep:** reads `ft_balance_of(self)` under the lock, then transfers the balance above `reserve + in-flight amount + in-flight fee` for the debt token, or the whole balance for any other token. The amount is computed when the reply arrives, not from a value read before the lock. A missing, malformed or oversized reply sends nothing and releases the lock.
+- **Negative tests:** foreign and watcher callers, missing or extra yocto, every method while locked (including `Unresolved`), unsupported registration targets, zero and overflowing amounts, wrong sender/token/message for the collateral deposit, forged or replayed callbacks, callbacks for the wrong kind or phase, ambiguous repay results, reserve changed during the balance read, committed in-flight amounts, and a mutation check that removing the reserve exclusion fails three tests.
+- **Does not guarantee:** that Rhea accepted an action beyond the immediate promise result (the sandbox reads positions and token balances back instead), that a price is fresh enough for Rhea to accept a borrow or release, or any liquidation protection.
+
+Measured in the sandbox against the imported deployed Rhea code, total gas burnt including detached receipts, Tgas (0.11.0 / 0.16.2): `owner_register` 8, 6, 6; collateral deposit 18 / 19; `owner_borrow` 23 / 25; `owner_sweep` 10 (6 when empty); `owner_repay_from_reserve` 14; `owner_withdraw_collateral` 20 / 21. Prices are Simulated fixtures. The budgets in code (240 Tgas for a Rhea `execute_with_pyth`, 100 Tgas for the collateral transfer, 85 Tgas for the repay transfer) are conservative reservations, not measurements of public-network cost.
 
 ### Guardian: views
 
@@ -155,6 +185,8 @@ NEP-297 log lines `EVENT_JSON:{"standard":"mrfund_guardian","version":"1.0.0","e
 ## Encodings and invariants
 
 - Rhea message strings are JSON **inside** the NEP-141 `msg` string: `"\"OnlyRepay\""` is the JSON string `"OnlyRepay"`; `Execute` is `{"Execute":{"actions":[…]}}`. `AssetAmount` is `{token_id, amount?, max_amount?}`; set exactly one of `amount` or `max_amount` (source checks `amount` first). Amounts inside Rhea actions are Rhea internal units (token atomic × `10^extra_decimals`); amounts in `ft_transfer_call` are token atomic units. A shared test vector file `fixtures/encodings.json` is asserted from both Rust and TypeScript (P2.7, P4.2).
+- **Repay message depends on the deployed Rhea version [V, P0.3 sandbox, 2026-11-06]:** mainnet `0.16.2` accepts `"OnlyRepay"`; deployed testnet `0.11.0` rejects it and repays through `Execute` with a `Repay` action whose amount is in Rhea internal units. The Guardian's repay method must be chosen per configured lending contract version and tested on the network D19 picks; the statements above that use `"OnlyRepay"` describe mainnet.
+- **Rounded full-repay correction [V, 2026-11-06]:** the legacy action must use bounded `max_amount`, not strict `amount`. Sandbox debt with subatomic dust caused strict overpayment to panic in deployed 0.11.0's pool arithmetic; the same call with `max_amount` cleared the debt and retained the exact excess as supplied balance. The TypeScript builder and explicit probe path now use this form. This is not a guarantee that accepted tokens all reduced debt; verify post-state separately.
 - No signatures, nonces or off-chain payloads are accepted by the Guardian; authority is the NEAR predecessor plus the deposit rule. Replay is not applicable; double execution is prevented by the in-flight lock and cooldown.
 
 **Invariants (each has a negative test in the matrix):**
@@ -164,7 +196,7 @@ NEP-297 log lines `EVENT_JSON:{"standard":"mrfund_guardian","version":"1.0.0","e
 | I1 | After every settled or failed action: `reserve ≥ reserve_floor`, unless the owner withdrew below it |
 | I2 | No single automatic repay exceeds `max_per_action` |
 | I3 | `spent_total ≤ lifetime_cap` |
-| I4 | Reserve tokens leave only to `lending_id` with `"OnlyRepay"`, to `fee_recipient_id` (at most `action_fee` per settled action, plus the activation fee once), or to `owner_id` |
+| I4 | Reserve tokens leave only to `lending_id` through the verified version's fixed repay message (`OnlyRepay` or bounded `Execute` containing only `Repay`), to `fee_recipient_id` (at most `action_fee` per settled action, plus the activation fee once), or to `owner_id` |
 | I5 | Only `watcher_id` or `owner_id` can call `request_repay`; only `owner_id` can call owner methods |
 | I6 | At most one action in flight; starts are separated by at least `cooldown_sec` |
 | I7 | `Paused` or `Deactivated` ⇒ `request_repay` never starts an action |
@@ -205,4 +237,72 @@ No formal verification is claimed. A review with `near-contract-audit` guidance 
 
 ## Deployment and measured costs
 
+### Provisioning experiment (task 1.2) [V, local sandbox, 2026-11-07]
+
+Source: the throwaway `contracts/provision-spike` crate and `contracts/tests/tests/provisioning.rs`, removed when the real factory replaced them; reproduce from git commit `85ddd3c`, near-sandbox 2.14.0 via near-workspaces 0.24.0, near-sdk 5.30.0, Guardian build 236,924 bytes (SHA-256 bs58 `8aNiFES2WSQQkBRTWkvTz8yGzFpKmLUvYqBgkYVmyQin`). Local state only; no public network was written. Testnet read-only RPC on the same date: nearcore `2.14.0-rc.5`, protocol 88, `storage_amount_per_byte` 1e19 yocto, `global_contract_host_fns: true`. This shows the testnet runtime exposes the host functions; it does not show a global contract was ever published or used on testnet.
+
+| Measurement | Stored code (embedded, `deploy_contract`) | Global contract (`use_global_contract` by hash) |
+| --- | --- | --- |
+| Child code reference | local code | `GlobalHash` equal to the Guardian build hash |
+| Access keys after creation | none | none |
+| Child storage after `new` | 237,578 B | 686 B |
+| Creation funding floor | 2.37578 NEAR: exactly that succeeds, one yocto less fails | see storage-check note |
+| Extra cost beyond the funding (gas, 150 Tgas prepaid) | about 0.0105 NEAR | about 0.0083 NEAR |
+| One-time publish | none | publisher balance fell by 23.68 NEAR (about 10 times the code storage cost) |
+| Factory account storage | 370,727 B, 3.707 NEAR locked (embeds the Guardian) | same when the factory embeds the code |
+
+Storage-check note: a global-contract child funded with only 0.00086 NEAR (about 86 bytes of storage) was created, and a state-growing owner call (686 to 703 B) then succeeded on it, so the protocol's storage-stake check was not observed to bind. The cause is [U]. The factory therefore enforces its own funding bounds and never relies on the protocol to refuse an under-funded child.
+
+Failure phases, same result for both strategies (underfunded applies to stored code only, since no global failure could be produced):
+
+| Phase | Child afterwards | Where the deposit goes | Callback |
+| --- | --- | --- | --- |
+| Funding one yocto below the floor | absent | whole deposit returns to the **factory** | sees failure |
+| `new` panics (bad config) | absent | whole deposit returns to the factory | sees failure |
+| Account id already exists | previous child unchanged | whole deposit returns to the factory | sees failure |
+
+Create, transfer, deploy and `new` run in one receipt, which reverts atomically. A failed creation therefore leaves **no keyless half-initialized child** and no partial charge on the child; only the gas is lost. The refund is credited to the factory, not the owner, so the factory must forward it in a checked callback.
+
+**Chosen strategy [I]: stored code.** It is the conventional path, its funding boundary is exact, it needs no one-time publish, and the global path adds an unexplained storage-check behavior and a 23.68 NEAR one-time cost that depends on testnet NEAR availability (B7, [U]). The price is permanent: each Guardian locks about 2.38 NEAR of storage that the keyless account can never release. UI copy must disclose this when F6 is built. The global strategy stays a documented alternative; adopting it needs a passing testnet publish and use plus an explanation of the storage-check note.
+
+Account id: `<first 32 hex chars of sha256(owner_id ‖ nonce_le_u32)>.<factory>`. The factory constructor requires the full id to be at most 64 characters. A failed attempt leaves no account, so retrying reuses the same id; the nonce advances only after a successful creation, so an owner can create a later Guardian after deactivating an earlier one.
+
+Funding floor: creation needed at least 2.37578 NEAR for the experiment build and needs 2.75325 NEAR for the current Guardian build (measured with the real factory, see below); it grows with the code size, so it must be re-measured whenever the Guardian build changes. The usable floor also covers the Rhea registration (0.1 NEAR live minimum), token registrations and state growth up to the 50-entry history; that total is measured in task 4.2 and `min_funding`/`max_funding` are factory init parameters until then. `max_funding` exists because the keyless Guardian has no NEAR withdrawal, so excess funding must be refused up front rather than trapped.
+
+Refund ABI: the callback `on_guardian_created(owner_id, guardian_id, deposit)` returns `CreateOutcome` = `{"outcome":"created","guardian_id":…,"owner_id":…}` or `{"outcome":"failed","phase":"create_batch","refund":"sent"|"claimable","amount":"…"}`. A failed batch transfers `deposit` to the owner in a private checked callback; if that transfer fails the amount is credited to `unclaimed[owner]` for `claim_refund`. Nothing is promised beyond the observed atomic behavior, and a refund never covers gas.
+
+### Factory implementation (tasks 3.1 to 3.3) [V, local sandbox, 2026-11-07]
+
+`contracts/guardian-factory` implements the design above; `GuardianConfig` and `Policy` moved unchanged to the shared `contracts/guardian-types` crate so the factory validates its template and the owner's policy with the Guardian's own rules without linking the Guardian's methods. Build artifacts at this date: Guardian 274,739 B (it grew from 236,924 B when the owner position methods were added), factory 470,565 B.
+
+- **Permission boundary:** anyone creates a Guardian for themselves; the predecessor becomes the owner. The config comes from the immutable template, funding must lie in `[min_funding, max_funding]`, one creation per owner may be in flight, and `new` bounds require `min_funding` of at least the embedded code's storage cost. The factory account id must be short enough that `32 + 1 + id` fits 64 characters; its init refuses a longer id (sandbox `dev-*` accounts are refused).
+- **Invariants:** I10 by construction (the batch holds create-account, transfer, deploy and `new` only; a unit test fails on any key, stake or delete action). The owner mapping and nonce change only in the callback after the batch succeeded; a replayed continuation finds nothing pending.
+- **Measured with the real factory:** the factory locks 4.711 NEAR of storage; the child ends at 275,325 B, so the creation floor for this build is exactly 2.75325 NEAR (one yocto below fails with `LackBalanceForState` and returns `failed`/`sent` with the child absent; the floor succeeds). `create_guardian` burns 48 Tgas across all receipts and refuses less than 145 Tgas attached.
+- **Failure phases through the real factory:** under-funded batch and an already-existing id both end `failed`, `phase: create_batch`, `refund: sent`, no child, no mapping, nonce unchanged, owner out only gas. Out-of-range funding, too little gas and an invalid policy fail the transaction and the deposit returns at once. Two creations from one owner in the same block: exactly one child, the other refused with `Creation in flight`. `on_*` callbacks fail when called by anyone but the factory.
+- **Not exercised end to end:** an init failure inside the child is unreachable with a validated template and policy (the spike showed it reverts atomically); the refund-transfer-failure path (`claimable`, `claim_refund`) is covered by unit tests only, because an owner cannot be made to disappear between the batch and the refund in the sandbox.
+- **Does not guarantee:** that a refund covers gas, that a Guardian can be recovered or upgraded after creation, or that its NEAR can be taken back (the keyless account has no NEAR withdrawal).
+
+Usable funding [V for the parts, I for the sum]: registration is cheap because the counterparty refunds the excess of a registration-only deposit. Measured on both imported Rhea versions, the net cost to the Guardian was 0.1 NEAR for the lending contract and 0.00125 NEAR for each token. Adding the 2.75325 NEAR creation floor and about 0.034 NEAR of growth headroom for a full 50-entry history (computed from the 67-byte attempt record [I]) gives about 2.89 NEAR for a Guardian that is registered and can run its whole history. A Guardian holding only that cannot also absorb a later policy change that grows state much, so P2.8 sets the factory's `min_funding` and `max_funding` from this figure (a reasonable choice is a minimum of 2.9 NEAR and a maximum near 3.5 NEAR [I]); they are init parameters, not code.
+
+### Final ABI for the client (task 4.3)
+
+All amounts are decimal-string `U128`; account ids are strings. The client builds unsigned payloads only; nothing here is signed by the agent.
+
+**Factory** (`contracts/guardian-factory`, standard `mrfund_guardian_factory` 1.0.0)
+
+| Call | Deposit | Notes |
+| --- | --- | --- |
+| `create_guardian({policy})` | NEAR in `[min_funding, max_funding]` | The signer becomes the owner; at least 145 Tgas attached (48 Tgas used across receipts). Result is `{"outcome":"created","guardian_id","owner_id"}` or `{"outcome":"failed","phase":"create_batch","refund":"sent"\|"claimable","amount"}`. Out-of-range funding, too little gas, an invalid policy and a creation already in flight fail the transaction and the deposit returns at once |
+| `claim_refund()` | exactly 1 yocto | Only when an automatic refund transfer failed (`unclaimed > 0`) |
+| views | none | `get_guardian(owner_id)`, `get_owner(guardian_id)`, `get_next_guardian_id(owner_id)` (the id the next successful creation will use), `get_template()`, `get_limits()`, `get_unclaimed(owner_id)`, `is_pending(owner_id)`, `get_code_hash()` (JSON byte array), `get_code_len()` |
+
+Events: `guardian_creation_started`, `guardian_created`, `guardian_creation_failed`, `refund_sent`, `refund_claimable`, `refund_claimed`. The client must show a created Guardian only after `guardian_created` or a `created` outcome, never after the transaction hash alone.
+
+**Guardian owner position methods** (owner account and exactly 1 yocto; the watcher key cannot call them): `owner_register({target_id, storage_deposit})` with target the lending contract or either configured token; `owner_borrow({amount})` and `owner_withdraw_collateral({amount})` need at least 260 Tgas attached; `owner_repay_from_reserve({amount})` needs at least 115 Tgas; `owner_sweep({token_id})`. Collateral is deposited with the collateral token's `ft_transfer_call(receiver_id: <guardian>, amount, msg: "{\"collateral\":{}}")`, which the Guardian refunds when less than 140 Tgas reaches it.
+
+Events (standard `mrfund_guardian` 1.0.0): `position_operation_succeeded`/`position_operation_failed` (`operation` is `register`, `borrow` or `release`; the result is immediate-only), `collateral_deposit_resolved`, `manual_repay_settled`, `manual_repay_unresolved`, `swept`, `sweep_failed`, `sweep_skipped`.
+
+Gaps the client must surface: `get_status.in_flight` carries amount and fee but not the operation kind, so an unresolved manual repay shows as an in-flight lock with no `repay_phase`; the client must say "locked, outcome unknown" and never imply it can be cleared. The change does not add a view for this and does not change `get_status`. Public creation and deployment stay behind D19, B7 and explicit account and funding authorization.
+
 **Not deployed.** No account, transaction, gas figure or storage cost exists yet. When P2.8 runs, record here: network, factory and Guardian account ids, code hash, deploy and init transaction hashes, block heights, compiler and `cargo-near` versions, measured gas per method (`request_repay` both paths, `on_repay_resolved`, `owner_borrow`) and storage NEAR locked per Guardian.
+
