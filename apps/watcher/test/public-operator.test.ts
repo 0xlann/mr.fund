@@ -312,7 +312,7 @@ describe("single-use public operator", () => {
       expect.objectContaining({
         status: "pending",
         hash: HASH,
-        explorerUrl: `https://explorer.testnet.near.org/transactions/${HASH}`,
+        explorerUrl: `https://testnet.nearblocks.io/txns/${HASH}`,
         label: "operator test request",
       }),
       expect.objectContaining({

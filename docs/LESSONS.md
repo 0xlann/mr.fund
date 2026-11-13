@@ -16,7 +16,7 @@
 
 - What happened: the first public Gate 1 borrow (`Borrow` 0.5 REF then `Withdraw` 0.5 REF) reverted with `Not enough asset balance`; the sandbox flow with the same shape had passed.
 - Root cause: Rhea rounds shares down when crediting the borrow to `supplied` and up when withdrawing an exact amount, so on a pool with accrued interest the withdraw needs one more share than was credited. Sandbox pools were fresh and 1:1, which hid it.
-- Rule: never pair `Borrow(x)` with `Withdraw(x)`; omit the `Withdraw` amount (or withdraw what the account view shows). Sandbox tests must include a pool whose share price is not 1. The Guardian's `owner_borrow` and `owner_withdraw_collateral` use the exact form and need review before deployment.
+- Rule: never pair `Borrow(x)` with `Withdraw(x)`; omit the `Withdraw` amount (or withdraw what the account view shows). Sandbox tests must include a pool whose share price is not 1. The Guardian's `owner_borrow` and `owner_withdraw_collateral` used the exact form; fixed 2026-11-13 (both now omit the `Withdraw` amount), reproduced first in the imported-0.11.0 sandbox with `guardian_accrued_*` tests (two failed with the live error before the fix, all pass after).
 
 ### 2026-11-11: Stopping the scheduler must also stop an in-progress read from submitting
 

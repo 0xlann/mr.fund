@@ -42,7 +42,7 @@ Copy `.env.example` to `.env` and fill it locally. Never commit `.env`.
 
 ## Browser login modules
 
-NEAR Auth and NEAR Connect adapters plus an account-session controller are implemented in `apps/web/src/wallet/`. **UI integration is deferred by the user's instruction:** there is no connection screen or React provider yet. Module tests and a public MPC key read do not establish successful human login, funding or signing. Interfaces, public configuration and remaining proof: [dual-login handoff](docs/technical/INTEGRATIONS.md#dual-login-module-handoff-d31).
+NEAR Auth (email) and NEAR Connect adapters plus an account-session controller live in `apps/web/src/wallet/`, mounted in the `/play` wallet dialog. The owner reported on 2026-11-13 (testnet) that both logins worked and that chat answered in live mode; no transaction was signed and passkey use is not claimed. Interfaces, public configuration and remaining proof: [dual-login handoff](docs/technical/INTEGRATIONS.md#dual-login-module-handoff-d31).
 
 ## Chat API
 
@@ -51,6 +51,31 @@ The backend-only `POST /api/chat` streams progress, guarded text, unsigned cards
 Request/event formats, local setup, limits, GLM settings and evaluation commands: [CHAT-API](docs/technical/CHAT-API.md). Account ids select public reads; they are not authenticated identities. NEAR Auth/NEAR Connect and wallet signing are not implemented by this endpoint.
 
 Model acceptance is still open (D25/P3.4): the latest complete live-inference benchmark returned 34 model answers and two guard fallbacks on **Simulated** data. Completed independent assistant review (not human/provider review) found 36/36 correct language but only 22 content/honesty approvals and 14 rejections, including provenance uncertainty. Local implementation checks do not establish deployment readiness. See the [observed evidence](docs/technical/CHAT-API.md#observed-evidence-2026-11-08).
+
+## What to look at (judges and teammates)
+
+| Do this | See |
+| --- | --- |
+| Read the scope, honesty rules and demo | [PRD](docs/PRD.md) |
+| See what is done and its evidence, task by task | [BUILD-PLAN](docs/BUILD-PLAN.md) |
+| Try the consultation UI (labelled **Simulated** unless a live account is connected) | `pnpm --filter @mrfund/web dev`, open `/play` |
+| Read a live position (read-only, no signing) | `GET /api/position`; run notes in [INTEGRATIONS](docs/technical/INTEGRATIONS.md) |
+| Check the Guardian contract rules and invariants | [SMART-CONTRACT](docs/technical/SMART-CONTRACT.md) |
+| Re-run the contract evidence in a local sandbox | `pnpm contracts:probe:prepare && pnpm contracts:test` |
+| Re-run the TypeScript evidence | `pnpm test && pnpm typecheck && pnpm lint` |
+
+## Evidence status (2026-11-13)
+
+Labels follow [CLAUDE.md](CLAUDE.md): planned, tested locally, exercised on a network.
+
+- **Tested locally or in a sandbox:** finance engine, Rhea read adapter, transaction builders and outcome parser, number-provenance checker, Guardian and factory contracts run against the deployed Rhea bytecode (testnet 0.11.0, mainnet 0.16.2) with **Simulated** prices.
+- **Exercised on public testnet (read-only):** position reads and refresh, with fixed `default_price` inputs, not market prices. Browser login worked for the owner.
+- **Not done:** no Guardian or factory is deployed, no wallet-signed repay, no automatic repay by the watcher on a public network, and the chat model is not accepted (D25/P3.4). Testnet USDC has no fresh oracle price, so the demo debt token is the fixed-price REF test token.
+- Mr.Fund makes no cross-chain claim and does not claim to be the first liquidation-protection tool.
+
+## Prior art
+
+Automatic debt protection exists: [DeFi Saver liquidation protection](https://help.defisaver.com/automations/liquidation-protection), BRACE and Hobba. What Mr.Fund adds is a conversational explanation layer with deterministic numbers and a contract-enforced policy, not the idea of protection itself. Comparison: [PRD](docs/PRD.md).
 
 ## Honest limits
 

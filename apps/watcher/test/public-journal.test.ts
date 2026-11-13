@@ -1,5 +1,14 @@
 import { createHash } from "node:crypto";
-import { chmod, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -24,7 +33,8 @@ const call = {
 const HASH = "11111111111111111111111111111111";
 const name = `${createHash("sha256").update(`testnet\0${GUARDIAN}`).digest("hex")}.jsonl`;
 async function directory() {
-  const path = await mkdtemp(join(tmpdir(), "mrfund-public-operator-"));
+  // The journal refuses symlinked paths; macOS tmpdir() sits behind /var -> /private/var.
+  const path = await realpath(await mkdtemp(join(tmpdir(), "mrfund-public-operator-")));
   directories.push(path);
   await chmod(path, 0o700);
   return path;
