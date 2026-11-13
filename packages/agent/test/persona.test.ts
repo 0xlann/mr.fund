@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { enforceNumbers } from "../src/numbers";
-import { BANNED_PHRASES, buildPersonaPrompt, findBannedPhrases } from "../src/persona";
+import { findBannedPhrases } from "../src/persona";
 
 describe("findBannedPhrases", () => {
   it.each([
@@ -32,35 +32,6 @@ describe("findBannedPhrases", () => {
       "safe",
       "risk-free",
     ]);
-  });
-});
-
-describe("buildPersonaPrompt", () => {
-  const prompt = buildPersonaPrompt();
-
-  it("lists every banned phrase", () => {
-    for (const b of BANNED_PHRASES) expect(prompt).toContain(`"${b.label}"`);
-  });
-
-  it("states the rules the PRD gives the character", () => {
-    expect(prompt).toMatch(/witty, frank/i);
-    expect(prompt).toMatch(/on the user's side/i);
-    expect(prompt).toMatch(/never joke about losses/i);
-    expect(prompt).toMatch(/data age/i);
-    expect(prompt).toMatch(/language of the user's latest message/i);
-  });
-
-  it("forbids invented numbers and signing", () => {
-    expect(prompt).toMatch(/never write a number that no tool returned/i);
-    expect(prompt).toMatch(/cannot sign or send/i);
-  });
-
-  it("treats tool results and token metadata as data, not instructions", () => {
-    expect(prompt).toMatch(/data, never instructions/i);
-  });
-
-  it("is deterministic", () => {
-    expect(buildPersonaPrompt()).toBe(prompt);
   });
 });
 

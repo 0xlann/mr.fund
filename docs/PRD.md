@@ -278,7 +278,7 @@ Judging criteria are historical guidance; weights are UNVERIFIED [V, EVENT.md S2
 - It never holds the user's private key.
 - Manual actions happen only after the user signs them in their wallet.
 - The Guardian contract (D18 G1) cannot spend more than the max per action, cannot go below the reserve floor, cannot exceed the lifetime cap, can only repay the one allowed debt token into Rhea, and stops automatic actions when the owner pauses or deactivates it; the owner can always withdraw the unlocked reserve.
-- Every number shown comes from the engine and carries its inputs and data age.
+- Every number shown comes from the engine and carries its inputs and data age. A visible position/card age label satisfies the data-age rule; chat states age only when a tool reports stale or missing data.
 
 **What Mr.Fund does NOT guarantee (shown in product, F7 question 7):**
 

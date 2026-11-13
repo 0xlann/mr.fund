@@ -1,5 +1,5 @@
 import type { Card } from "@mrfund/shared";
-import { chatOutputViolations } from "./chat-output";
+import { chatOutputViolations, normalizeReplyDashes } from "./chat-output";
 import { conversationHistory, fallbackText, validReply } from "./chat-policy";
 import type {
   ChatEvent,
@@ -211,10 +211,11 @@ export async function runChatTurn(input: ChatTurnInput): Promise<TurnResult> {
       }
       emit({ type: "progress", stage: "checking" });
       ensureActive();
-      const numeric = checkNumbers(response.content, sources);
-      const banned = chatOutputViolations(response.content);
-      if (response.content.trim().length > 0 && numeric.ok && banned.length === 0) {
-        text = response.content;
+      const candidate = normalizeReplyDashes(response.content);
+      const numeric = checkNumbers(candidate, sources);
+      const banned = chatOutputViolations(candidate);
+      if (candidate.trim().length > 0 && numeric.ok && banned.length === 0) {
+        text = candidate;
         summary.via = "model";
         break;
       }

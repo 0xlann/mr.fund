@@ -66,6 +66,24 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+it("delivers dash-free prose only after checking both numeric range endpoints", async () => {
+  const p = scripted([
+    reply("", [call("position")]),
+    reply("Debt range 200–999 USDC."),
+    reply("Debt — 200 USDC."),
+  ]);
+  const events: ChatEvent[] = [];
+  const result = await runChatTurn({
+    message: "Explain",
+    context: context(),
+    provider: p.provider,
+    emit: (event) => events.push(event),
+  });
+  expect(result.summary).toMatchObject({ via: "model", guardHits: 1 });
+  expect(result.text).toBe("Debt  -  200 USDC.");
+  expect(textOf(events)).toBe(result.text);
+  expect(checkNumbers(result.text, result.sources)).toEqual({ ok: true });
+});
 describe("runChatTurn trusted tool loop", () => {
   it("awaits real tools, correlates parallel ids and collects current exact facts and usage", async () => {
     const p = scripted([

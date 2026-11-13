@@ -1,5 +1,14 @@
 import { findBannedPhrases } from "./persona";
 
+/**
+ * Spaces keep a range endpoint positive: "5–10" must not become "5-10",
+ * which the provenance tokenizer reads as a negative second token.
+ * ASCII hyphen/minus and the mathematical minus sign remain untouched.
+ */
+export function normalizeReplyDashes(text: string): string {
+  return text.replace(/[—–]/g, " - ");
+}
+
 const EXECUTION = [
   /\b(?:I|we)(?:['’](?:ve|ll))?\s+(?:(?:have|had|already|just|successfully|will|can|did|do|am|are|was|were|not|never|cannot|can't|don't|didn't|haven't|won't)\s+){0,5}(?:signed|sign|sent|send|transferred|transfer|executed|execute|repaid|repay)\b/gi,
   /\b(?:saya|aku|kami)\s+(?:(?:sudah|telah|akan|bisa|dapat|berhasil|tidak|belum|tak|pernah)\s+){0,5}(?:mengirim|mentransfer|menandatangani|mengeksekusi|melunasi|membayar)\b/gi,
