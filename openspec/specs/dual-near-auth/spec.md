@@ -1,4 +1,10 @@
-## ADDED Requirements
+# dual-near-auth Specification
+
+## Purpose
+
+Define independent NEAR Auth and NEAR Connect login and account isolation without spending authority.
+
+## Requirements
 
 ### Requirement: Explicit dual login
 
@@ -57,7 +63,7 @@ Selecting an unavailable account MUST fail without changing the session. Account
 
 ### Requirement: Complete accessible connection surface
 
-The `/connect` page SHALL show checking, disconnected, connecting, connected, signing-out, configuration/error states and recovery. It SHALL expose both login choices, network, full account address, supported account selection and explicit sign-out. It MUST support keyboard focus, 360 px width and reduced motion. Existing frontend screens MUST NOT be redesigned.
+The connection dialog on `/play` SHALL show checking, disconnected, connecting, connected, signing-out, configuration/error states and recovery. It SHALL expose both login choices, network, full account address, supported account selection and explicit sign-out. It MUST support keyboard focus, 360 px width and reduced motion. Existing frontend screens MUST NOT be redesigned. [V, owner decision, 2026-11-13] The exercised WalletDialog replaces the originally specified `/connect` page.
 
 #### Scenario: Cancelled or failed login
 
