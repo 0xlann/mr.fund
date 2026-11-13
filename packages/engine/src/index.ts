@@ -4,6 +4,7 @@ export * from "./fees";
 export * from "./guardian-card";
 export * from "./health";
 export * from "./mood";
+export * from "./open-position";
 export * from "./sizing";
 export * from "./trigger";
 export * from "./whatif";
