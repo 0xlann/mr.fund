@@ -45,13 +45,14 @@ async function unwrap(result: Promise<Result<ViewResult, AdapterError>>): Promis
   if (!r.ok) throw new ReadFailure(r.error);
   return r.value;
 }
-function failure(e: unknown): Result<never, AdapterError> {
+export function failure(e: unknown): Result<never, AdapterError> {
   return e instanceof ReadFailure
     ? { ok: false, error: e.error }
     : badResponse("Invalid Rhea view data");
 }
 
-async function context(client: RheaClient, cfg: NetworkConfig) {
+/** One pinned read context: every `view` is checked against the anchor block of `get_config`. */
+export async function pinnedContext(client: RheaClient, cfg: NetworkConfig) {
   if (!["testnet", "mainnet"].includes(cfg.network) || !isValidAccountId(cfg.lendingId))
     throw new Error("Invalid network config");
   const readAtMs = Date.now();
@@ -123,6 +124,9 @@ async function context(client: RheaClient, cfg: NetworkConfig) {
   return {
     view,
     load,
+    blockHash: anchor.blockHash,
+    /** The oracle's own validity window; Rhea refuses prices older than this. */
+    oracleValidityMs: age * 1000,
     tokenIds: [...assets.keys()],
     base: {
       network: cfg.network,
@@ -141,7 +145,7 @@ export async function readPosition(
 ): Promise<Result<PositionSnapshot, AdapterError>> {
   try {
     if (!isValidAccountId(accountId)) return badResponse("Invalid account id");
-    const c = await context(client, cfg);
+    const c = await pinnedContext(client, cfg);
     const balances = parseAccount(
       await c.view(cfg.lendingId, "get_account", { account_id: accountId }),
       accountId,
@@ -163,7 +167,7 @@ export async function readMarket(
   cfg: NetworkConfig,
 ): Promise<Result<MarketSnapshot, AdapterError>> {
   try {
-    const c = await context(client, cfg);
+    const c = await pinnedContext(client, cfg);
     return ok({ ...c.base, ...(await c.load(c.tokenIds)) });
   } catch (e) {
     return failure(e);
