@@ -70,7 +70,10 @@ impl Guardian {
         let op_id = self.lock_position(0, PositionOperation::Borrow);
         self.rhea_execute(json!([
             {"Borrow":{"token_id":token,"amount":U128(internal)}},
-            {"Withdraw":{"token_id":token,"amount":U128(internal)}}
+            // No amount: an exact Withdraw reverts on pools with accrued interest (share rounding).
+            // It also returns any earlier supplied surplus to the Guardian's token balance; that
+            // never changes the booked reserve (I8), and `owner_sweep` excludes the reserve (I4).
+            {"Withdraw":{"token_id":token}}
         ]))
         .then(self.position_callback(op_id))
     }

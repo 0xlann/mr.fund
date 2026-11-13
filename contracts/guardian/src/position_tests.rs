@@ -174,6 +174,11 @@ fn registration_is_limited_to_the_three_configured_targets_with_a_positive_depos
 }
 
 #[test]
+// Rhea credits a borrow to `supplied` as floor(amount * shares / balance) shares and debits an exact
+// `Withdraw` as ceil(...), so on a pool with accrued interest `Withdraw(x)` after `Borrow(x)` reverts
+// with "Not enough asset balance" (reproduced in the sandbox, LESSONS 2026-11-11). The borrow's
+// Withdraw therefore omits its amount. The release keeps its exact Withdraw: the accrued-pool
+// sandbox case passed on the unchanged code, so no fix is claimed for it.
 fn borrow_and_release_use_fixed_lending_targets_in_rhea_internal_units() {
     let mut g = guardian();
     context("owner.test.near", 1);
@@ -185,7 +190,7 @@ fn borrow_and_release_use_fixed_lending_targets_in_rhea_internal_units() {
         call.args,
         json!({"actions":[
             {"Borrow":{"token_id":"debt.test.near","amount":"5000000000000"}},
-            {"Withdraw":{"token_id":"debt.test.near","amount":"5000000000000"}}
+            {"Withdraw":{"token_id":"debt.test.near"}}
         ]})
     );
     assert_eq!(
