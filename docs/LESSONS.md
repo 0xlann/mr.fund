@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-13: Watcher filesystem guarantees differ on Windows
+
+- What happened: the Windows watcher suite exposed directory `fsync` failures and an unavailable `O_NOFOLLOW` flag; creating test symlinks also requires privileges on some Windows installations.
+- Root cause: the journal's durable directory sync and the key loader's no-follow protection rely on POSIX filesystem behavior, not merely on the same Node APIs existing.
+- Rule: fail closed when those guarantees are unavailable; exercise the POSIX behavior on Linux, macOS or WSL2 and identify Windows-only test skips explicitly.
+
 ### 2026-11-11: Rhea Borrow + exact Withdraw reverts on pools whose share price is not 1
 
 - What happened: the first public Gate 1 borrow (`Borrow` 0.5 REF then `Withdraw` 0.5 REF) reverted with `Not enough asset balance`; the sandbox flow with the same shape had passed.

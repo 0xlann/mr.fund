@@ -6,6 +6,7 @@
   "scripts": {
     "start": "tsx src/main.ts",
     "operator:preflight": "tsx src/operator-preflight.ts",
+    "operator:over-limit": "tsx src/public/cli.ts",
     "sandbox:over-limit": "tsx src/sandbox/operator-cli.ts --sandbox-only",
     "typecheck": "tsc -p tsconfig.json"
   },

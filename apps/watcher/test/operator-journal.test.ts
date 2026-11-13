@@ -4,7 +4,10 @@ import { join } from "node:path";
 import { baseEncode } from "near-api-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { REQUEST_GAS, type RepayCall } from "../src/core/authority";
-import { createOperatorJournal } from "../src/runtime/operator-journal";
+import {
+  createOperatorJournal,
+  OperatorJournalPlatformError,
+} from "../src/runtime/operator-journal";
 import { createGuardedSignerPort } from "../src/runtime/signer-port";
 
 const authority = {
@@ -22,6 +25,8 @@ const call: RepayCall = {
   deposit: 0n,
 };
 const hash = baseEncode(new Uint8Array(32).fill(2));
+const POSIX_REQUIRED =
+  "Requires Linux/macOS/WSL2: durable directory fsync and O_NOFOLLOW are unavailable on Windows.";
 const dirs: string[] = [];
 const directory = async () => {
   const result = await mkdtemp(join(tmpdir(), "mrfund-journal-test-"));
@@ -50,7 +55,28 @@ const deps = () => ({
 });
 
 describe("single-use operator write-ahead journal", () => {
-  it("persists intent before signing and hash before broadcast, then blocks a new process", async () => {
+  it("refuses an injected Windows platform without exposing paths or creating a journal", async () => {
+    const dir = await directory();
+    let failure: unknown;
+    try {
+      createOperatorJournal(dir, authority, { platform: "win32" });
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(OperatorJournalPlatformError);
+    expect(failure).toMatchObject({
+      code: "unsupported_platform",
+      message: "Operator journal requires Linux/macOS/WSL2 with directory fsync and O_NOFOLLOW",
+    });
+    expect(String(failure)).not.toContain(dir);
+    expect(await readdir(dir)).toEqual([]);
+    if (process.platform === "win32")
+      expect(() => createOperatorJournal(dir, authority)).toThrow(OperatorJournalPlatformError);
+  });
+  it("persists intent before signing and hash before broadcast, then blocks a new process", async ({
+    skip,
+  }) => {
+    if (process.platform === "win32") skip(POSIX_REQUIRED);
     const dir = await directory();
     const d = deps();
     d.sign.mockImplementation(async () => {
@@ -74,7 +100,8 @@ describe("single-use operator write-ahead journal", () => {
     expect(next.sign).not.toHaveBeenCalled();
     expect(next.broadcast).not.toHaveBeenCalled();
   });
-  it("leaves an intent locked when signing fails", async () => {
+  it("leaves an intent locked when signing fails", async ({ skip }) => {
+    if (process.platform === "win32") skip(POSIX_REQUIRED);
     const dir = await directory();
     const d = deps();
     d.sign.mockRejectedValue(new Error("sign failed"));
@@ -112,7 +139,8 @@ describe("single-use operator write-ahead journal", () => {
     expect(close).toHaveBeenCalledOnce();
     expect(await port.send(call)).toEqual({ kind: "refused", reason: "request_unreconciled" });
   });
-  it("admits only one simultaneous attempt for a Guardian", async () => {
+  it("admits only one simultaneous attempt for a Guardian", async ({ skip }) => {
+    if (process.platform === "win32") skip(POSIX_REQUIRED);
     const dir = await directory();
     const first = createOperatorJournal(dir, authority);
     const second = createOperatorJournal(dir, authority);
@@ -122,7 +150,8 @@ describe("single-use operator write-ahead journal", () => {
     await Promise.all([first.close(), second.close()]);
     expect(await entries(dir)).toMatchObject([{ state: "signing" }]);
   });
-  it("records sandbox identity without using a public-network journal", async () => {
+  it("records sandbox identity without using a public-network journal", async ({ skip }) => {
+    if (process.platform === "win32") skip(POSIX_REQUIRED);
     const dir = await directory();
     const sandbox = createOperatorJournal(dir, authority, { scope: "sandbox" });
     await sandbox.begin(call);

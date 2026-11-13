@@ -108,6 +108,7 @@ node --input-type=module -e "const endpoint='http://127.0.0.1:3148/api/position'
 | `FEE_RECIPIENT_ID` | factory deploy, web app (display) | Fee recipient account | public |
 | `WATCHER_ACCOUNT_ID` | watcher, factory policy defaults | Watcher account | public id |
 | `WATCHER_KEYS_DIR` | watcher | Directory with the watcher's function-call key files (one per Guardian) | secret path |
+| `WATCHER_OPERATOR_JOURNAL_DIR` | explicit testnet operator | Absolute private persistent shared journal directory; never reset to permit another attempt | private path |
 | `NEARAI_API_KEY` | chat API only | NEAR AI Cloud bearer key | secret |
 | `NEARAI_BASE_URL` | chat API | `https://cloud-api.near.ai/v1` | public |
 | `NEARAI_MODEL` | chat API | Model id chosen in D25 | public |
@@ -118,9 +119,19 @@ node --input-type=module -e "const endpoint='http://127.0.0.1:3148/api/position'
 
 ### Watcher local runtime
 
+The watcher's public path runs on Linux, macOS or WSL2 only: durable journal
+directory `fsync` and `O_NOFOLLOW` symlink protection are required, and native
+Windows Node cannot provide these guarantees. Run WSL2 processes on a Linux
+filesystem and keep the journal on private persistent storage.
+
 [V, local implementation] `pnpm --filter @mrfund/watcher start <guardian-account-id>` reads `NEAR_NETWORK_ID`, `NEAR_RPC_URL`, `WATCHER_ACCOUNT_ID` and `WATCHER_KEYS_DIR` from its process environment. The directory contains `<guardian-account-id>.json` in near-cli key-file shape, with a matching watcher `account_id`, `public_key`, and `private_key` or `secret_key`. The runtime rejects symlinks, mismatched accounts/keys, invalid networks and non-HTTPS endpoints. It verifies fresh node status and final access-key permissions for exactly one `request_repay` receiver and method before starting. Never commit a key file or print its contents.
 
 Run only one process per Guardian/key. The initial access-key nonce cannot establish whether an earlier signed request is unresolved, so startup remains `read_only` and the public submission gate is hard-disabled in this implementation. It has no operator override; no run of this entry sends a transaction. Polling uses fresh, block-pinned Guardian and position views, while JSON heartbeat lines show observation, successful-read and evaluation timestamps, pending/error flags and backoff. A running process is not proof of a fresh observation. SIGINT/SIGTERM stop scheduling. No uptime or liquidation-prevention guarantee is implied. Sandbox and public submission require separate evidence and gates in `add-deterministic-guardian-watcher`; hosted operation requires D29/B8.
+
+The separate testnet-only over-limit operator and its dry-run are documented in
+[WATCHER-SANDBOX](WATCHER-SANDBOX.md). They require independent key-history and
+persistent-storage attestations; neither the runtime nor an empty journal proves
+them. No public request is evidenced by the local implementation.
 
 ## Step-by-step recipes
 

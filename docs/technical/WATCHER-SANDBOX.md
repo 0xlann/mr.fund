@@ -1,5 +1,12 @@
 # Watcher sandbox operator test
 
+The watcher's public path runs on Linux, macOS or WSL2 only. The journal
+requires directory `fsync` for durability, and both the journal and key loader
+require `O_NOFOLLOW` to reject symlinks. Native Windows cannot provide these
+guarantees through the Node filesystem APIs used here. Use a private,
+persistent filesystem directory on the supported host; WSL2 means Linux
+processes and a Linux filesystem, not native Windows Node.
+
 The sandbox-only operator exercises `requestOverLimit` outside the polling loop.
 Run it through the disposable contract harness from the repository root, after
 installing workspace dependencies and preparing the contract sandbox artifacts:
@@ -31,8 +38,8 @@ signed transaction or broadcast is never retried automatically.
 The command `pnpm --filter @mrfund/watcher sandbox:over-limit` is the underlying
 explicit entry point; it expects the harness's JSON on stdin and must only be used
 with a newly created disposable sandbox key. Do not use a public or existing key.
-It has no durable record across invocations, so an uncertain submission must not
-be retried. Public operation needs a separate operator flow with restart-safe
+The sandbox journal persists across invocations while its directory exists; an
+uncertain submission must not be retried. Public operation requires independent
 reconciliation and the D18/D19/B7 gates; the normal watcher remains read-only.
 
 To inspect the configured public network and scoped key without signing or
@@ -42,12 +49,37 @@ with the same `NEAR_NETWORK_ID`, `NEAR_RPC_URL`, `WATCHER_ACCOUNT_ID` and
 reports `read_only`, including when the key is valid: current chain views and a
 key nonce do not prove that an earlier signed transaction cannot still arrive.
 Errors are sanitized and never include key material or RPC details. This is a
-preflight only; it neither authorizes nor provides a public submission path.
+preflight only; it does not authorize submission.
 
-The guarded signer also has an optional single-use local journal for future
-operator integration. It synchronizes an intent before signing and the hash
-before broadcast; an existing or incomplete record blocks a subsequent attempt.
-It does not delete records, retry, or establish what happened before the journal
-was installed. The public runtime does not use it yet. Any integration must use
-a private stable directory shared by all processes for the same Guardian and
-establish independent reconciliation before allowing another request.
+## Explicit public testnet operator
+
+[I, implemented locally; no public request exercised] After the public proof
+gates and explicit authorization, use `pnpm --filter @mrfund/watcher
+operator:over-limit <guardian-id> --dry-run --confirm-exclusive-key
+--confirm-prior-requests-reconciled --confirm-persistent-journal`. Replace
+`--dry-run` with `--execute` only for the authorized operator test request.
+Set the existing watcher environment variables and
+`WATCHER_OPERATOR_JOURNAL_DIR` to an absolute, owner-only, persistent Linux
+directory shared by every process that can use that Guardian's watcher key.
+Dry-run checks authority, Guardian readiness and the empty journal without
+creating a record, signing or sending; it still performs public RPC reads.
+
+The three confirmations are operator attestations, not facts inferred from the
+key nonce or filesystem. The exclusive scoped key must have been controlled
+by this journal since provisioning, and all prior signed requests independently
+reconciled; a newly empty directory proves neither. Persistence across host
+loss cannot be verified from a directory mode. Never delete, replace or move a
+journal to permit another attempt. A synchronized intent precedes signing; the
+hash is synchronized before the single broadcast. Restart with a recorded hash
+only looks up its final outcome; an incomplete intent blocks signing. A missing,
+failed or mismatched final event/history remains ambiguous, not success.
+The label is operator output only: the existing Guardian history ABI has no
+field that identifies why a watcher invoked the request. Consumers must not
+infer an on-chain operator-test label from the rejection alone.
+
+Permission boundary: a finite-allowance watcher function-call key may call only
+`request_repay` on the selected Guardian, with zero deposit. Guardian invariants
+I1–I8 remain the contract boundary. Negative tests cover broad keys, stale or
+paused state, in-flight/cooldown, journal reuse and ambiguous sends. This does
+not guarantee transaction finalization, repayment, uptime, or protection from
+liquidation. The always-on public watcher remains hard-disabled.

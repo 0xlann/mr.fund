@@ -4,16 +4,28 @@ import { lstat, open } from "node:fs/promises";
 import { join } from "node:path";
 import type { RepayCall, VerifiedAuthority } from "../core/authority";
 
+export class OperatorJournalPlatformError extends Error {
+  readonly code = "unsupported_platform";
+
+  constructor() {
+    super("Operator journal requires Linux/macOS/WSL2 with directory fsync and O_NOFOLLOW");
+    this.name = "OperatorJournalPlatformError";
+  }
+}
+
 /**
  * A single-use write-ahead record, not a queue. An existing or partially written
  * record always blocks another attempt; this module intentionally cannot clear it.
  * The directory must be private, stable, and shared by all processes for a Guardian.
+ * Requires Linux/macOS/WSL2: Windows cannot provide directory fsync or O_NOFOLLOW.
  */
 export function createOperatorJournal(
   directory: string,
   authority: VerifiedAuthority,
-  options?: { scope: "sandbox" },
+  options?: { scope?: "sandbox"; platform?: NodeJS.Platform },
 ) {
+  if ((options?.platform ?? process.platform) === "win32" || constants.O_NOFOLLOW === undefined)
+    throw new OperatorJournalPlatformError();
   const scope = options?.scope ?? authority.network;
   const name = createHash("sha256").update(`${scope}\0${authority.guardianId}`).digest("hex");
   const path = join(directory, `${name}.jsonl`);

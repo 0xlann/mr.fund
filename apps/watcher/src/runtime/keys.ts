@@ -4,19 +4,36 @@ import { join } from "node:path";
 import { KeyPairSigner, type KeyPairString } from "near-api-js";
 import { accountMatchesNetwork } from "../core/authority";
 
-/** Read the existing near-cli JSON key file named after the Guardian; never expose its contents. */
-export async function loadWatcherKey(input: {
-  directory: string;
-  guardianId: string;
-  watcherAccountId: string;
-  network: "testnet" | "mainnet";
-}): Promise<{ publicKey: string; signer: KeyPairSigner }> {
+export class WatcherKeyPlatformError extends Error {
+  readonly code = "unsupported_platform";
+
+  constructor() {
+    super("Watcher key loading requires Linux/macOS/WSL2 with O_NOFOLLOW");
+    this.name = "WatcherKeyPlatformError";
+  }
+}
+
+/**
+ * Read the existing near-cli JSON key file named after the Guardian; never expose its contents.
+ * Requires Linux/macOS/WSL2 so O_NOFOLLOW protects the key-file open.
+ */
+export async function loadWatcherKey(
+  input: {
+    directory: string;
+    guardianId: string;
+    watcherAccountId: string;
+    network: "testnet" | "mainnet";
+  },
+  options?: { platform?: NodeJS.Platform },
+): Promise<{ publicKey: string; signer: KeyPairSigner }> {
   if (
     !input.directory ||
     !accountMatchesNetwork(input.guardianId, input.network) ||
     !accountMatchesNetwork(input.watcherAccountId, input.network)
   )
     throw new Error("Invalid watcher key configuration");
+  if ((options?.platform ?? process.platform) === "win32" || constants.O_NOFOLLOW === undefined)
+    throw new WatcherKeyPlatformError();
   let file: Awaited<ReturnType<typeof open>> | undefined;
   try {
     file = await open(
