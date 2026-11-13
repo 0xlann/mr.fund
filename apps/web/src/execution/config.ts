@@ -54,3 +54,46 @@ export const publicExecutionConfig = () =>
     lendingId: process.env.NEXT_PUBLIC_RHEA_LENDING_ID,
     feeRecipientId: process.env.NEXT_PUBLIC_FEE_RECIPIENT_ID,
   });
+
+export type OpeningConfigResult =
+  | { ok: true; value: ExecutionConfig & { collateralTokenId: string; debtTokenId: string } }
+  | { ok: false; reason: string };
+
+/** Execution settings plus the opening token pair; a missing pair blocks only the opening cards. */
+export function readOpeningExecutionConfig(input: {
+  network?: string | undefined;
+  lendingId?: string | undefined;
+  feeRecipientId?: string | undefined;
+  collateralTokenId?: string | undefined;
+  debtTokenId?: string | undefined;
+}): OpeningConfigResult {
+  const base = readExecutionConfig(input);
+  if (!base.ok) return base;
+  for (const [name, value] of [
+    ["NEXT_PUBLIC_OPENING_COLLATERAL_TOKEN_ID", input.collateralTokenId],
+    ["NEXT_PUBLIC_OPENING_DEBT_TOKEN_ID", input.debtTokenId],
+  ] as const) {
+    if (!value) return { ok: false, reason: `Set ${name} to enable opening a position.` };
+    if (!isValidAccountId(value) || !SUFFIX(value, base.value.network))
+      return { ok: false, reason: `${name} is not a ${base.value.network} account.` };
+  }
+  if (input.collateralTokenId === input.debtTokenId)
+    return { ok: false, reason: "The opening collateral and debt tokens must differ." };
+  return {
+    ok: true,
+    value: {
+      ...base.value,
+      collateralTokenId: input.collateralTokenId as string,
+      debtTokenId: input.debtTokenId as string,
+    },
+  };
+}
+
+export const publicOpeningConfig = () =>
+  readOpeningExecutionConfig({
+    network: process.env.NEXT_PUBLIC_NEAR_NETWORK_ID,
+    lendingId: process.env.NEXT_PUBLIC_RHEA_LENDING_ID,
+    feeRecipientId: process.env.NEXT_PUBLIC_FEE_RECIPIENT_ID,
+    collateralTokenId: process.env.NEXT_PUBLIC_OPENING_COLLATERAL_TOKEN_ID,
+    debtTokenId: process.env.NEXT_PUBLIC_OPENING_DEBT_TOKEN_ID,
+  });

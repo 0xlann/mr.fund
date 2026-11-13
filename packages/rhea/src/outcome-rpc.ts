@@ -1,7 +1,8 @@
 import { err, isValidAccountId, ok } from "@mrfund/shared";
 import { object } from "./client";
+import type { OpeningOutcomeReader } from "./open-position-outcome";
 import { OUTCOME_LIMITS } from "./outcome";
-import type { OutcomeError, OutcomeReader, RepayPlan } from "./outcome-types";
+import type { ExpectedTransaction, OutcomeError, OutcomeReader, RepayPlan } from "./outcome-types";
 
 class RpcReadError extends Error {
   constructor(
@@ -40,9 +41,10 @@ export function createOutcomeReader(
   rpcUrl: string,
   network: RepayPlan["network"],
   fetchImpl: typeof fetch = fetch,
-): OutcomeReader {
+): OutcomeReader & OpeningOutcomeReader {
   return {
-    async read(expected, signal) {
+    // The lookup uses only the hash and the signer, so one reader serves repays and openings.
+    async read(expected: Pick<ExpectedTransaction, "hash" | "signerId">, signal) {
       try {
         if (
           !["testnet", "mainnet"].includes(network) ||

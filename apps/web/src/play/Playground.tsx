@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { type ReactNode, useState } from "react";
+import { useLiveOpening } from "../execution/useLiveOpening";
 import { useLiveRepay } from "../execution/useLiveRepay";
 import type { WalletSession } from "../wallet/react";
 import { ActivityPanel } from "./ActivityPanel";
@@ -81,6 +82,7 @@ export function Playground({
     : undefined;
   const live = useLiveConsultation(liveView);
   const repay = useLiveRepay(liveView, process.env.NEXT_PUBLIC_NEAR_RPC_URL);
+  const opening = useLiveOpening(liveView, process.env.NEXT_PUBLIC_NEAR_RPC_URL);
   const {
     stage,
     panel,
@@ -444,6 +446,7 @@ export function Playground({
                 <LiveChatPanel
                   live={live}
                   repay={repay}
+                  opening={opening}
                   phone={phone}
                   setComposerFocused={setComposerFocused}
                   setKeyboardHeight={setKeyboardHeight}

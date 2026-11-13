@@ -56,6 +56,7 @@ function Harness() {
   return createElement(LiveChatPanel, {
     live: live as never,
     repay: repay as never,
+    opening: { store: null, view: { phase: "idle" } } as never,
     phone: false,
     setComposerFocused: noop,
     setKeyboardHeight: noop,

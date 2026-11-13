@@ -99,6 +99,11 @@ export interface ToolContext {
   guardian?: GuardianToolContext;
   /** Server-read opening inputs for the plain-wallet deposit and borrow tools; never model arguments. */
   opening?: OpeningToolContext;
+  /**
+   * Reads the opening inputs on demand (an RPC round trip), so a chat turn that never calls an
+   * opening tool pays nothing. Returns null when opening is not configured for the session.
+   */
+  openingLoader?: () => Promise<OpeningToolContext | null>;
 }
 
 export interface ToolDefinition {

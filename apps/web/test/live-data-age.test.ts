@@ -155,6 +155,7 @@ describe("live card", () => {
       createElement(LiveChatPanel, {
         live: l as never,
         repay: { store: null, view: { phase: "idle" } } as never,
+        opening: { store: null, view: { phase: "idle" } } as never,
         phone: false,
         setComposerFocused: noop,
         setKeyboardHeight: noop,
