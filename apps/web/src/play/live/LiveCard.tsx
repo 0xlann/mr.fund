@@ -15,6 +15,10 @@ const TAG: Record<Card["action"], string> = {
   guardian_withdraw: "GUARDIAN",
 };
 
+/** Cards arrive over the network; a missing list renders as empty rather than crashing the chat. */
+const list = <T,>(value: readonly T[] | undefined): readonly T[] =>
+  Array.isArray(value) ? value : [];
+
 export function DataAgeLabel({ ageMs, token }: { ageMs: number; token: object }) {
   const text = useDataAge(ageMs, token);
   // aria-live off: the label ticks every second and must not be re-announced inside the chat log.
@@ -50,7 +54,7 @@ export function LiveCard({
       <h3>{card.headline}</h3>
       <p className="mb-[15px] text-[12px] leading-[1.6] text-[#a2a4a5]">{card.reason}</p>
       <dl className="card-number-list tabular-nums [border-top:1px_solid_#313334] p-[6px_0]">
-        {card.numbers.map((n) => (
+        {list(card.numbers).map((n) => (
           <div
             key={`${n.label}-${n.unit}`}
             className="flex items-center justify-between gap-[10px] p-[7px_0] text-[11px]"
@@ -71,18 +75,18 @@ export function LiveCard({
         <summary>
           Assumptions, fees & risks <ChevronDown size={13} aria-hidden="true" />
         </summary>
-        {card.fees.map((fee) => (
+        {list(card.fees).map((fee) => (
           <p key={`${fee.label}-${fee.recipientId}`}>
             {fee.label}: {feeAmountText(fee, position)} to {fee.recipientId} ({fee.when})
           </p>
         ))}
-        {card.assumptions.map((a) => (
+        {list(card.assumptions).map((a) => (
           <p key={a}>{a}</p>
         ))}
-        {card.risks.map((r) => (
+        {list(card.risks).map((r) => (
           <p key={r}>{r}</p>
         ))}
-        {card.payload.map((tx) => (
+        {list(card.payload).map((tx) => (
           <p key={tx.receiverId}>
             To {tx.receiverId}: {tx.actions.map((action) => action.methodName).join(", ")}
           </p>

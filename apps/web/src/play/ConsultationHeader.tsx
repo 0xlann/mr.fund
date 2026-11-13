@@ -2,7 +2,7 @@ import { CircleHelp, Settings2, Volume2, VolumeX, Wallet } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { amount } from "./display";
 import type { LiveHeaderStats } from "./live/headerStats";
-import { ProvenanceTag } from "./ProvenanceTag";
+import { ProvenanceTag, Tag } from "./ProvenanceTag";
 import type { DataState, Port } from "./source/types";
 
 interface Props {
@@ -48,18 +48,23 @@ export function ConsultationHeader({
       aria-hidden={!chatRevealed}
       className={`relative z-20 mx-auto flex h-[76px] w-full max-w-[1920px] shrink-0 items-center justify-between gap-3 px-4 md:h-[88px] md:px-8 transition-opacity duration-500 ${chatRevealed ? "opacity-100" : "opacity-0"} ${phone || keyboardHeight || shortMobile ? "h-14!" : ""}`}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <span className="grid size-9 place-items-center rounded-xl bg-[#e4d7ba] font-[family-name:var(--font-display)] text-2xl font-bold tracking-[-2px] text-[#1f2122]">
           m.
         </span>
         <span className="font-[family-name:var(--font-display)] text-[22px] font-semibold tracking-[-1px]">
-          mr.fund<span className="ml-1 align-top text-[9px] text-[#999b9c]">®</span>
+          mr.fund<span className="ml-1 align-top text-[9px] text-[#999b9c] max-sm:hidden">®</span>
         </span>
+        {stage === "consult" && !liveAccount && (
+          <Tag className="text-[#a2a4a5]">
+            <ProvenanceTag port={port} label="SIMULATED" />
+          </Tag>
+        )}
         <span className="ml-3 hidden border-l border-white/10 pl-4 text-[10px] text-[#818384] 2xl:block">
           A little clarity for your money.
         </span>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         {stage === "consult" && (!liveAccount || liveStats) && (
           <section
             aria-label="Position stats"

@@ -72,6 +72,23 @@ describe("ConsultationHeader", () => {
     expect(stats()).toContain("SIMULATED");
   });
 
+  it("labels the demo as simulated outside the width-gated stats so it shows at 360 px", () => {
+    render(createElement(ConsultationHeader, props({})));
+    const tag = screen.getByText("SIMULATED");
+    expect(tag.closest('[aria-label="Position stats"]')).toBeNull();
+    expect(tag.closest(".tag")).not.toBeNull();
+  });
+
+  it("shows no simulation label in live mode", () => {
+    render(
+      createElement(
+        ConsultationHeader,
+        props({ liveAccount: "alice.testnet", liveStats: { health: "—", debt: "—" } }),
+      ),
+    );
+    expect(screen.queryByText(/simulat/i)).toBeNull();
+  });
+
   it("shows live figures and never a fixture value or simulation label in live mode", () => {
     render(
       createElement(
