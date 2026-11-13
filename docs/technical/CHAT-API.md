@@ -219,3 +219,24 @@ Read durations include HTTP body consumption; calls remain individual POSTs, not
 | storage_balance_bounds | 12 | 238.5 / 401 |
 
 [V] Baseline RPC reads that completed before context cancellation were typically about 3.2 s each: `get_config` **3265 / 3477 ms** (7), asset-page read **3615 / 3687 ms** (7), `get_account` **3248 / 3343 ms** (7), metadata **3237 / 3388 ms** (21), oracle **3236.5 / 3421 ms** (14). This supports choosing the measured faster endpoint rather than introducing a cache or weakening freshness.
+
+### Measured context reduction: independent proposal reads
+
+[V] The positioned account's measured enrichment issued lending version, five wallet-balance reads and recipient registration sequentially after the validated snapshot. Those seven independent reads consumed **1993 ms** in a single context-only diagnostic. Their values do not depend on one another; registration bounds still depend on observing an unregistered recipient.
+
+[I, implementation] `createContextLoader` now starts those independent reads together, awaits the whole group, validates every result, and only then publishes `context.proposal`. Unknown version, malformed atomic balance or inconsistent registration withholds the entire proposal while leaving public position tools available. Conditional `storage_balance_bounds` remains after registration and is not fetched speculatively. There is no cache, retry, new endpoint fallback, early answer or changed numeric guard.
+
+| Public FastNear context-only diagnostic | Before serial reads | After concurrent reads |
+| --- | --- | --- |
+| Successful whole context ms, one observation each | 5657 | 4226 |
+| Seven independent read critical-path ms | 1993 | 329 |
+| Proposal available | yes | yes |
+| Guardian discovered | no | no |
+
+[V] The final conditional bounds read took another **220 ms** after the concurrent group. The whole-context observation improved by **1431 ms**; this is **one before/after observation**, not a statistical latency guarantee. A preceding post-change probe failed at the existing 10 s downstream boundary; the subsequent diagnostic succeeded without changing error handling. Public RPC availability remains variable.
+
+[V] The fake-clock regression first failed with the serial loader and passes with the concurrent loader: every independent prerequisite has a 2000 ms simulated delay, yet the complete validated proposal is available at the end of that single read window. Separate negative cases keep the proposal unavailable for unsupported version, invalid wallet atomic amount and inconsistent recipient registration. Existing cancellation/factory/fee/bounds tests remain enabled.
+
+[V] `pnpm exec vitest run apps/web/test/chat-context.test.ts apps/web/test/chat-handler.test.ts apps/web/test/chat-provider.test.ts apps/web/test/chat-route.test.ts`: **43 passed**. Workspace `pnpm typecheck` passed. The context-only runtime diagnostic used real public RPC and returned a real validated proposal context; it did not call a signer or submit that draft.
+
+[I] The remaining sequential snapshot reads live in the shared Rhea adapter, outside Worker A's ownership. This change deliberately does not wrap/reimplement that protocol adapter. Removing the provider continuation would require a new deterministic answer contract; no user-text regex, unguarded streaming or semantic shortcut was introduced.

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createContextLoader, readChatConfig } from "../src/server/chat/context";
 
 // Historical recorded RPC data, Simulated transport; never live product facts.
@@ -93,6 +93,53 @@ describe("trusted RPC chat context", () => {
       account_id: "fees.testnet",
     });
   });
+  it("loads all independent prerequisites within a single downstream read window", async () => {
+    vi.useFakeTimers();
+    try {
+      const base = transport();
+      const delayed: typeof fetch = async (url, init) => {
+        const body = JSON.parse(String(init?.body));
+        if (
+          ["get_version", "ft_balance_of", "storage_balance_of"].includes(body.params?.method_name)
+        ) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+        }
+        return base.fetchImpl(url, init);
+      };
+      const pending = createContextLoader(requiredConfig({ ...environment, ...fees }), delayed)(
+        { message: "Hi", accountId },
+        new AbortController().signal,
+      );
+      let finished = false;
+      void pending.then(() => {
+        finished = true;
+      });
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(finished).toBe(true);
+      const context = await pending;
+      expect(context.proposal?.walletBalances["usdc.fakes.testnet"]).toBe(900719925474099300000n);
+      expect(context.proposal?.lendingVersion).toBe("0.11.0");
+      expect(context.proposal?.feeRecipientRegistered).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each([
+    { get_version: "0.15.7" },
+    { ft_balance_of: "-1" },
+    { storage_balance_of: { total: "100", available: "101" } },
+  ])(
+    "keeps position reads but withholds the whole proposal for invalid prerequisites %j",
+    async (invalid) => {
+      const { fetchImpl } = transport(invalid);
+      const context = await createContextLoader(
+        requiredConfig({ ...environment, ...fees }),
+        fetchImpl,
+      )({ message: "Hi", accountId }, new AbortController().signal);
+      expect(context.snapshot.borrowed[0]?.internal).toBe(121098520756n);
+      expect(context.proposal).toBeUndefined();
+    },
+  );
   it("does not invent storage deposits when recipient is unregistered", async () => {
     const { fetchImpl } = transport({
       storage_balance_of: null,

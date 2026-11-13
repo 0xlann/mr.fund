@@ -91,20 +91,29 @@ export function createContextLoader(config: ChatConfig, fetchImpl: typeof fetch 
       if (config.fees && context.snapshot.assets[config.fees.tokenId]) {
         // Proposal prerequisites are optional: a missing token/version view never fabricates fees.
         try {
-          const version = await client.view(config.lendingId, "get_version", {});
+          // These views do not depend on one another. Keep validation before publishing a proposal.
+          const [version, balances, registration] = await Promise.all([
+            client.view(config.lendingId, "get_version", {}),
+            Promise.all(
+              Object.keys(context.snapshot.assets).map(
+                async (tokenId) =>
+                  [
+                    tokenId,
+                    await client.view(tokenId, "ft_balance_of", { account_id: input.accountId }),
+                  ] as const,
+              ),
+            ),
+            client.view(config.fees.tokenId, "storage_balance_of", {
+              account_id: config.fees.recipientId,
+            }),
+          ]);
           if (!version.ok || !["0.11.0", "0.16.2"].includes(String(version.value.data)))
             throw new Error();
           const walletBalances: Record<string, bigint> = Object.create(null);
-          for (const tokenId of Object.keys(context.snapshot.assets)) {
-            const balance = await client.view(tokenId, "ft_balance_of", {
-              account_id: input.accountId,
-            });
+          for (const [tokenId, balance] of balances) {
             if (!balance.ok) throw new Error();
             walletBalances[tokenId] = atomic(balance.value.data);
           }
-          const registration = await client.view(config.fees.tokenId, "storage_balance_of", {
-            account_id: config.fees.recipientId,
-          });
           if (!registration.ok) throw new Error();
           let registered = false;
           if (registration.value.data !== null) {
