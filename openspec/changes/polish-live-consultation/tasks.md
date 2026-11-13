@@ -14,7 +14,7 @@ Gate summary: all implementation is local and needs no external gate. Live laten
 - [x] 2.1 Extract reply speech from `useConsultation.ts` into `apps/web/src/play/speech/` (controller plus hook, `stripReplyMarkup`). Demo behaviour unchanged; existing demo tests pass unmodified. Evidence [V, 2026-11-13]: web suite 69 files, 576 tests passed; demo reply exercised in isolated browser.
 - [x] 2.2 Speak live replies through the same hook and wire `speaking`/`speech` into `CharacterPortrait` for live sessions. Tests: each reply spoken once, markup never spoken, cancel on new turn, clear, sound off and unmount, browser without speech support. Evidence [V, 2026-11-13]: `reply-speech.test.ts` covered these cases and watchdog in the 576-test web run; real speech playback remains owner-check.
 - [x] 2.3 Pure voice-input state machine with injected timers and a fake recognizer: toggle start/stop, restart on `end` while listening, transcript kept across restarts, 60 000 ms silence stop, 300 000 ms cap, permission/device errors stop without restart, restart-loop guard, language locked while listening. Evidence [V, 2026-11-13]: fake-clock and recognizer scenarios passed in the 576-test web run.
-- [ ] 2.4 Drive `VoicePanel.tsx` with the state machine; copy for each state; no auto-send. Component test for tap, pause, stop and the 60 s silence notice.
+- [x] 2.4 Drive `VoicePanel.tsx` with the state machine; copy for each state; no auto-send. Component test for tap, pause, stop and the 60 s silence notice. Evidence [V, 2026-11-13]: component scenarios passed in the 576-test web run; isolated browser with a fake recognizer showed listening and tap-to-stop states.
 
 ## 3. Live chat UI (C)
 
