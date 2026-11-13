@@ -3,6 +3,7 @@ export type { AdapterError, RheaClient, ViewResult } from "./client";
 export { createRheaClient } from "./client";
 export * from "./open-position-context";
 export * from "./open-position-outcome";
+export * from "./open-position-reconcile";
 export * from "./outcome";
 export { type ResolveOptions, readRepayOutcome, toCardReceipt } from "./outcome-read";
 export { createOutcomeReader } from "./outcome-rpc";

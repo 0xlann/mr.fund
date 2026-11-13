@@ -1,12 +1,16 @@
 import { readFileSync } from "node:fs";
+import { err, ok } from "@mrfund/shared";
 import { describe, expect, it } from "vitest";
 import {
   type OpeningExpectedTransaction,
+  type OpeningOutcomeReader,
   type OpeningPlan,
   parseOpeningOutcome,
   parseOpeningTransaction,
+  readOpeningOutcome,
   validateOpeningPlan,
 } from "../src/open-position-outcome";
+import type { OutcomeEvidence } from "../src/outcome-types";
 
 // Real public testnet transactions of the demo user (Gate 1 cycle), recorded from the archival
 // RPC: fixtures/rhea/opening-outcomes.json. Branches with no recording (partial refund, failed
@@ -742,5 +746,60 @@ describe("validateOpeningPlan", () => {
       ok: false,
       error: { kind: "invalid_plan" },
     });
+  });
+});
+
+describe("readOpeningOutcome", () => {
+  const signal = new AbortController().signal;
+  const readerOf = (
+    answer: (hash: string) => ReturnType<OpeningOutcomeReader["read"]>,
+  ): OpeningOutcomeReader => ({ read: async (e) => answer(e.hash) });
+  const borrow = () => {
+    const b = rec("borrow-delivered");
+    return { b, p: plan("wallet_borrow", [tx(b, "borrow")]) };
+  };
+
+  it("reads each planned transaction by hash and signer and parses the evidence", async () => {
+    const { b, p } = borrow();
+    const seen: string[] = [];
+    const reader = readerOf(async (hash) => {
+      seen.push(hash);
+      return ok(b.evidence as OutcomeEvidence);
+    });
+    const r = unwrap(await readOpeningOutcome(p, reader, signal));
+    expect(seen).toEqual([b.expected.hash]);
+    expect(r.execution).toBe("succeeded");
+  });
+
+  it("an unavailable RPC leaves the outcome pending, never failed or succeeded", async () => {
+    const { p } = borrow();
+    const reader = readerOf(async () => err({ kind: "rpc_unavailable", detail: "down" }));
+    const r = unwrap(await readOpeningOutcome(p, reader, signal));
+    expect(r.execution).toBe("pending");
+    expect(r.transactions[0]?.pendingReasons).toEqual(["transaction_unavailable"]);
+  });
+
+  it.each(["identity_mismatch", "bad_response", "limit_exceeded"] as const)(
+    "a %s read is an error",
+    async (kind) => {
+      const { p } = borrow();
+      const reader = readerOf(async () => err({ kind, detail: "x" }));
+      expect(await readOpeningOutcome(p, reader, signal)).toMatchObject({
+        ok: false,
+        error: { kind },
+      });
+    },
+  );
+
+  it("an invalid plan is refused before any read", async () => {
+    const { b } = borrow();
+    let reads = 0;
+    const reader = readerOf(async () => {
+      reads++;
+      return ok(b.evidence as OutcomeEvidence);
+    });
+    const bad = plan("wallet_borrow", [], {});
+    expect((await readOpeningOutcome(bad, reader, signal)).ok).toBe(false);
+    expect(reads).toBe(0);
   });
 });

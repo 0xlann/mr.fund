@@ -73,6 +73,7 @@ function chain(
     [`${WRAP}/ft_metadata`]: { symbol: "wNEAR", decimals: 24 },
     [`${REF}/ft_metadata`]: { symbol: "REF", decimals: 18 },
     [`${WRAP}/ft_balance_of`]: "5000000000000000000000000",
+    [`${REF}/ft_balance_of`]: "7",
     [`${LENDING}/storage_balance_bounds`]: { min: "100000000000000000000000", max: null },
     [`${WRAP}/storage_balance_bounds`]: { min: "1250000000000000000000", max: null },
     [`${REF}/storage_balance_bounds`]: {
@@ -129,6 +130,7 @@ describe("readOpenPositionContext", () => {
     // supplied 1100 + reserved 20 + prot_fee 5 - borrowed 450 = 675
     expect(c.availableInternal).toBe(675n);
     expect(c.walletCollateralBalance).toBe(5n * 10n ** 24n);
+    expect(c.walletDebtBalance).toBe(7n);
     expect(c.registrations.lending).toEqual({ registered: true, minimumYocto: 10n ** 23n });
     expect(c.registrations.debtToken).toEqual({
       registered: false,
@@ -221,6 +223,7 @@ describe("readOpenPositionContext", () => {
       },
     ],
     ["a non-canonical wallet balance", { [`${WRAP}/ft_balance_of`]: "5.0" }],
+    ["a non-canonical debt-token balance", { [`${REF}/ft_balance_of`]: "7.5" }],
     ["a malformed storage minimum", { [`${REF}/storage_balance_bounds`]: { min: "x" } }],
   ])("refuses %s", async (_name, patch) => {
     const r = await readOpenPositionContext(chain(patch), cfg, ME, req);
