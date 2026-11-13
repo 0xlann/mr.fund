@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { normalizeReplyDashes } from "../src/chat-output";
+import { chatOutputViolations, normalizeReplyDashes } from "../src/chat-output";
 import { checkNumbers, extractNumbers } from "../src/numbers";
+import { buildPersonaPrompt } from "../src/persona";
 
 describe("reply dash normalization before provenance checking", () => {
   it.each([
@@ -32,5 +33,27 @@ describe("reply dash normalization before provenance checking", () => {
       ok: false,
       violations: ["10 USDC"],
     });
+  });
+});
+
+describe("guarantee violations name the matched word", () => {
+  it("tells the retry which localized word was refused", () => {
+    expect(
+      chatOutputViolations("Faktor kesehatan adalah ukuran seberapa aman posisi Anda."),
+    ).toEqual(['unsupported guarantee: "aman"']);
+    expect(chatOutputViolations("Tu préstamo está seguro.")).toEqual([
+      'unsupported guarantee: "seguro"',
+    ]);
+  });
+  it("still allows a negated disclosure", () => {
+    expect(chatOutputViolations("Posisi ini tidak aman jika harga turun.")).toEqual([]);
+  });
+});
+
+describe("persona names the localized guarantee words", () => {
+  it("lists Indonesian and Spanish words to avoid", () => {
+    const prompt = buildPersonaPrompt();
+    for (const word of ["aman", "terjamin", "bebas risiko", "seguro", "garantizado", "sin riesgo"])
+      expect(prompt).toContain(`"${word}"`);
   });
 });
