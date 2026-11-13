@@ -6,6 +6,7 @@ import { DataAgeLabel, LiveCard } from "./live/LiveCard";
 import { liveGreeting, thinkingText } from "./live/liveCopy";
 import { isSlow } from "./live/liveSlow";
 import { liveSuggestions } from "./live/liveSuggestions";
+import { RepayFocus } from "./live/RepayFocus";
 import { RichText } from "./live/RichText";
 import { SuggestionChips } from "./live/SuggestionChips";
 import { RepayExecution } from "./RepayExecution";
@@ -57,19 +58,21 @@ export function LivePositionPanel({ live }: { live: Live }) {
             ["Debt", data.debt],
             ["Supplied", data.supplied],
           ] as const
-        ).map(([label, items]) => (
-          <section key={label}>
-            <h3 className="mb-3 mt-6 text-xs uppercase text-[#898b8c]">{label}</h3>
-            {items.map((item) => (
-              <p
-                key={item.tokenId}
-                className="mb-2 rounded-full border border-white/10 bg-[#1e2123] p-4"
-              >
-                {formatAtomic(item.atomic, item.decimals)} {item.symbol}
-              </p>
-            ))}
-          </section>
-        ))}
+        )
+          .filter(([, items]) => items.length > 0)
+          .map(([label, items]) => (
+            <section key={label}>
+              <h3 className="mb-3 mt-6 text-xs uppercase text-[#898b8c]">{label}</h3>
+              {items.map((item) => (
+                <p
+                  key={item.tokenId}
+                  className="mb-2 rounded-full border border-white/10 bg-[#1e2123] p-4"
+                >
+                  {formatAtomic(item.atomic, item.decimals)} {item.symbol}
+                </p>
+              ))}
+            </section>
+          ))}
     </div>
   );
 }
@@ -92,6 +95,8 @@ export function LiveChatPanel({
   const root = useRef<HTMLElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const slow = isSlow(live);
+  // A chip unmounts when it is used; keyboard users get focus back in the composer, not on the page.
+  const focusComposer = () => root.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
   useEffect(() => {
     if (live.error) root.current?.querySelector<HTMLTextAreaElement>("textarea")?.focus();
   }, [live.error]);
@@ -152,7 +157,7 @@ export function LiveChatPanel({
                 <button
                   type="button"
                   onClick={() => void live.send(live.input)}
-                  className="mt-3 rounded-full border border-[#313334] px-3.5 py-2 text-[11px] font-medium text-[#edf3f5] transition-colors hover:bg-[#2b2d2e]"
+                  className="mt-3 rounded-full border border-[#313334] bg-transparent px-3.5 py-2 text-[11px] font-medium text-[#edf3f5] transition-colors hover:bg-[#2b2d2e]"
                 >
                   Retry
                 </button>
@@ -164,12 +169,14 @@ export function LiveChatPanel({
               card={live.card}
               position={live.state.status === "ready" ? live.state.position : null}
             >
-              <RepayExecution
-                card={live.card}
-                store={repay.store}
-                view={repay.view}
-                onSettled={live.refresh}
-              />
+              <RepayFocus phase={repay.view.phase}>
+                <RepayExecution
+                  card={live.card}
+                  store={repay.store}
+                  view={repay.view}
+                  onSettled={live.refresh}
+                />
+              </RepayFocus>
               {live.state.status === "stale" && (
                 <button type="button" onClick={live.refresh}>
                   Refresh position
@@ -180,9 +187,14 @@ export function LiveChatPanel({
           {!live.busy && (
             <SuggestionChips
               suggestions={liveSuggestions(live.state.status, Boolean(live.error))}
-              variant={live.messages.length === 0 ? "initial" : "follow-up"}
-              onSend={(text) => void live.send(text)}
-              onRefresh={live.refresh}
+              onSend={(text, byKeyboard) => {
+                void live.send(text);
+                if (byKeyboard) focusComposer();
+              }}
+              onRefresh={(byKeyboard) => {
+                live.refresh();
+                if (byKeyboard) focusComposer();
+              }}
             />
           )}
         </div>

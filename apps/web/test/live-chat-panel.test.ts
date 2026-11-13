@@ -205,3 +205,22 @@ describe("live suggestion chips", () => {
     expect(chips()).toEqual(["Refresh position"]);
   });
 });
+
+describe("keyboard focus after a chip", () => {
+  const textbox = () => screen.getByRole("textbox", { name: "Message Mr.Fund" });
+  it("returns focus to the composer when a chip is used from the keyboard", () => {
+    panel(fakeLive({ state: { status: "empty" } }));
+    fireEvent.click(screen.getByRole("button", { name: "What can you do?" }), { detail: 0 });
+    expect(document.activeElement).toBe(textbox());
+  });
+  it("leaves focus alone for a pointer click so a phone keyboard does not pop up", () => {
+    panel(fakeLive({ state: { status: "empty" } }));
+    fireEvent.click(screen.getByRole("button", { name: "What can you do?" }), { detail: 1 });
+    expect(document.activeElement).not.toBe(textbox());
+  });
+  it("also returns focus after a keyboard refresh chip", () => {
+    panel(fakeLive({ state: { status: "stale" } }));
+    fireEvent.click(screen.getByRole("button", { name: "Refresh position" }), { detail: 0 });
+    expect(document.activeElement).toBe(textbox());
+  });
+});
