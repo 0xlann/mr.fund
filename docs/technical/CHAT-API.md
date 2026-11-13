@@ -79,7 +79,7 @@ Only configure trusted-edge headers if the edge overwrites them, supplies the se
 
 ## GLM settings and evaluation
 
-The native-fetch OpenAI-compatible provider uses temperature `0.2`, `max_tokens: 1024`, and `thinking_token_budget: 256`; the evaluator imports the same `CHAT_GENERATION_SETTINGS` constant rather than duplicating configuration. Minimal `reasoning_effort: "low"` was also exercised and did not consistently satisfy the acceptance gate. No extra SDK dependency is needed for this endpoint. [NEAR AI documentation](https://docs.near.ai/cloud/reasoning-models) explains the GLM-specific budget and that `enable_thinking: false` can move reasoning into answer content rather than improve latency. Reasoning content is never exposed by this adapter.
+The native-fetch OpenAI-compatible provider uses temperature `0.2`, `max_tokens: 2048` (raised from 1024 on 2026-11-13, see "Haiku 5.5 runs and the token limit"), and `thinking_token_budget: 256`; the evaluator imports the same `CHAT_GENERATION_SETTINGS` constant rather than duplicating configuration. Minimal `reasoning_effort: "low"` was also exercised and did not consistently satisfy the acceptance gate. No extra SDK dependency is needed for this endpoint. [NEAR AI documentation](https://docs.near.ai/cloud/reasoning-models) explains the GLM-specific budget and that `enable_thinking: false` can move reasoning into answer content rather than improve latency. Reasoning content is never exposed by this adapter.
 
 The 36-case dataset uses 12 scenarios in English, Indonesian and Spanish. Position/prices/Guardian responses are explicitly **Simulated**, even when inference is live. It covers comparison, what-if, repayment drafts, glossary, Guardian limits/history/non-action, stale/missing inputs, unsupported transfers/protocols and injection. No testnet/mainnet execution is implied.
 
@@ -334,3 +334,23 @@ Read durations include HTTP body consumption; calls remain individual POSTs, not
 [V] Observed validated-reply usage: **99719 input tokens**, including **32256 cached**; **20619 output tokens**, including **15957 reasoning**. Subsets are not added again. Interrupted/failed calls can consume unreported tokens; no billing total or cost is inferred.
 
 **BLOCKER [U, owner: lead/D25]:** the current GLM does not meet the existing complete-dataset criteria: only 20 model answers, failed content/card checks, heuristic below 34/36 and no independent exact-output review. D25/P3.4 and `add-tool-driven-chat-api` 3.3 remain open. No acceptance test, numeric guard, tool boundary or model setting was weakened to obtain a passing recording test. The next decision is the lead's model/latency-quality review using these exact saved outputs, not a claim of deployment readiness.
+
+## Haiku 5.5 runs and the token limit (2026-11-13)
+
+[V, live inference on the **Simulated** fixture `chat-eval-2026-11-08-v1`] Two complete 36-case runs with `NEARAI_MODEL=anthropic/claude-haiku-5-5` (temperature 0.2, `thinking_token_budget` 256). Reports are ignored local files: `scratch/chat-eval/haiku-run1-max1024.json` and `scratch/chat-eval/anthropic-claude-haiku-5-5.json`. No independent review was done; `modelAccepted: false` for both. The default model is unchanged.
+
+| Run (`runAt` UTC) | `max_tokens` | Model answers | Timeouts | Mean / max latency ms | Numbers / forbidden claims / cards | Language heuristic | Semantic failures | Cut off mid-sentence |
+| --- | ---: | ---: | ---: | --- | --- | ---: | ---: | ---: |
+| 07:42:37 | 1024 | 34/36 | 0 | 6213 / 13451 | pass / pass / pass | 36/36 | 10 | 8 |
+| 07:47:45 | 2048 | 34/36 | 0 | 6135 / 16684 | pass / pass / pass | 36/36 | 9 | 1 |
+
+Finding: with 1024 tokens, eight Haiku answers stopped mid-sentence although their visible text was 300–1400 characters (reported output tokens 1164–2301), so the limit, not the model, cut them off. At 2048 one answer (`guardian-history.id`, 2267 output tokens) was still cut. The limit is now 2048 for every model; GLM was not rerun with it.
+
+Remaining failures at 2048, classified by reading each exact answer [I, assistant reading, not independent review]:
+
+- Deterministic fallbacks after two guard rejections (model turn failed): `glossary.id`, `injection.es`.
+- Cut off by the limit: `guardian-history.id`.
+- Correct content that the association rubric did not match, for example "40 USDC accepted spend" (number before the term), "a 20 USDC floor", "aceptó un gasto de 40 USDC", "data posisi terlalu lama dibaca" for stale input: `guardian-status.en`, `guardian-status.id`, `guardian-history.en`, `guardian-history.es`, `stale.id`, `stale.es`. The rubric was not changed; widening it is a lead decision, because it is part of the acceptance gate.
+
+D25/P3.4/OpenSpec 3.3 stay open: acceptance needs 36/36 model answers, every semantic check passing and 36 independent reviews.
+
