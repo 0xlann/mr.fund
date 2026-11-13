@@ -1,6 +1,7 @@
 import { CircleHelp, Settings2, Volume2, VolumeX, Wallet } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { amount } from "./display";
+import type { LiveHeaderStats } from "./live/headerStats";
 import { ProvenanceTag } from "./ProvenanceTag";
 import type { DataState, Port } from "./source/types";
 
@@ -20,6 +21,8 @@ interface Props {
   connected: boolean;
   setModal: (modal: "settings" | "help" | "wallet") => void;
   liveAccount?: string | undefined;
+  /** Figures from the live position; when set, the demo figures above are not shown. */
+  liveStats?: LiveHeaderStats | undefined;
 }
 export function ConsultationHeader({
   stage,
@@ -37,6 +40,7 @@ export function ConsultationHeader({
   connected,
   setModal,
   liveAccount,
+  liveStats,
 }: Props) {
   return (
     <header
@@ -56,28 +60,34 @@ export function ConsultationHeader({
         </span>
       </div>
       <div className="flex items-center gap-2">
-        {stage === "consult" && !liveAccount && (
+        {stage === "consult" && (!liveAccount || liveStats) && (
           <section
             aria-label="Position stats"
-            className="mr-3 hidden grid-cols-2 items-center gap-x-5 gap-y-1 text-sm lg:grid 2xl:grid-cols-[auto_auto_auto]"
+            className={`mr-3 hidden grid-cols-2 items-center gap-x-5 gap-y-1 text-sm lg:grid ${liveStats ? "" : "2xl:grid-cols-[auto_auto_auto]"}`}
           >
             <span className="text-[#8f9192]">
               Health{" "}
               <b className="ml-2 text-base font-semibold text-[#d7f8a4] tabular-nums">
-                {healthText}
+                {liveStats?.health ?? healthText}
               </b>
             </span>
             <span className="text-[#8f9192]">
               Debt{" "}
               <b className="ml-2 text-base font-semibold text-[#e4dfed] tabular-nums">
-                {dataState === "fresh" && debt > 0n ? `$${amount(debt)}` : "—"}
+                {liveStats
+                  ? liveStats.debt
+                  : dataState === "fresh" && debt > 0n
+                    ? `$${amount(debt)}`
+                    : "—"}
               </b>
             </span>
-            <ProvenanceTag
-              port={port}
-              label="SIMULATED · PnL unavailable"
-              className="col-span-2 text-xs text-[#a2a4a5] 2xl:col-span-1"
-            />
+            {!liveStats && (
+              <ProvenanceTag
+                port={port}
+                label="SIMULATED · PnL unavailable"
+                className="col-span-2 text-xs text-[#a2a4a5] 2xl:col-span-1"
+              />
+            )}
           </section>
         )}
         {!liveAccount && (

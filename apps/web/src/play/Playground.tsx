@@ -26,6 +26,7 @@ import { HelpDialog } from "./HelpDialog";
 import { ImmersiveSceneFrame } from "./ImmersiveSceneFrame";
 import { LiveGuardianPanel } from "./LiveGuardianPanel";
 import { LiveChatPanel, LivePositionPanel } from "./LivePanels";
+import { liveHeaderStats } from "./live/headerStats";
 import { ModalFrame } from "./ModalFrame";
 import { PositionPanel } from "./PositionPanel";
 import { ReceiptDetail } from "./ReceiptDetail";
@@ -333,6 +334,7 @@ export function Playground({
             debt={liveAccount ? 0n : debt}
             port={liveAccount ? activeSource.session : activeSource.position}
             liveAccount={liveAccount?.accountId}
+            liveStats={liveAccount ? liveHeaderStats(live.state) : undefined}
             sound={sound}
             setSound={setSound}
             setNotice={setNotice}
