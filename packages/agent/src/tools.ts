@@ -30,7 +30,6 @@ import {
   type AssetState,
   type Atomic,
   type Card,
-  type EngineError,
   type FeeSchedule,
   type PositionSnapshot,
   type Price,
@@ -39,6 +38,17 @@ import {
 } from "@mrfund/shared";
 import { type GuardianToolContext, guardianTool, proposeGuardianControl } from "./guardian-tools";
 import { fromAtomic, type SourceNumber } from "./numbers";
+import { type OpeningToolContext, proposeOpening, quoteOpening } from "./opening-tools";
+import {
+  argsOf,
+  dataAgeFact,
+  engineRefusal,
+  fact,
+  invalid,
+  parseAmount,
+  refuse,
+  resolveAsset,
+} from "./tool-support";
 
 export interface Fact extends SourceNumber {
   readonly label: string;
@@ -87,6 +97,8 @@ export interface ToolContext {
   newId?: () => string;
   /** Server-selected Guardian target and public-read dependencies; never model arguments. */
   guardian?: GuardianToolContext;
+  /** Server-read opening inputs for the plain-wallet deposit and borrow tools; never model arguments. */
+  opening?: OpeningToolContext;
 }
 
 export interface ToolDefinition {
@@ -103,57 +115,6 @@ export interface ToolDefinition {
 type Runner = (args: Record<string, unknown>, ctx: ToolContext) => ToolResult | Promise<ToolResult>;
 
 // ---------------------------------------------------------------- helpers
-
-const refuse = (tool: string, code: string, message: string): ToolResult => ({
-  ok: false,
-  tool,
-  refusal: { code, message },
-});
-
-function engineRefusal(tool: string, e: EngineError): ToolResult {
-  switch (e.kind) {
-    case "stale_price":
-      return refuse(
-        tool,
-        "stale_price",
-        `Price data for ${e.tokenId} is older than the freshness limit, so no advice can be given.`,
-      );
-    case "missing_price":
-      return refuse(tool, "missing_price", `No price is available for ${e.tokenId}.`);
-    case "unsupported_asset":
-      return refuse(tool, "unsupported_asset", `${e.tokenId} is not supported here.`);
-    case "invalid_amount":
-      return refuse(tool, "invalid_amount", e.reason);
-    case "invalid_input":
-      return refuse(tool, "invalid_input", e.reason);
-    case "stale_snapshot":
-      return refuse(
-        tool,
-        "stale_snapshot",
-        "The position was read longer ago than the freshness limit, so no advice can be given.",
-      );
-    case "target_unreachable":
-      return refuse(
-        tool,
-        "target_unreachable",
-        "Repaying this token cannot reach the target health.",
-      );
-  }
-}
-
-const invalid = (tool: string, message: string): ToolResult =>
-  refuse(tool, "invalid_arguments", message);
-
-/** Arguments must be an object with only the allowed keys; missing means empty. */
-function argsOf(raw: unknown, allowed: readonly string[]): Record<string, unknown> | string {
-  if (raw === undefined || raw === null) return {};
-  if (typeof raw !== "object" || Array.isArray(raw)) return "arguments must be an object";
-  const extra = Object.keys(raw).filter((k) => !allowed.includes(k));
-  if (extra.length > 0) return `unexpected argument: ${extra.join(", ")}`;
-  return raw as Record<string, unknown>;
-}
-
-const fact = (label: string, s: SourceNumber): Fact => ({ label, value: s.value, unit: s.unit });
 
 function signedPercentFromBps(bps: number): SourceNumber {
   const p = fromAtomic(BigInt(Math.abs(bps)), 2, "%");
@@ -174,26 +135,6 @@ function healthFacts(prefix: string, bps: number): Fact[] {
     fact(`${prefix}health factor`, fromAtomic(b, 4, null)),
     fact(`${prefix}health factor (percent)`, fromAtomic(b, 2, "%")),
   ];
-}
-
-const dataAgeFact = (ms: number): Fact =>
-  fact("data age", fromAtomic(BigInt(Math.max(0, Math.floor(ms))), 3, "s"));
-
-function resolveAsset(s: PositionSnapshot, ref: string): AssetState | undefined {
-  const byId = s.assets[ref];
-  if (byId) return byId;
-  const lower = ref.toLowerCase();
-  return Object.values(s.assets).find((a) => a.token.symbol.toLowerCase() === lower);
-}
-
-/** A whole-unit decimal amount ("50", "0.5") to token atomic units, or an error message. */
-function parseAmount(v: unknown, decimals: number): Atomic | string {
-  const s = typeof v === "number" && Number.isFinite(v) ? String(v) : v;
-  if (typeof s !== "string" || !/^\d+(\.\d+)?$/.test(s))
-    return "amount must be a positive decimal number";
-  const [whole = "", frac = ""] = s.split(".");
-  if (frac.length > decimals) return `amount has more than ${decimals} decimal places`;
-  return BigInt(whole + frac.padEnd(decimals, "0"));
 }
 
 // ------------------------------------------------------------------ tools
@@ -569,6 +510,8 @@ export const RUNNERS: Readonly<Record<string, Runner>> = {
   compare_repay_vs_yield: compareRepayVsYield,
   what_if_price: whatIf,
   propose_card: proposeCard,
+  quote_opening: quoteOpening,
+  propose_opening: proposeOpening,
   explain_term: explainTerm,
 };
 
@@ -664,6 +607,43 @@ export function toolDefinitions(): ToolDefinition[] {
           token: { type: "string", description: "Debt token symbol. Optional." },
         },
         required: ["action"],
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "quote_opening",
+      description:
+        "Read how much more the user could borrow at a target health, from deterministic code. Read-only. Always call this before saying any maximum, health or amount for opening a position.",
+      parameters: {
+        type: "object",
+        properties: {
+          target_health_percent: {
+            type: "string",
+            description: 'Optional target health in percent, above 100, for example "150".',
+          },
+        },
+        additionalProperties: false,
+      },
+    },
+    {
+      name: "propose_opening",
+      description:
+        "Prepare ONE draft card for the user to review: a collateral deposit or, as a separate later card, a borrow. Built by deterministic code; nothing is signed or sent until the user approves it in their wallet. Never combine the two stages in one answer.",
+      parameters: {
+        type: "object",
+        properties: {
+          stage: { type: "string", enum: ["deposit", "borrow"] },
+          amount: {
+            type: "string",
+            description: 'Amount in whole tokens, for example "10". Required: ask the user.',
+          },
+          token: { type: "string", description: "The stage's own token symbol. Optional." },
+          target_health_percent: {
+            type: "string",
+            description: 'Optional target health in percent, above 100, for example "150".',
+          },
+        },
+        required: ["stage", "amount"],
         additionalProperties: false,
       },
     },
