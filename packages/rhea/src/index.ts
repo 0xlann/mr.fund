@@ -7,4 +7,5 @@ export { type ResolveOptions, readRepayOutcome, toCardReceipt } from "./outcome-
 export { createOutcomeReader } from "./outcome-rpc";
 export type { MarketSnapshot, NetworkConfig } from "./snapshot";
 export { readMarket, readPosition } from "./snapshot";
+export * from "./tx/open-position";
 export * from "./tx/repay";

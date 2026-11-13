@@ -25,11 +25,13 @@ import {
   type AccountId,
   type Atomic,
   type Bps,
+  type CardDraft,
   type CardNumber,
   type Computed,
   decimalString,
   type EngineError,
   err,
+  type FeeLine,
   ok,
   type PositionSnapshot,
   type Result,
@@ -474,4 +476,146 @@ export function borrowCardNumbers(
     { label: "Target health", after: pct(q.targetBps), unit: "%" },
     { label: "Largest borrow at this target", after: tok(q.maxAtomic), unit: symbol },
   ]);
+}
+
+/**
+ * The opening fee policy for one stage. Pricing is a founder decision (task 1.3), so there is no
+ * default: the caller states either an explicit approved fee or an explicit approved "none".
+ */
+export type OpeningFee = { kind: "none" } | { kind: "fee"; line: FeeLine };
+
+function openingFees(fee: OpeningFee): Result<{ lines: FeeLine[]; note: string }, EngineError> {
+  if (fee?.kind === "none")
+    return ok({ lines: [], note: "No fee is charged for this stage (explicitly approved)." });
+  if (fee?.kind === "fee" && fee.line.amount > 0n)
+    return ok({ lines: [fee.line], note: "The fee is paid in the same signed batch." });
+  return invalid(
+    "opening fee policy missing or invalid: state an approved fee or an approved none",
+  );
+}
+
+const FIXED_PRICE_RISK = "Prices here are fixed protocol values, not market quotes.";
+const ceilBps = (amount: bigint, bps: number): bigint => (amount * BigInt(bps) + 9_999n) / 10_000n;
+
+function fixedPriceRisks(input: OpenPositionInput): string[] {
+  return [input.collateralTokenId, input.debtTokenId].some(
+    (id) => input.snapshot.prices[id]?.source === "default_price",
+  )
+    ? [FIXED_PRICE_RISK]
+    : [];
+}
+
+/** Engine-owned draft for the collateral deposit stage. */
+export function depositCardDraft(
+  input: OpenPositionInput,
+  amountAtomic: Atomic,
+  walletBalance: Atomic,
+  fee: OpeningFee,
+  nowMs: number,
+  options: HealthOptions = {},
+): Result<CardDraft, EngineError> {
+  const f = openingFees(fee);
+  if (!f.ok) return f;
+  const q = quoteCollateralDeposit(input, amountAtomic, walletBalance, nowMs, options);
+  if (!q.ok) return q;
+  const collateral = input.snapshot.assets[input.collateralTokenId];
+  const debt = input.snapshot.assets[input.debtTokenId];
+  if (!collateral || !debt)
+    return err({ kind: "unsupported_asset", tokenId: input.collateralTokenId });
+  const cd = collateral.token;
+  const internalDecimals = cd.decimals + cd.extraDecimals;
+  const before = sumInternal(input.snapshot.collateral, input.collateralTokenId);
+  const maxAge = Math.min(
+    options.maxDataAgeMs ?? MAX_DATA_AGE_MS,
+    input.oracleValidityMs ?? Number.POSITIVE_INFINITY,
+  );
+  const numbers: CardNumber[] = [
+    { label: "Deposit", after: decimalString(amountAtomic, cd.decimals), unit: cd.symbol },
+    {
+      label: "Collateral in Rhea",
+      before: decimalString(before, internalDecimals),
+      after: decimalString(q.value.value.collateralAfterInternal, internalDecimals),
+      unit: cd.symbol,
+    },
+    {
+      label: "Borrowing power after it settles (conditional)",
+      after: decimalString(q.value.value.conditionalMaxBorrowAtomic, debt.token.decimals),
+      unit: debt.token.symbol,
+    },
+    { label: "Target health", after: pct(input.targetBps), unit: "%" },
+  ];
+  return ok({
+    action: "wallet_collateral_deposit",
+    headline: `Deposit ${decimalString(amountAtomic, cd.decimals)} ${cd.symbol} as collateral`,
+    numbers,
+    assumptions: [...q.value.assumptions, f.value.note],
+    fees: f.value.lines,
+    risks: [
+      "Depositing does not borrow anything; borrowing is a separate step you approve afterwards.",
+      "Collateral stays in Rhea until you withdraw it. Nothing returns it automatically.",
+      "If the collateral's price falls while you owe debt, you can be liquidated.",
+      ...fixedPriceRisks(input),
+    ],
+    dataAgeMs: q.value.dataAgeMs,
+    maxDataAgeMs: maxAge,
+    amount: amountAtomic,
+    tokenId: input.collateralTokenId,
+    cappedBy: null,
+  });
+}
+
+/** Engine-owned draft for the borrow stage; the quote must come from a post-deposit context. */
+export function borrowCardDraft(
+  input: OpenPositionInput,
+  amountAtomic: Atomic,
+  fee: OpeningFee,
+  nowMs: number,
+  options: HealthOptions = {},
+): Result<CardDraft, EngineError> {
+  const f = openingFees(fee);
+  if (!f.ok) return f;
+  const q = quoteBorrow(input, amountAtomic, nowMs, options);
+  if (!q.ok) return q;
+  const numbers = borrowCardNumbers(input, q.value.value);
+  if (!numbers.ok) return numbers;
+  const debt = input.snapshot.assets[input.debtTokenId];
+  if (!debt) return err({ kind: "unsupported_asset", tokenId: input.debtTokenId });
+  const { symbol, decimals, extraDecimals } = debt.token;
+  const scale = 10n ** BigInt(extraDecimals);
+  const atomicOf = (internal: bigint) => (internal + scale - 1n) / scale;
+  const apr = debt.borrowAprBps;
+  const maxAge = Math.min(
+    options.maxDataAgeMs ?? MAX_DATA_AGE_MS,
+    input.oracleValidityMs ?? Number.POSITIVE_INFINITY,
+  );
+  return ok({
+    action: "wallet_borrow",
+    headline: `Borrow ${decimalString(amountAtomic, decimals)} ${symbol}`,
+    numbers: [
+      ...numbers.value,
+      {
+        label: "Annual interest cost",
+        before: decimalString(ceilBps(atomicOf(q.value.value.debtBeforeInternal), apr), decimals),
+        after: decimalString(ceilBps(atomicOf(q.value.value.debtAfterInternal), apr), decimals),
+        unit: symbol,
+      },
+    ],
+    assumptions: [
+      ...q.value.assumptions,
+      `Annual interest cost uses the current ${symbol} protocol-reported borrow APR of ${pct(apr)}% for one year, without compounding.`,
+      f.value.note,
+    ],
+    fees: f.value.lines,
+    risks: [
+      "Borrowing adds debt and liquidation risk; the health shown is a projection, not a protected level.",
+      "The amount that reaches your wallet can be a few units lower than the amount borrowed.",
+      "Rates and prices change before the transaction lands.",
+      ...fixedPriceRisks(input),
+    ],
+    dataAgeMs: q.value.dataAgeMs,
+    maxDataAgeMs: maxAge,
+    amount: amountAtomic,
+    tokenId: input.debtTokenId,
+    cappedBy: null,
+  });
 }

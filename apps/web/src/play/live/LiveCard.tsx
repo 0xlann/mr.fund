@@ -10,6 +10,8 @@ type Card = NonNullable<Live["card"]>;
 
 const TAG: Record<Card["action"], string> = {
   repay: "REPAY",
+  wallet_collateral_deposit: "DEPOSIT",
+  wallet_borrow: "BORROW",
   guardian_activate: "GUARDIAN",
   guardian_deactivate: "GUARDIAN",
   guardian_withdraw: "GUARDIAN",
