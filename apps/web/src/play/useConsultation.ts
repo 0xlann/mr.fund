@@ -12,6 +12,7 @@ import type {
   Receipt,
   WalletOutcome,
 } from "./source/types";
+import { useReplySpeech } from "./speech/replySpeech";
 export type Panel = "chat" | "voice" | "position" | "guardian" | "activity";
 type Modal = "wallet" | "settings" | "setup" | "help" | null;
 export type Message = {
@@ -79,7 +80,6 @@ export function useConsultation(source: ConsultationSource) {
   const wide = useMedia("(min-width: 1280px)");
   const phone = useMedia("(max-width: 767px)") && !wide;
   const shortMobile = useMedia("(max-height:600px) and (max-width:767px)") && !wide;
-  const [speaking, setSpeaking] = useState(false);
   const [streamingId, setStreamingId] = useState<number | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("position");
   const [voiceOpen, setVoiceOpen] = useState(false);
@@ -172,30 +172,18 @@ export function useConsultation(source: ConsultationSource) {
   const timeouts = useRef<ReturnType<typeof setTimeout>[]>([]);
   const messageId = useRef(0);
   const speechSequence = useRef(0);
-  const speechCue = useRef<{ id: number; text: string; charIndex: number | null }>({
-    id: 0,
-    text: "",
-    charIndex: null,
-  });
-  const playback = useRef<{
-    id: number;
-    messageId: number;
-    textDone: boolean;
-    audioDone: boolean;
-  } | null>(null);
-  const finishAudio = useCallback((id: number) => {
-    const current = playback.current;
-    if (!current || current.id !== id) return;
-    current.audioDone = true;
-    if (current.textDone) setSpeaking(false);
-  }, []);
-  const finishText = useCallback((id: number) => {
-    const current = playback.current;
-    if (!current || current.messageId !== id) return;
-    current.textDone = true;
-    setStreamingId(null);
-    if (current.audioDone) setSpeaking(false);
-  }, []);
+  const replySpeech = useReplySpeech(sound);
+  const speechCue = replySpeech.cue;
+  const speaking = replySpeech.speaking;
+  const playbackMessage = useRef<number | null>(null);
+  const finishText = useCallback(
+    (id: number) => {
+      if (playbackMessage.current !== id) return;
+      replySpeech.finishText(id);
+      setStreamingId(null);
+    },
+    [replySpeech.finishText],
+  );
 
   useEffect(() => {
     if (panel !== "chat" && streamingId !== null) finishText(streamingId);
@@ -206,8 +194,7 @@ export function useConsultation(source: ConsultationSource) {
       operation.current?.abort();
       for (const timer of timeouts.current) clearTimeout(timer);
       speechSequence.current++;
-      playback.current = null;
-      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+      playbackMessage.current = null;
     };
   }, []);
   useEffect(() => {
@@ -281,9 +268,7 @@ export function useConsultation(source: ConsultationSource) {
     setMessages((prev) => [...prev, { id: ++messageId.current, role: "user", text: question }]);
     setInput("");
     setThinking(true);
-    setSpeaking(false);
     const speechId = ++speechSequence.current;
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     const events = source.chat.send({ message: question, amount: repayAmount }, controller.signal);
     later(async () => {
       if (speechSequence.current !== speechId || controller.signal.aborted) return;
@@ -324,37 +309,11 @@ export function useConsultation(source: ConsultationSource) {
         setThinking(false);
         return;
       }
-      const canSpeak =
-        soundRef.current &&
-        "speechSynthesis" in window &&
-        typeof SpeechSynthesisUtterance !== "undefined";
-      speechCue.current = { id: speechId, text, charIndex: null };
-      playback.current = { id: speechId, messageId: id, textDone: false, audioDone: !canSpeak };
+      playbackMessage.current = id;
       setMessages((prev) => [...prev, { id, role: "assistant", text, ...(kind ? { kind } : {}) }]);
       setStreamingId(id);
       setThinking(false);
-      setSpeaking(true);
-      if (canSpeak) {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = indo ? "id-ID" : "en-US";
-        utterance.rate = 0.95;
-        utterance.onstart = () => {
-          if (playback.current?.id === speechId && !playback.current.audioDone) setSpeaking(true);
-        };
-        utterance.onboundary = (event) => {
-          if (speechCue.current.id === speechId && event.name === "word")
-            speechCue.current.charIndex = event.charIndex;
-        };
-        utterance.onend = () => finishAudio(speechId);
-        utterance.onerror = () => finishAudio(speechId);
-        try {
-          window.speechSynthesis.speak(utterance);
-        } catch {
-          finishAudio(speechId);
-        }
-        // Recover if a browser speech service never sends an end/error event.
-        later(() => finishAudio(speechId), Math.min(90000, Math.max(10000, text.length * 110)));
-      }
+      replySpeech.play(id, text, indo ? "id-ID" : "en-US", soundRef.current, true);
     }, 2000);
   }
   function requestAction(action: Approval | string | null) {
@@ -424,11 +383,10 @@ export function useConsultation(source: ConsultationSource) {
   function stopReply() {
     turn.current?.abort();
     speechSequence.current++;
-    playback.current = null;
+    playbackMessage.current = null;
     setStreamingId(null);
     setThinking(false);
-    setSpeaking(false);
-    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    replySpeech.cancel();
   }
   function clearConversation() {
     stopReply();

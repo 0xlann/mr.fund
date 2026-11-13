@@ -32,6 +32,7 @@ import { ReceiptDetail } from "./ReceiptDetail";
 import { SettingsDialog } from "./SettingsDialog";
 import { createDemoSource } from "./source/demoSource";
 import type { ConsultationSource } from "./source/types";
+import { useLiveReplySpeech } from "./speech/replySpeech";
 import { panelReveal } from "./styles";
 import { type Panel, useConsultation } from "./useConsultation";
 import { useLiveConsultation } from "./useLiveConsultation";
@@ -167,6 +168,24 @@ export function Playground({
     connect,
     healthText,
   } = useConsultation(activeSource);
+  const latestLiveMessage = live.messages.at(-1);
+  const liveSpeech = useLiveReplySpeech(
+    liveAccount && latestLiveMessage?.role === "assistant"
+      ? {
+          id: latestLiveMessage.id,
+          text: latestLiveMessage.content,
+          lang:
+            typeof navigator !== "undefined" && navigator.language
+              ? navigator.language
+              : /kalau|harga|aku|berapa|jelas|aman|batas|apa |bayar|utang/i.test(
+                    latestLiveMessage.content,
+                  )
+                ? "id-ID"
+                : "en-US",
+        }
+      : null,
+    sound,
+  );
   function guardianContent() {
     return (
       <GuardianPanel
@@ -342,9 +361,9 @@ export function Playground({
             >
               <CharacterPortrait
                 mood={liveAccount ? (live.busy ? "thinking" : "calm") : characterMood}
-                speaking={liveAccount ? false : speaking}
+                speaking={liveAccount ? liveSpeech.speaking : speaking}
                 mobile={phone}
-                speech={speechCue}
+                speech={liveAccount ? liveSpeech.cue : speechCue}
                 wave={wave}
                 station={stage === "welcome" ? "office" : "chat"}
                 onEntranceComplete={finishEntrance}
