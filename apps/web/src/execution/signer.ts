@@ -1,4 +1,5 @@
 import { type VerifiedGuardian, wasGuardianVerified } from "../guardian/verify";
+import { type VerifiedOpening, wasOpeningVerified } from "./open-position-verify";
 import { type VerifiedRepay, wasVerified } from "./verify";
 
 /** The wallet surface the signer needs; matches `@hot-labs/near-connect` 0.12.0. */
@@ -18,14 +19,16 @@ export interface SigningWallet {
 
 /**
  * Connect-only signing capability (task 2.1). It signs only a `VerifiedRepay` issued by
- * `verifyCardPayload` or a `VerifiedGuardian` issued by `verifyGuardianPayload` for this exact
- * account and network (one signing path for both, E1 and G-UI-1), sets `signerId` and `network`
+ * `verifyCardPayload`, a `VerifiedGuardian` issued by `verifyGuardianPayload` or a
+ * `VerifiedOpening` issued by `verifyOpeningPayload` for this exact account and network (one
+ * signing path for all three, E1, G-UI-1 and OP-1; each result is looked up only in its own
+ * issuer's registry, so one kind can never pass as another), sets `signerId` and `network`
  * explicitly, and hands back the wallet's result unmodified. NEAR Auth has no signer at all.
  */
 export interface TransactionSigner {
   readonly accountId: string;
   readonly network: "testnet" | "mainnet";
-  signAndSend(verified: VerifiedRepay | VerifiedGuardian): Promise<unknown>;
+  signAndSend(verified: VerifiedRepay | VerifiedGuardian | VerifiedOpening): Promise<unknown>;
 }
 
 export function createTransactionSigner(
@@ -41,8 +44,13 @@ export function createTransactionSigner(
   return Object.freeze({
     accountId,
     network,
-    async signAndSend(verified: VerifiedRepay | VerifiedGuardian) {
-      const issued = "intent" in verified ? wasGuardianVerified(verified) : wasVerified(verified);
+    async signAndSend(verified: VerifiedRepay | VerifiedGuardian | VerifiedOpening) {
+      const issued =
+        "stage" in verified
+          ? wasOpeningVerified(verified)
+          : "intent" in verified
+            ? wasGuardianVerified(verified)
+            : wasVerified(verified);
       if (!issued) throw new Error("Only a verified payload can be signed.");
       if (verified.signerId !== accountId)
         throw new Error("The payload was verified for another account.");
