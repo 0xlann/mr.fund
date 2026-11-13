@@ -190,7 +190,7 @@ export async function runPublicOverLimit<T>(
         status: "pending",
         label: "operator test request",
         hash: state.hash,
-        explorerUrl: `https://explorer.testnet.near.org/transactions/${state.hash}`,
+        explorerUrl: `https://testnet.nearblocks.io/txns/${state.hash}`,
       });
       return await reportFinal(state.hash, state.amount);
     }
@@ -221,7 +221,7 @@ export async function runPublicOverLimit<T>(
       status: "pending",
       label: "operator test request",
       hash: signed.hash,
-      explorerUrl: `https://explorer.testnet.near.org/transactions/${signed.hash}`,
+      explorerUrl: `https://testnet.nearblocks.io/txns/${signed.hash}`,
     });
     try {
       await deps.broadcast(signed.signed);
