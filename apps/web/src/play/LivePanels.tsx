@@ -4,7 +4,9 @@ import { ChatComposer } from "./ChatComposer";
 import { ChatRow, chatBubbleClass, ThinkingRow } from "./chatAppearance";
 import { liveGreeting, thinkingText } from "./live/liveCopy";
 import { isSlow } from "./live/liveSlow";
+import { liveSuggestions } from "./live/liveSuggestions";
 import { RichText } from "./live/RichText";
+import { SuggestionChips } from "./live/SuggestionChips";
 import { RepayExecution } from "./RepayExecution";
 import { formatAtomic } from "./source/formatAtomic";
 import type { useLiveConsultation } from "./useLiveConsultation";
@@ -193,6 +195,14 @@ export function LiveChatPanel({
                 </button>
               )}
             </article>
+          )}
+          {!live.busy && (
+            <SuggestionChips
+              suggestions={liveSuggestions(live.state.status, Boolean(live.error))}
+              variant={live.messages.length === 0 ? "initial" : "follow-up"}
+              onSend={(text) => void live.send(text)}
+              onRefresh={live.refresh}
+            />
           )}
         </div>
       </div>

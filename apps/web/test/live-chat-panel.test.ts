@@ -134,3 +134,74 @@ describe("live chat looks like the demo chat", () => {
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 });
+
+const chips = () =>
+  within(screen.getByRole("group", { name: "Suggested questions" }))
+    .getAllByRole("button")
+    .map((b) => b.textContent);
+
+describe("live suggestion chips", () => {
+  it("explains concepts and Guardian, never a repay, for an account without a position", () => {
+    panel(fakeLive({ state: { status: "empty" } }));
+    expect(chips()).toEqual([
+      "What is health factor?",
+      "How does Guardian work?",
+      "What can you do?",
+    ]);
+  });
+
+  it("offers position questions when the position is ready", () => {
+    panel(fakeLive({ state: { status: "ready", position: {} } }));
+    expect(chips()).toEqual(["Explain my position", "What if NEAR drops 20%?", "Should I repay?"]);
+  });
+
+  it("puts refresh first when the data is stale and refreshes instead of sending", () => {
+    const live = fakeLive({ state: { status: "stale" } });
+    panel(live);
+    expect(chips()[0]).toBe("Refresh position");
+    fireEvent.click(screen.getByRole("button", { name: "Refresh position" }));
+    expect(live.refresh).toHaveBeenCalledTimes(1);
+    expect(live.send).not.toHaveBeenCalled();
+  });
+
+  it("offers a refresh when the position is unavailable", () => {
+    panel(fakeLive({ state: { status: "unavailable" } }));
+    expect(chips()[0]).toBe("Refresh position");
+  });
+
+  it("sends a question through live.send when a chip is clicked", () => {
+    const live = fakeLive({ state: { status: "empty" } });
+    panel(live);
+    fireEvent.click(screen.getByRole("button", { name: "What can you do?" }));
+    expect(live.send).toHaveBeenCalledWith("What can you do?");
+  });
+
+  it("hides every chip while a turn is busy", () => {
+    panel(fakeLive({ state: { status: "ready", position: {} }, busy: true }));
+    expect(screen.queryByRole("group", { name: "Suggested questions" })).toBeNull();
+  });
+
+  it("shows no chips while loading or on a network mismatch", () => {
+    panel(fakeLive({ state: { status: "loading" } }));
+    expect(screen.queryByRole("group", { name: "Suggested questions" })).toBeNull();
+    cleanup();
+    panel(fakeLive({ state: { status: "network_mismatch" } }));
+    expect(screen.queryByRole("group", { name: "Suggested questions" })).toBeNull();
+  });
+
+  it("keeps follow-up chips after the first answer and only a refresh after a failed turn", () => {
+    panel(
+      fakeLive({
+        state: { status: "ready", position: {} },
+        messages: [
+          { id: 1, role: "user", content: "Explain" },
+          { id: 2, role: "assistant", content: "Fine." },
+        ],
+      }),
+    );
+    expect(chips()).toHaveLength(3);
+    cleanup();
+    panel(fakeLive({ state: { status: "ready", position: {} }, error: "x", input: "Explain" }));
+    expect(chips()).toEqual(["Refresh position"]);
+  });
+});
