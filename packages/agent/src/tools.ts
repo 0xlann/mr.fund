@@ -18,6 +18,7 @@
 import {
   assembleCard,
   healthBps,
+  LIQUIDATION_LINE_BPS,
   liquidationPrice,
   outstandingDebtAtomic,
   repayCard,
@@ -530,6 +531,7 @@ const GLOSSARY: Record<string, string> = {
 };
 
 export const GLOSSARY_TERMS = Object.keys(GLOSSARY);
+const LINE_TERMS = new Set(["health_factor", "liquidation", "liquidation_price"]);
 
 const explainTerm: Runner = (args) => {
   const tool = "explain_term";
@@ -539,10 +541,18 @@ const explainTerm: Runner = (args) => {
   if (typeof term !== "string" || !Object.hasOwn(GLOSSARY, term)) {
     return invalid(tool, `term must be one of: ${GLOSSARY_TERMS.join(", ")}`);
   }
+  // The liquidation line is the engine's constant, so a reply may quote it with a source.
+  const line = BigInt(LIQUIDATION_LINE_BPS);
+  const facts: Fact[] = LINE_TERMS.has(term)
+    ? [
+        { label: "health factor at the liquidation line", ...fromAtomic(line, 4, null) },
+        { label: "health factor at the liquidation line", ...fromAtomic(line, 2, "%") },
+      ]
+    : [];
   return {
     ok: true,
     tool,
-    facts: [],
+    facts,
     notes: [],
     text: { explanation: GLOSSARY[term] ?? "" },
     dataAgeMs: null,

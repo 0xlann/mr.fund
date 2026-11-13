@@ -256,7 +256,7 @@ export function evaluateResponse(
         "Must disclose missing verified links",
       );
       requireMeaning(
-        /(?:watcher|heartbeat|latido|pengawas|pemantau)[^.!\n]{0,75}(?:unavailable|unknown|not\s+(?:known|available)|tidak\s+(?:tersedia|diketahui)|no\s+(?:esta\s+)?disponible|no\s+hay\s+(?:prueba|latido)|desconocid[oa])/,
+        /(?:watcher|heartbeat|latido|pengawas|pemantau)[^.!\n]{0,75}(?:unavailable|unknown|not\s+(?:known|available)|tidak\s+(?:tersedia|diketahui)|no\s+(?:esta\s+)?disponible|no\s+hay\s+(?:prueba|latido)|no\s+evidence|desconocid[oa])/,
         "Must disclose unavailable watcher evidence",
       );
       if (

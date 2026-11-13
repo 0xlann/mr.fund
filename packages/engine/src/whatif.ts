@@ -11,6 +11,9 @@ import {
 } from "@mrfund/shared";
 import { type HealthOptions, healthBps } from "./health";
 
+/** Rhea liquidates below health factor 1 (10,000 bps); the engine uses this one line everywhere. */
+export const LIQUIDATION_LINE_BPS = 10_000;
+
 export interface PriceShock {
   tokenId: AccountId;
   /** Change in basis points: -2000 is -20%. */
@@ -67,7 +70,7 @@ export function whatIfPrice(
   return ok({
     value: {
       healthBps: h.value.value,
-      liquidatable: h.value.value !== "no_debt" && h.value.value < 10_000,
+      liquidatable: h.value.value !== "no_debt" && h.value.value < LIQUIDATION_LINE_BPS,
     },
     inputs: { ...h.value.inputs, ...inputs },
     assumptions: [

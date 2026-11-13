@@ -35,6 +35,8 @@ export interface NumberToken {
   readonly candidates: readonly Dec[];
   readonly unit: string | null;
   readonly ordinal: boolean;
+  /** Preceded by a comparison ("below", "di bawah", "por debajo de"): a threshold, never a count. */
+  readonly comparison: boolean;
 }
 
 export type CheckResult = { ok: true } | { ok: false; violations: string[] };
@@ -47,6 +49,8 @@ export interface CheckOptions {
 const SMALL_COUNT_MAX = 3n;
 const ORDINAL_MAX = 31n;
 const ORDINAL_SUFFIX = /^(st|nd|rd|th)$/i;
+const COMPARISON =
+  /(?:\b(?:below|under|above|over|less\s+than|more\s+than|lower\s+than|higher\s+than|di\s+bawah|di\s+atas|kurang\s+dari|lebih\s+dari|menos\s+de|m[aá]s\s+de)|por\s+(?:debajo|encima)\s+de)\s*$/i;
 const THOUSANDS_ONLY = /[  '’]/;
 
 // A token starts where no letter, digit, underscore, dot or comma precedes it.
@@ -152,6 +156,7 @@ export function extractNumbers(
       candidates: candidatesOf(m[2] ?? ""),
       unit,
       ordinal,
+      comparison: COMPARISON.test(src.slice(Math.max(0, from - 24), from)),
     });
   }
   return out;
@@ -185,7 +190,7 @@ function matches(tok: NumberToken, sources: readonly SourceNumber[]): boolean {
 }
 
 function allowedAsProse(tok: NumberToken): boolean {
-  if (tok.unit !== null || tok.neg) return false;
+  if (tok.unit !== null || tok.neg || tok.comparison) return false;
   const c = tok.candidates;
   if (c.length === 0 || c.some((x) => x.scale !== 0)) return false;
   const n = c[0]?.int ?? 0n;
