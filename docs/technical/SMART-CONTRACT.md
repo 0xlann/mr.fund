@@ -319,10 +319,30 @@ The operator's own restart lookup of the recorded hash reported `rejected`, `Abo
 What this does **not** show:
 
 - A first attempt with the same scoped key failed before inclusion: the key had a 0.25 NEAR allowance and a 300 Tgas request costs about 0.30 NEAR at the observed gas price, so the RPC accepted the broadcast and no node included it (`AccessKeyNotEnoughAllowanceActionError` on a waiting send; the operator hides the broadcast error by design). That key was deleted on chain (its unsent transaction `4TvdmYuk…` can never execute) and replaced by the 1 NEAR key above with a fresh journal. The retired journal is kept next to the new one.
-- The watcher did not submit an accepted repay. This is one over-limit rejection submitted on request by an operator command, not an autonomous watcher run, and the scheduled watcher is still hard-disabled.
+- The watcher did not submit an accepted repay. This is one over-limit rejection submitted on request by an operator command, not an autonomous watcher run, and the scheduled watcher was still hard-disabled at that time (the next section records its first single-request run).
 - The Guardian history ABI has no operator-test label. The label `operator test request` exists only in the operator's output.
 - The custody attestations (exclusive key, no prior requests, persistent journal) are the agent's own: the key was created for this run and journaled on this machine's WSL disk, which does not prove persistence across host loss.
 - Prices are Rhea's fixed `default_price` values; cooldown and paused-state rejections were not run publicly.
+
+### First repay sent by the watcher process, on a second Guardian [V, testnet, 2026-11-14, local run, operator-started]
+
+Permission boundary: the watcher account `w-mrf-b1ce96af6a.testnet` signed with a function-call key limited to `request_repay` on this one Guardian (1 NEAR allowance); the contract re-checked the trigger, the limits and the cooldown. Invariants exercised: the same caller, trigger and per-action checks as above, plus the single-use journal (`apps/watcher` `--submit-testnet`): the submit gate closes before the journal write, so there is no second send.
+
+Guardian `32a8f0b796d281ff12044eb67d6e22bc.f2-mrf-b1ce96af6a.testnet`, owner `d-mrf-b1ce96af6a.testnet`. The owner created and activated it in the web panel and, in the Loan section, deposited 0.1 wNEAR and borrowed 0.1 REF. The panel's default trigger of 120% was raised to 200% with an owner-signed `set_policy` sent by the agent from a script with the owner's testnet key (its hash was not captured, so none is claimed); `get_policy` then showed `trigger_hf_bps` 20000. The watcher ran in WSL on the lead's laptop, started by hand with the four explicit flags.
+
+| Step | Transaction | Observed result |
+| --- | --- | --- |
+| `request_repay(0.013599890788191379 REF)` sent by the watcher process | [`8YXX7F6B…`](https://testnet.nearblocks.io/txns/8YXX7F6BTAKenTLXM3Wtdi4xVYGCopyW27LycTuZ2TPt) | FINAL success value `{"outcome":"executed","op_id":"6",…}`, 32 receipts, none failed; events `repay_requested`, `repay_started` (fee reserved 0.004 REF), Rhea `repay` of 0.013599890788191378 and `repay_settled` (used 0.013599890788191379, refunded 0, fee 0.004) |
+
+Chain reads after the request: reserve 0.1 → 0.082400109211808621 REF, `spent_total` 0.017599890788191379 REF (the repay plus the 0.004 fee), nothing in flight, Guardian debt 0.086400131968897357 REF and health 200.00% as the web position read reports it. The amount is what the engine computed to bring health back to the trigger. The 0.1 REF debt before the request is the owner's borrow amount [I]; the repay events and the reserve change match it.
+
+The watcher log shows `submit_mode` `single_request_available`, `requests_enabled`, `request_sent`, `request_pending` and `request_outcome` `executed` for the same hash, and three self-healing `read_failed` `rpc_unavailable` ticks over about 12 minutes of polling.
+
+What this does **not** show:
+
+- It is **not** autonomous or hosted: a person started the process on a laptop, one request is allowed per journal, and a second health breach would not be repaid. Hosting (D29/B8) is still undecided.
+- Prices are Rhea's fixed testnet `default_price` values, so the trigger was reached by the owner's borrow and the policy, not by a market move.
+- The owner's collateral, borrow and `set_policy` hashes are not recorded here.
 
 ### Final ABI for the client (task 4.3)
 
