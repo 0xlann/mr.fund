@@ -303,7 +303,26 @@ What this does **not** show:
 - It was not the watcher. `request_repay` accepts the owner or the configured watcher, and the repository's watcher process cannot submit (its public submission gate is hard-disabled; WATCHER section of INTEGRATIONS). This is an operator-submitted request that the contract verified and executed, not an autonomous watcher run.
 - Prices are Rhea's fixed `default_price` for wNEAR and REF; health did not fall because of a market move, the trigger was set above the loan's health. The protocol-trigger path took the fixed price, not a fresh oracle price.
 - Only the repay transaction hash is recorded here. The hashes of creation, the three registrations, activation, the collateral deposit and the borrow were signed in the wallet and were not captured, so none is claimed.
-- No negative test was run on a public network (non-owner rejection, over-limit, cooldown), and the factory build is not reproducible.
+- No cooldown or paused-state negative test was run on a public network, and the factory build is not reproducible. The non-owner and over-limit rejections are recorded in the next section.
+
+### Public negative tests on the first Guardian [V, testnet, 2026-11-13, run by the agent with the lead's accounts]
+
+Permission boundary: `request_repay` is callable by the owner or the configured watcher `w-mrf-b1ce96af6a.testnet` only; every other caller panics, and a watcher request above `max_per_action` is recorded as a rejected attempt that moves no funds. Invariants exercised: the caller check and the per-action limit (I1–I8 keep reserve and lifetime accounting).
+
+| Attempt | Caller | Transaction | Observed result |
+| --- | --- | --- | --- |
+| `request_repay(0.001 REF)` | non-owner probe account `p-mrf-b1ce96af6a.testnet`, full-access key | [`CSMiVJvH…`](https://testnet.nearblocks.io/txns/CSMiVJvHWi1QfdCuHTS26rtRdh2mFUfy4m65U5Dg9ifr) | FINAL failure `Smart contract panicked: Owner or watcher only`; reserve, spent total and in-flight state identical before and after |
+| `request_repay(0.050000000000000001 REF)` (`max_per_action` + 1 atomic unit) | watcher `w-mrf-b1ce96af6a.testnet`, function-call key limited to `request_repay` on this Guardian, 1 NEAR allowance, sent by `apps/watcher` `operator:over-limit --execute` | [`2m5cxjPh…`](https://testnet.nearblocks.io/txns/2m5cxjPh458pAgQ8pMAubnRisFC2fDJTLSy8oX525Mqr) | FINAL success value `{"outcome":"rejected","op_id":"8","reason":"above_max_per_action"}`; event `request_rejected` for op 8; `get_history` lists op 8 `rejected`, `used` 0, `fee` 0; reserve `0.046`, `spent_total` `0.054` and `lifetime_remaining` `0.046` REF unchanged; `in_flight` null |
+
+The operator's own restart lookup of the recorded hash reported `rejected`, `AboveMaxPerAction` with the event and history entry matching, so the operator's verification passed. Its first output was `ambiguous`: it looks the hash up right after a no-wait broadcast, before the transaction is final. By design it then refuses another send; the second run looked the same hash up and returned the result.
+
+What this does **not** show:
+
+- A first attempt with the same scoped key failed before inclusion: the key had a 0.25 NEAR allowance and a 300 Tgas request costs about 0.30 NEAR at the observed gas price, so the RPC accepted the broadcast and no node included it (`AccessKeyNotEnoughAllowanceActionError` on a waiting send; the operator hides the broadcast error by design). That key was deleted on chain (its unsent transaction `4TvdmYuk…` can never execute) and replaced by the 1 NEAR key above with a fresh journal. The retired journal is kept next to the new one.
+- The watcher did not submit an accepted repay. This is one over-limit rejection submitted on request by an operator command, not an autonomous watcher run, and the scheduled watcher is still hard-disabled.
+- The Guardian history ABI has no operator-test label. The label `operator test request` exists only in the operator's output.
+- The custody attestations (exclusive key, no prior requests, persistent journal) are the agent's own: the key was created for this run and journaled on this machine's WSL disk, which does not prove persistence across host loss.
+- Prices are Rhea's fixed `default_price` values; cooldown and paused-state rejections were not run publicly.
 
 ### Final ABI for the client (task 4.3)
 
