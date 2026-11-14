@@ -333,15 +333,16 @@ Guardian `32a8f0b796d281ff12044eb67d6e22bc.f2-mrf-b1ce96af6a.testnet`, owner `d-
 | Step | Transaction | Observed result |
 | --- | --- | --- |
 | `request_repay(0.013599890788191379 REF)` sent by the watcher process | [`8YXX7F6B…`](https://testnet.nearblocks.io/txns/8YXX7F6BTAKenTLXM3Wtdi4xVYGCopyW27LycTuZ2TPt) | FINAL success value `{"outcome":"executed","op_id":"6",…}`, 32 receipts, none failed; events `repay_requested`, `repay_started` (fee reserved 0.004 REF), Rhea `repay` of 0.013599890788191378 and `repay_settled` (used 0.013599890788191379, refunded 0, fee 0.004) |
+| second `request_repay(0.049989278280302608 REF)` sent by a fresh watcher process on a new, empty journal, about 11 minutes after it started (2026-11-14 12:46 UTC) | [`D9BprUfo…`](https://testnet.nearblocks.io/txns/D9BprUfogm64pFQNZy6ffEHhUyDeHPC4wBJLJngdZZ9A) | FINAL, signer `w-mrf-b1ce96af6a.testnet`, deposit 0, success value `{"outcome":"executed","op_id":"8","used":"49989278280302608","fee":"4000000000000000"}`, 32 receipts, none failed; events `repay_requested`, `repay_started`, `deposit`, `repay`, `repay_settled`; `get_history` lists op 6 and op 8 as `settled` |
 
-Chain reads after the request: reserve 0.1 → 0.082400109211808621 REF, `spent_total` 0.017599890788191379 REF (the repay plus the 0.004 fee), nothing in flight, Guardian debt 0.086400131968897357 REF and health 200.00% as the web position read reports it. The amount is what the engine computed to bring health back to the trigger. The 0.1 REF debt before the request is the owner's borrow amount [I]; the repay events and the reserve change match it.
+Chain reads after the first request: reserve 0.1 → 0.082400109211808621 REF, `spent_total` 0.017599890788191379 REF (the repay plus the 0.004 fee), nothing in flight, Guardian debt 0.086400131968897357 REF and health 200.00% as the web position read reports it. The amount is what the engine computed to bring health back to the trigger. The 0.1 REF debt before the request is the owner's borrow amount [I]; the repay events and the reserve change match it. No before/after reads were taken for the second request, so only its transaction outcome and history entry are claimed.
 
-The watcher log shows `submit_mode` `single_request_available`, `requests_enabled`, `request_sent`, `request_pending` and `request_outcome` `executed` for the same hash, and three self-healing `read_failed` `rpc_unavailable` ticks over about 12 minutes of polling.
+The first watcher's log shows `submit_mode` `single_request_available`, `requests_enabled`, `request_sent`, `request_pending` and `request_outcome` `executed` for the first hash, and three self-healing `read_failed` `rpc_unavailable` ticks over about 12 minutes of polling. The second process's early log lines were not captured before the service buffer rolled over, so its hash is established from the chain (signer `w-mrf-…`), not from its log.
 
 What this does **not** show:
 
-- It is **not** autonomous or hosted: a person started the process on a laptop, one request is allowed per journal, and a second health breach would not be repaid. Hosting (D29/B8) is still undecided.
-- Prices are Rhea's fixed testnet `default_price` values, so the trigger was reached by the owner's borrow and the policy, not by a market move.
+- It is **not** autonomous or hosted: a person started each process on a laptop, and one request is allowed per journal. The second repay above came from a new process on a new journal that the operator created after the first was spent, not from the first process repeating. Hosting (D29/B8) is still undecided.
+- Prices are Rhea's fixed testnet `default_price` values, so the first trigger was reached by the owner's borrow and the policy, not by a market move; no market move was involved in the second either.
 - The owner's collateral, borrow and `set_policy` hashes are not recorded here.
 
 ### Final ABI for the client (task 4.3)
