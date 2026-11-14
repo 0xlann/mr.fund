@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPositionHandler } from "../src/server/position/handler";
+import { createPositionHandler } from "../src/position/handler";
 import { config, rpc } from "./position-rpc";
 
 const url = "https://app.example/api/position?accountId=alice.testnet&networkId=testnet";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createNearAIProvider } from "../src/server/chat/provider";
+import { createNearAIProvider } from "../src/chat/provider";
 
 const input = {
   messages: [{ role: "user" as const, content: "Hello" }],

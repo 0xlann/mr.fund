@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAdmission, edgeIp, readProxyConfig } from "../src/server/admission";
+import { createAdmission, edgeIp, readProxyConfig } from "../src/admission";
 
 describe("bounded local-process read admission", () => {
   it("retains active quotas at capacity and evicts only expired buckets", () => {

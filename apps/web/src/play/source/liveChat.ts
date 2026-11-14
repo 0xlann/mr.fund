@@ -1,4 +1,5 @@
 import type { ChatEvent } from "@mrfund/agent";
+import { apiUrl } from "./apiBase";
 import type { LiveChatRequest } from "./liveChatRequest";
 
 export type ChatFailure =
@@ -24,7 +25,7 @@ export async function* streamLiveChat(
   signal.throwIfAborted();
   let response: Response;
   try {
-    response = await fetcher("/api/chat", {
+    response = await fetcher(apiUrl("/api/chat"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(request),

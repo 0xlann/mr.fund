@@ -46,6 +46,8 @@ it("keeps position's reachable imports free of signing, keys, models, chat and p
     for (const target of imports) {
       if (target === "node:crypto" || target === "node:net") continue;
       if (target.startsWith(".")) pending.push(resolve(dirname(path), `${target}.ts`));
+      else if (target === "@mrfund/server/position")
+        pending.push(join(root, "packages/server/src/position-route.ts"));
       else if (/^@mrfund\/(shared|engine|rhea)$/.test(target))
         pending.push(join(root, "packages", target.slice("@mrfund/".length), "src/index.ts"));
       else violations.push(`${name}: ${target}`);

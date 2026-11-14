@@ -6,7 +6,7 @@ import {
   USDC,
   WNEAR,
 } from "../../../packages/engine/test/helpers";
-import { presentPosition } from "../src/server/position/presenter";
+import { presentPosition } from "../src/position/presenter";
 
 function baseSnapshot(overrides: Parameters<typeof sharedSnapshot>[0] = {}) {
   return structuredClone(sharedSnapshot(overrides));

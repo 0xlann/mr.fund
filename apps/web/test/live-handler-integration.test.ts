@@ -1,11 +1,10 @@
 import type { ChatProvider, ToolContext } from "@mrfund/agent";
+import { createChatHandler, createPositionHandler } from "@mrfund/server";
 import { describe, expect, it } from "vitest";
 import { baseSnapshot, NOW, USDC } from "../../../packages/agent/test/fixture";
+import { accountId, config, rpc } from "../../../packages/server/test/position-rpc";
 import { streamLiveChat } from "../src/play/source/liveChat";
 import { createLivePosition } from "../src/play/source/livePosition";
-import { createChatHandler } from "../src/server/chat/handler";
-import { createPositionHandler } from "../src/server/position/handler";
-import { accountId, config, rpc } from "./position-rpc";
 
 const snapshot = baseSnapshot();
 const context = (): ToolContext => ({

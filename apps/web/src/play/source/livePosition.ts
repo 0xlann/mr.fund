@@ -1,5 +1,6 @@
-import type { PositionView } from "../../server/position/presenter";
+import type { PositionView } from "@mrfund/server/position";
 import type { NearNetwork } from "../../wallet/types";
+import { apiUrl } from "./apiBase";
 
 function validBalance(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -60,7 +61,7 @@ export function createLivePosition(
       if (signal?.aborted) abort();
       publish({ status: "loading" });
       try {
-        const response = await fetcher("/api/position", {
+        const response = await fetcher(apiUrl("/api/position"), {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ accountId, networkId }),

@@ -16,6 +16,7 @@
     "@mrfund/engine": "workspace:*",
     "@mrfund/guardian-client": "workspace:*",
     "@mrfund/rhea": "workspace:*",
+    "@mrfund/server": "workspace:*",
     "@mrfund/shared": "workspace:*",
     "@scure/base": "2.2.0",
     "gsap": "3.15.1",

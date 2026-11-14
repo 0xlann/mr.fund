@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { networkAccount, readPositionConfig } from "../src/server/position/config";
+import { networkAccount, readPositionConfig } from "../src/position/config";
 
 const env = {
   NEAR_NETWORK_ID: "testnet",

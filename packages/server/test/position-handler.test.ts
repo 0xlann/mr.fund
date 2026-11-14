@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { baseSnapshot, NOW, USDC } from "../../../packages/engine/test/helpers";
-import { createPositionHandler } from "../src/server/position/handler";
+import { createPositionHandler } from "../src/position/handler";
 import { accountId, config, recording, rpc } from "./position-rpc";
 
 const get = (query = `accountId=${accountId}&networkId=testnet`) =>
