@@ -230,12 +230,20 @@ export const proposeOpening = (args: Record<string, unknown>, ctx: ToolContext):
       : borrowPayload(d, { ...params, extraDecimals: asset.token.extraDecimals });
   if (!payload.ok) return engineRefusal(tool, payload.error);
 
+  // Facts feed the number checker, which accepts exact decimals only. A state such as "No debt"
+  // (a first borrow has no 'before' health) is prose, so it goes to the notes instead.
   const facts: Fact[] = [];
+  const stateNotes: string[] = [];
+  const decimal = /^-?\d+(\.\d+)?$/;
   for (const n of d.numbers) {
-    if (n.before !== undefined)
-      facts.push({ label: `${n.label} before`, value: n.before, unit: n.unit });
-    if (n.after !== undefined)
-      facts.push({ label: `${n.label} after`, value: n.after, unit: n.unit });
+    for (const [when, value] of [
+      ["before", n.before],
+      ["after", n.after],
+    ] as const) {
+      if (value === undefined) continue;
+      if (decimal.test(value)) facts.push({ label: `${n.label} ${when}`, value, unit: n.unit });
+      else stateNotes.push(`${n.label} ${when}: ${value}.`);
+    }
   }
   const feeAsset = c.snapshot.assets[d.fees[0]?.tokenId ?? ""]?.token;
   for (const f of d.fees)
@@ -257,6 +265,7 @@ export const proposeOpening = (args: Record<string, unknown>, ctx: ToolContext):
       stage === "deposit"
         ? "Borrowing is a separate card, offered only after this deposit is approved and observed on chain."
         : "This borrow was quoted from collateral Rhea already holds.",
+      ...stateNotes,
       ...d.assumptions,
     ],
     text: { card: "draft", headline: d.headline, risks: d.risks.join(" "), stage },

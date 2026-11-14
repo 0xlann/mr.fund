@@ -443,6 +443,25 @@ describe("numbers the model may quote come only from these tools", () => {
     ).toMatchObject({ ok: false });
   });
 
+  it("a first borrow has no 'before' debt or health, and the sources stay checkable decimals", async () => {
+    const first = opening({
+      snapshot: baseSnapshot({ borrowed: [] }),
+      accountBorrowedShares: 0n,
+    });
+    const r = okOf(
+      await run(
+        "propose_opening",
+        { stage: "borrow", amount: "1", target_health_percent: "120" },
+        ctx({}, first),
+      ),
+    );
+    const sources = sourcesOf(r);
+    for (const s of sources) expect(s.value, s.value).toMatch(/^-?\d+(\.\d+)?$/);
+    const health = fact(r, "Health factor after")?.value ?? "";
+    expect(checkNumbers(`The health factor would be ${health}%.`, sources)).toEqual({ ok: true });
+    expect(okOf(r).notes.join(" ")).toMatch(/Health factor before: No debt/);
+  });
+
   it("claims of having deposited or borrowed are execution claims and are refused", () => {
     for (const text of [
       "I deposited 10 wNEAR for you.",

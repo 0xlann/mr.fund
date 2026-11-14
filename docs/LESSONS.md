@@ -1,5 +1,11 @@
 # Mr.Fund: lessons
 
+### 2026-11-14: A card value that is not a decimal made every first-borrow chat turn fail as "unavailable"
+
+- What happened: for an account with collateral and no debt, "Borrow 0.5 REF" always ended with "Mr.Fund can't talk right now" (4 of 4 live attempts) although the model gateway answered normally and the card itself was built. The owner suspected an exhausted API key.
+- Root cause: the draft card's "Health factor before" is the text "No debt". `opening-tools` copied every card value into the number checker's sources, and the checker throws on a source that is not an exact decimal, so any reply that quoted a percentage or a plain number threw; the turn's catch turned that into the generic `unavailable`. Existing fixtures all had debt, so no test reached the case.
+- Rule going forward: sources for the number checker are decimals only; a state such as "No debt" is a note. A test now drafts a first borrow and checks that every source is a decimal and that the quoted health is accepted. After the fix the same message returned a model answer with the card in 23 s.
+
 ### 2026-11-13: A function-call key whose allowance is below the prepaid gas cost is accepted by the RPC and never included
 
 - What happened: the watcher operator signed `request_repay` with 300 Tgas using a function-call key with a 0.25 NEAR allowance. `send_tx` with `wait_until: NONE` returned success, but the transaction never appeared (`UNKNOWN_TRANSACTION`, key nonce unchanged) and the operator reported only `ambiguous`.
