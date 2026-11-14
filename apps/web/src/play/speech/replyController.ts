@@ -43,7 +43,7 @@ export function createReplyController(update: (speaking: boolean) => void) {
     if (!supported) return;
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.lang = lang;
-    utterance.rate = 0.95;
+    utterance.rate = 1.2;
     utterance.onstart = () => {
       if (active?.id === id && !active.audioDone) update(true);
     };
