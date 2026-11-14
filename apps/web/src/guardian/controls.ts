@@ -46,6 +46,25 @@ export function controlAvailability(
 }
 
 /**
+ * Editing limits mirrors the contract (owner only, nothing in flight) and the panel's rule that
+ * automation must be on or paused: a deactivated or not yet activated Guardian shows no editor.
+ */
+export function policyEditAvailability(s: GuardianSnapshot, nowMs: number): ControlState {
+  const status = s.status.status;
+  const reason =
+    nowMs - s.readAtMs > SNAPSHOT_LIMIT_MS
+      ? "Refresh the Guardian first."
+      : status === "created"
+        ? "Activate the Guardian first."
+        : status === "deactivated"
+          ? "Automation is off, so there is nothing left to tune."
+          : s.status.inFlight
+            ? "An operation is in flight. Limits can change after the contract settles it."
+            : null;
+  return { available: reason === null, reason };
+}
+
+/**
  * An in-flight lock as the panel states it. `get_status` reports amount and fee but not the
  * operation kind, so the outcome is always "unknown" and nothing offers to clear it.
  */

@@ -1,8 +1,8 @@
 import type { GuardianPolicy } from "@mrfund/shared";
 import { describe, expect, it } from "vitest";
 import {
-  parsePolicyForm,
   type PolicyFields,
+  parsePolicyForm,
   policyChangeSummary,
   policyFields,
 } from "../src/activation-form";
