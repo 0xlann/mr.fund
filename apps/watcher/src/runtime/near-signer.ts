@@ -4,7 +4,7 @@ import type { VerifiedAuthority } from "../core/authority";
 import type { WatcherReads } from "../core/types";
 import { inspectWatcherAuthority } from "./authority";
 import { reconcileFinal } from "./reconcile";
-import { createGuardedSignerPort } from "./signer-port";
+import { createGuardedSignerPort, type SignerJournal } from "./signer-port";
 
 /** One attempt only: a transport timeout is never permission to retransmit a signed request. */
 export function createWatcherProvider(rpcUrl: string): JsonRpcProvider {
@@ -20,11 +20,13 @@ export function createNearSignerPort(input: {
   provider: JsonRpcProvider;
   reads: WatcherReads;
   submissionAllowed(): boolean;
+  journal?: SignerJournal;
 }) {
   if (input.provider.options.retries !== 1) throw new Error("Watcher RPC must use one attempt");
   const account = new Account(input.authority.watcherAccountId, input.provider);
   return createGuardedSignerPort(input.authority, {
     submissionAllowed: input.submissionAllowed,
+    ...(input.journal ? { journal: input.journal } : {}),
     async verify() {
       if ((await input.signer.getPublicKey()).toString() !== input.publicKey) return false;
       const checked = await inspectWatcherAuthority({

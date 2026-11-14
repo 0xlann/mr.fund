@@ -25,6 +25,9 @@
   - Public scheduler gate proposal [I, 2026-11-13]: keep `submissionAllowed: () => false` until the deployed Guardian and actual token/oracle trigger-to-repay callback chain are verified on testnet (D27/B4), scoped-key permissions and final receipts are observed, and restart recovery can reconcile every signed or potentially signed request without duplicate submission. A fresh key nonce or empty newly installed journal alone does not establish that no older signed transaction can arrive. Hosted operation also requires D29/B8 authorization. This proposal is not evidence that any gate has passed.
 - [x] 3.3 Test no agent import, no owner-method transport, timestamp freshness and secret-free logs/status.
 
+- [x] 3.4 Let the scheduled watcher send one in-limit request on testnet through the single-use journal, behind explicit operator flags, so the first autonomous repay can be observed.
+  - Local evidence [V, 2026-11-13]: `runtime/submit.ts` (`readSubmitFlags`, `prepareSubmit`), `startWatcher({ submit })`, `createNearSignerPort({ journal })` and `main.ts` flags. Tests in `apps/watcher/test/runtime-submit.test.ts` cover flag validation (missing, extra, duplicate flag, mainnet, relative directory), the latch (closes before the journal write, closes on a failed write, never opens for a used or unreadable journal), and the runtime (exactly one broadcast across repeated ticks while below the trigger; read-only for a used journal; read-only without the option). Deleting the `open = false` line fails two of them. No public request was made by this task; the public observation is `prove-testnet-guardian-loop` 5.2.
+
 ## 4. Evidence and external gates
 
 - [x] 4.1 Run watcher/client suites, typecheck/lint and affected sandbox integration; update P5.3/P5.4 local evidence and runtime instructions.
