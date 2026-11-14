@@ -1,4 +1,4 @@
-import type { PositionView } from "../../server/position/presenter";
+import type { PositionView } from "@mrfund/server/position";
 import { formatAtomic } from "../source/formatAtomic";
 
 type Balances = Pick<PositionView, "supplied" | "collateral" | "debt">;

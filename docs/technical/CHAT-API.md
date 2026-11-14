@@ -6,7 +6,7 @@
 
 The model has no signing or sending tool. Existing deterministic builders create supported draft payloads; the provider sees facts and card ids, never those payloads. Guardian automatic execution remains a separate watcher/contract flow. Fees must be configured explicitly; missing pricing does not mean zero pricing.
 
-Implementation: `packages/agent/src/chat*.ts`, `apps/web/src/server/chat/`, and `apps/web/src/app/api/chat/route.ts`. Evaluation: `packages/agent/eval/`.
+Implementation: `packages/agent/src/chat*.ts`, `packages/server/src/chat/` (handlers moved out of `apps/web`), `apps/web/src/app/api/chat/route.ts` (same-origin Next route) and `apps/api/` (standalone server). Evaluation: `packages/agent/eval/`.
 
 ## Request
 
@@ -399,3 +399,17 @@ Cost per 36-case run: about 220k input and 38k output tokens, roughly USD 0.04 a
 | 08:35:37 | 36/36 | 7019 | pass | 36/36 | 33/36 (correct "batas bawah cadangan 20 USDC", "belum bisa memberi" and "no hay precio disponible" missed) |
 
 The glossary answers now quote the line as "1 (100%)" with a source, and `comparison.es` states the direction correctly. Each run surfaces one to three new correct phrasings that the regex rubric misses, so widening was stopped. Requiring the automated association rubric to pass 36/36 makes acceptance depend on wording luck rather than correctness. [I] Recommendation for the lead: keep the rubric as a screen, and let a recorded independent review be authoritative for semantic correctness when the rubric misses an answer the review approves. Numbers, forbidden claims, cards and the language minimum stay hard gates. No model is accepted until that decision is made and a run passes review.
+
+
+## Standalone API server (2026-11-14)
+
+Status [V, local tests only; not deployed anywhere]: the chat and position handlers live in `packages/server` as plain `Request` to `Response` functions, and `apps/api` serves them with Node's `http` module (`pnpm --filter @mrfund/api start`) so the API can run on a VPS while the web app is hosted elsewhere (for example Vercel). The Next route handlers remain as a same-origin fallback for local development; both use the same `createChatRoute` and `createPositionRoute`, so configuration cannot drift. The browser picks the target with `NEXT_PUBLIC_API_URL` (an https origin only, or http for localhost; an invalid value falls back to the same origin).
+
+| Variable | Where | Meaning |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | web build | Origin of the API server. Public by design. |
+| `API_PORT`, `API_HOST` | API server | Listen port (default 8787) and host (default `0.0.0.0`). |
+| `API_CORS_ORIGIN` | API server | Value of `Access-Control-Allow-Origin`; default `*`. |
+| all existing chat and position variables | API server | `NEAR_*`, `RHEA_LENDING_ID`, `NEARAI_*`, `FEE_*`, `OPENING_*` and so on, unchanged. |
+
+Permission boundary: the endpoints are public. A browser calls them cross-origin, so there is no shared secret to hold, and CORS is not access control (any non-browser client can call them). The per-IP and per-account rate limits are the only admission control, and without a trusted proxy IP header (`CHAT_PROXY_IP_HEADER` with `CHAT_PROXY_SECRET`) every caller shares one IP bucket. Anyone who can reach the API can spend the model credential's quota. The API signs and sends nothing. Not decided or measured: TLS and the domain (put a reverse proxy such as Caddy in front), a spend cap at the model provider, and the process manager. A closed client connection cancels the turn, as it does on the Next route.

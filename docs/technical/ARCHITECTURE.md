@@ -210,7 +210,7 @@ Character rendering candidates (D26): sprite sheets with CSS; `lottie-react` 3.1
 
 ## Codebase structure and interfaces
 
-Selected Option A layout: `apps/web` hosts the chat API as Route Handlers under `src/app/`, and `apps/watcher` is a Node process. The Option C edge layout in the historical comparison is not implemented.
+Selected Option A layout: `apps/web` hosts the chat API as Route Handlers under `src/app/`, and `apps/watcher` is a Node process. Since 2026-11-14 the handlers live in `packages/server` and `apps/api` can serve them standalone (see CHAT-API "Standalone API server"); `packages/server` may import `agent`, `engine`, `guardian-client`, `rhea` and `shared`, and `apps/web` and `apps/api` import it. The Option C edge layout in the historical comparison is not implemented.
 
 ```text
 apps/
