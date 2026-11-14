@@ -34,7 +34,7 @@ import { ReceiptDetail } from "./ReceiptDetail";
 import { SettingsDialog } from "./SettingsDialog";
 import { createDemoSource } from "./source/demoSource";
 import type { ConsultationSource } from "./source/types";
-import { useLiveReplySpeech } from "./speech/replySpeech";
+import { useLiveReplySpeech, useStopSpeechOnUserAction } from "./speech/replySpeech";
 import { panelReveal } from "./styles";
 import { type Panel, useConsultation } from "./useConsultation";
 import { useLiveConsultation } from "./useLiveConsultation";
@@ -148,6 +148,7 @@ export function Playground({
     panelClose,
     scrollRef,
     speechCue,
+    cancelSpeech,
     finishText,
     current,
     figures,
@@ -188,6 +189,14 @@ export function Playground({
         }
       : null,
     sound,
+  );
+  const speakingNow = liveAccount ? liveSpeech.speaking : speaking;
+  const stopSpeaking = liveAccount ? liveSpeech.stop : cancelSpeech;
+  useStopSpeechOnUserAction(
+    speakingNow,
+    stopSpeaking,
+    liveAccount ? live.input : input,
+    liveAccount ? live.busy : false,
   );
   function guardianContent() {
     return (
@@ -342,6 +351,8 @@ export function Playground({
             setNotice={setNotice}
             connected={connected}
             setModal={setModal}
+            speaking={speakingNow}
+            onStopSpeaking={stopSpeaking}
           />
         )}
         <div

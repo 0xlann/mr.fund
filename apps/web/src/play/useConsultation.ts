@@ -515,6 +515,7 @@ export function useConsultation(source: ConsultationSource) {
     panelClose,
     scrollRef,
     speechCue,
+    cancelSpeech: replySpeech.cancel,
     finishText,
     current,
     figures,

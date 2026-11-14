@@ -4,6 +4,30 @@ export function stripReplyMarkup(text: string): string {
   return text.replace(/\*\*/g, "").replace(/^[ \t]*(?:[-*] |\d+\. )/gm, "");
 }
 
+const MAX_SPOKEN_SENTENCES = 2;
+const MAX_SPOKEN_CHARS = 260;
+
+/**
+ * What the voice says: the first two sentences, capped at a word boundary. The full reply stays
+ * on screen, so a long answer never keeps the voice running for half a minute.
+ */
+export function spokenSummary(text: string): string {
+  const trimmed = text.trim();
+  let end = trimmed.length;
+  let sentences = 0;
+  for (const match of trimmed.matchAll(/[.!?](?=\s|$)/g)) {
+    sentences += 1;
+    if (sentences === MAX_SPOKEN_SENTENCES) {
+      end = match.index + 1;
+      break;
+    }
+  }
+  const head = trimmed.slice(0, end);
+  if (head.length <= MAX_SPOKEN_CHARS) return head;
+  const cut = head.slice(0, MAX_SPOKEN_CHARS);
+  return /^(.*\S)\s+\S*$/s.exec(cut)?.[1] ?? cut;
+}
+
 export function createReplyController(update: (speaking: boolean) => void) {
   const cue: { current: SpeechCue } = { current: { id: 0, text: "", charIndex: null } };
   let active: { id: number; textDone: boolean; audioDone: boolean } | null = null;
@@ -31,7 +55,7 @@ export function createReplyController(update: (speaking: boolean) => void) {
   }
   function play(id: number, text: string, lang: string, sound: boolean, waitForText: boolean) {
     cancel();
-    const clean = stripReplyMarkup(text);
+    const clean = spokenSummary(stripReplyMarkup(text));
     cue.current = { id, text: clean, charIndex: null };
     const supported =
       sound &&
