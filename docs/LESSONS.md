@@ -1,5 +1,23 @@
 # Mr.Fund: lessons
 
+### 2026-11-14: A card value that is not a decimal made every first-borrow chat turn fail as "unavailable"
+
+- What happened: for an account with collateral and no debt, "Borrow 0.5 REF" always ended with "Mr.Fund can't talk right now" (4 of 4 live attempts) although the model gateway answered normally and the card itself was built. The owner suspected an exhausted API key.
+- Root cause: the draft card's "Health factor before" is the text "No debt". `opening-tools` copied every card value into the number checker's sources, and the checker throws on a source that is not an exact decimal, so any reply that quoted a percentage or a plain number threw; the turn's catch turned that into the generic `unavailable`. Existing fixtures all had debt, so no test reached the case.
+- Rule going forward: sources for the number checker are decimals only; a state such as "No debt" is a note. A test now drafts a first borrow and checks that every source is a decimal and that the quoted health is accepted. After the fix the same message returned a model answer with the card in 23 s.
+
+### 2026-11-13: A function-call key whose allowance is below the prepaid gas cost is accepted by the RPC and never included
+
+- What happened: the watcher operator signed `request_repay` with 300 Tgas using a function-call key with a 0.25 NEAR allowance. `send_tx` with `wait_until: NONE` returned success, but the transaction never appeared (`UNKNOWN_TRANSACTION`, key nonce unchanged) and the operator reported only `ambiguous`.
+- Root cause: at the observed testnet gas price, 300 Tgas costs about 0.30 NEAR, above the allowance; a waiting send shows `AccessKeyNotEnoughAllowanceActionError`, a no-wait send does not. The operator also looks the hash up right after a no-wait broadcast, so even a good send first reports `ambiguous` until the transaction is final.
+- Rule: give a scoped key an allowance well above prepaid gas times the current price (1 NEAR for this Guardian), and when a send is `ambiguous` inspect the key nonce and `tx` status by hash before anything else. Never re-send under the same journal; retire the key on chain (its unsent transaction can then never execute) and use a new key with a new journal.
+
+### 2026-11-13: NEAR Connect sign-in needs the chooser inside the modal dialog and tolerates repeated accounts
+
+- What happened: on `/play` the NEAR Connect wallet chooser was invisible, then visible but unclickable, and after a Meteor approval the login failed with the generic "Sign-in was not completed".
+- Root cause: the SDK appends its chooser to `document.body`, but the wallet `<dialog>` is opened with `showModal()`, which paints above any z-index and makes everything outside it inert. Separately, Meteor returned the same testnet account six times without public keys, and the strict account validator rejects duplicates.
+- Rule: move SDK popups into the open modal dialog during login (`liftPopupsToTopLayer`); collapse repeated account ids at the adapter boundary and keep the validator strict. Check hit-testing with `elementFromPoint`, not only a screenshot. A real Meteor sign-in end to end is still unverified.
+
 ### 2026-11-13: A guard retry repeats the violation unless the feedback names it
 
 - What happened: every Indonesian glossary draft was rejected for "aman" ("safe"), and the one retry used the same word, so the turn fell back to the deterministic template.

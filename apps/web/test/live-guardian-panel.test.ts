@@ -208,6 +208,97 @@ describe("Guardian-held loan section", () => {
   });
 });
 
+describe("Edit limits", () => {
+  const active = () => {
+    const data = views();
+    (data.get_history as unknown[]) = [];
+    return data;
+  };
+  const input = (label: RegExp) => screen.getByLabelText(label) as HTMLInputElement;
+  const open = async (data = active()) => {
+    rpc({ guardian: "guardian.testnet", data });
+    const view = panel();
+    fireEvent.click(await screen.findByRole("button", { name: "Edit limits" }));
+    return view;
+  };
+
+  it("starts from the limits the chain holds and says what it will and will not do", async () => {
+    await open();
+    expect(input(/Max per action/).value).toBe("0.0001");
+    expect(input(/Max total/).value).toBe("0.001");
+    expect(input(/Reserve floor/).value).toBe("0.00002");
+    expect(input(/Act below health/).value).toBe("120");
+    expect(input(/Aim for health/).value).toBe("150");
+    expect(input(/Cooldown/).value).toBe("5");
+    expect(screen.queryByLabelText(/Reserve deposit/)).toBeNull();
+    expect(screen.getByText(/already spent 0.000041 USDC/)).toBeTruthy();
+  });
+
+  it("reports a bad value on its field and keeps the form open", async () => {
+    await open();
+    fireEvent.change(input(/Act below health/), { target: { value: "104.99" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+    expect(screen.getByText("Trigger must be at least 105%.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Update limits in wallet" })).toBeNull();
+  });
+
+  it("reviews only what changes, old to new, and an Auth session cannot sign", async () => {
+    const { container } = await open();
+    fireEvent.change(input(/Act below health/), { target: { value: "200" } });
+    fireEvent.change(input(/Aim for health/), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+    expect(screen.getByText("Act below health: 120% → 200%.")).toBeTruthy();
+    expect(screen.getByText("Aim for health: 150% → none.")).toBeTruthy();
+    expect(screen.queryByText(/Cooldown:/)).toBeNull();
+    const update = screen.getByRole("button", { name: "Update limits in wallet" });
+    expect((update as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/NEAR Auth accounts can view the Guardian/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(input(/Act below health/).value).toBe("200");
+    honest(container.textContent ?? "");
+  });
+
+  it("an unchanged form has nothing to send", async () => {
+    await open();
+    fireEvent.click(screen.getByRole("button", { name: "Review changes" }));
+    expect(screen.getByText("Nothing changed.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Update limits in wallet" })).toBeNull();
+  });
+
+  it.each<[string, (d: ReturnType<typeof views>) => void, RegExp]>([
+    [
+      "deactivated",
+      (d) => {
+        d.get_status.status = "deactivated";
+      },
+      /off/,
+    ],
+    [
+      "in flight",
+      (d) => {
+        Object.assign(d.get_status, {
+          in_flight: {
+            op_id: "3",
+            amount: "50",
+            fee: "1",
+            started_ns: String(BigInt(Date.now() - 5000) * 1_000_000n),
+            repay_phase: null,
+          },
+        });
+      },
+      /in flight/,
+    ],
+  ])("is disabled with the reason when %s", async (_name, change, reason) => {
+    const data = active();
+    change(data);
+    rpc({ guardian: "guardian.testnet", data });
+    panel();
+    const edit = await screen.findByRole("button", { name: "Edit limits" });
+    expect((edit as HTMLButtonElement).disabled).toBe(true);
+    expect(edit.title).toMatch(reason);
+  });
+});
+
 describe("readGuardianConfig", () => {
   const good = {
     network: "testnet",

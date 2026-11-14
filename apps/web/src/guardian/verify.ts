@@ -12,6 +12,9 @@
  *     contract or one of the two configured tokens.
  *   - own Guardian `pause` / `resume` / `deactivate` (`{}`) and `owner_withdraw_reserve({amount})`,
  *     1 yocto.
+ *   - own Guardian `set_policy({policy})`, 1 yocto: the policy must be byte-equal to the one the
+ *     owner reviewed, on an activated Guardian with nothing in flight. The contract still
+ *     re-validates it and refuses a lifetime cap below what was already spent.
  *   - debt token `ft_transfer_call({receiver_id: <own Guardian>, amount: reserve + activation
  *     fee, msg: {"activate":{}}})`, 1 yocto, with the fee and recipient the factory showed.
  *   - Guardian-held loan (task 5.5): the configured collateral token's `ft_transfer_call({
@@ -59,7 +62,8 @@ export type GuardianIntent =
   | { kind: "withdraw"; amount: bigint }
   | { kind: "collateral"; amount: bigint }
   | { kind: "borrow"; amount: bigint }
-  | { kind: "sweep"; token: SweepToken };
+  | { kind: "sweep"; token: SweepToken }
+  | { kind: "policy"; policy: GuardianPolicy };
 
 export interface GuardianExpectation {
   network: Network;
@@ -133,6 +137,7 @@ const ARG_KEYS: Record<GuardianIntent["kind"], readonly string[]> = {
   collateral: ["receiver_id", "amount", "msg"],
   borrow: ["amount"],
   sweep: ["token_id"],
+  policy: ["policy"],
 };
 
 const METHOD: Record<GuardianIntent["kind"], string> = {
@@ -147,6 +152,7 @@ const METHOD: Record<GuardianIntent["kind"], string> = {
   collateral: "ft_transfer_call",
   borrow: "owner_borrow",
   sweep: "owner_sweep",
+  policy: "set_policy",
 };
 
 export function verifyGuardianPayload(
@@ -281,6 +287,14 @@ export function verifyGuardianPayload(
         return refuse("The sweep is not for one of your Guardian's tokens.");
       break;
     }
+    case "policy":
+      problem = loanReady() ?? ownGuardian() ?? oneYocto();
+      if (
+        !problem &&
+        JSON.stringify(call.args.policy) !== JSON.stringify(policyWire(intent.policy))
+      )
+        problem = "The limits differ from the ones you reviewed.";
+      break;
   }
   if (problem) return refuse(problem);
 

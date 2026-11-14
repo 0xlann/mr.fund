@@ -93,7 +93,7 @@ Priorities: P0 must ship for the demo; P1 only after the P0 loop works end to en
 - **Outcome:** an accurate, timestamped picture of one Rhea lending position.
 - **Inputs:** account id (the user's wallet account, or the user's Guardian account under D18 G1), network config.
 - **Outputs:** `PositionSnapshot` (see ARCHITECTURE data model): supplied and collateral assets with amounts in on-chain integer units and decimals, borrowed assets, per-asset supply and borrow rates as reported by the protocol, asset factors, prices with their source and timestamp, block height, read time.
-- **States:** loading, fresh, stale (any input older than its freshness limit), error (RPC failure), empty (no position: Mr.Fund explains how to open one on Rhea and offers nothing to execute).
+- **States:** loading, fresh, stale (any input older than its freshness limit), error (RPC failure), empty (no position: Mr.Fund explains how to open one on Rhea; when the opening pair and an approved fee policy are configured, it can draft a collateral deposit card and, only after that deposit is observed in Rhea, a separate borrow card, each reviewed and signed in the user's own wallet; otherwise it offers nothing to execute. Planned and tested locally; not yet exercised in a real wallet).
 - **Rejection cases:** unsupported asset in the position → shown, excluded from advice, explained. Prices missing → no health figure shown as current.
 - **Acceptance:** for a real position, the health factor computed by F3 from the snapshot matches the value the Rhea app displays for the same account and moment (a public mainnet account, read-only), within a tolerance recorded in BUILD-PLAN P1.4; testnet has no public lending UI, so testnet positions are checked against recorded fixtures.
 

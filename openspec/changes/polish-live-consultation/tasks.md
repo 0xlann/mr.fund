@@ -41,6 +41,7 @@ Gate summary: all implementation is local and needs no external gate. Live laten
 ## 5. Integration and evidence (L)
 
 - [ ] 5.1 Rebase each branch on `dev` and fast-forward in order A, B, C; run `pnpm test`, `pnpm typecheck`, `pnpm lint` and `pnpm --filter @mrfund/web build`; record counts. Owner browser check of live chat, voice and speech with the evidence recorded as observed.
+  - Integration [V, local, 2026-11-13, `dev` at `a4af955`; the branches were already merged by other sessions, so nothing was rebased here]: native Windows `pnpm test` 1948 passed, 22 skipped (19 are POSIX-only watcher cases, 3 optional live/eval checks), 0 failed in 149 files; WSL2 Ubuntu/ext4 `pnpm test` 1967 passed, 3 skipped, 0 failed in 150 files; `pnpm typecheck` 0 errors; `biome check apps packages` clean on 399 files; `pnpm --filter @mrfund/web build` succeeded. `pnpm lint` at the repository root fails on this machine only because ignored `scratch/wt/*` worktrees carry nested `biome.json` files. **Still open:** the owner's browser check of voice input, reply speech and the live chat look in a real Chrome profile; automated tests use a fake recognizer and fake speech.
 - [ ] 5.2 **Owner:** update `docs/DESIGN.md` for the connect surfaces, live chat and voice states (agents do not edit DESIGN.md).
 
 ## Commit contract

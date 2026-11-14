@@ -1,4 +1,4 @@
-import { CircleHelp, Settings2, Volume2, VolumeX, Wallet } from "lucide-react";
+import { CircleHelp, Settings2, Square, Volume2, VolumeX, Wallet } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { amount } from "./display";
 import type { LiveHeaderStats } from "./live/headerStats";
@@ -23,6 +23,9 @@ interface Props {
   liveAccount?: string | undefined;
   /** Figures from the live position; when set, the demo figures above are not shown. */
   liveStats?: LiveHeaderStats | undefined;
+  /** True while a reply is being spoken; the Stop button shows only then. */
+  speaking?: boolean | undefined;
+  onStopSpeaking?: (() => void) | undefined;
 }
 export function ConsultationHeader({
   stage,
@@ -41,6 +44,8 @@ export function ConsultationHeader({
   setModal,
   liveAccount,
   liveStats,
+  speaking,
+  onStopSpeaking,
 }: Props) {
   return (
     <header
@@ -94,6 +99,17 @@ export function ConsultationHeader({
               />
             )}
           </section>
+        )}
+        {speaking && onStopSpeaking && (
+          <button
+            type="button"
+            aria-label="Stop speaking"
+            onClick={onStopSpeaking}
+            className="flex h-9 items-center gap-1.5 rounded-full border border-[#313334] bg-[#1c1e1f] px-3 text-xs text-[#edf3f5] hover:bg-[#25292b]"
+          >
+            <Square size={12} fill="currentColor" aria-hidden="true" />
+            <span className="max-sm:hidden">Stop</span>
+          </button>
         )}
         {!liveAccount && (
           <button

@@ -284,6 +284,67 @@ Refund ABI: the callback `on_guardian_created(owner_id, guardian_id, deposit)` r
 
 Usable funding [V for the parts, I for the sum]: registration is cheap because the counterparty refunds the excess of a registration-only deposit. Measured on both imported Rhea versions, the net cost to the Guardian was 0.1 NEAR for the lending contract and 0.00125 NEAR for each token. Adding the 2.75325 NEAR creation floor and about 0.034 NEAR of growth headroom for a full 50-entry history (computed from the 67-byte attempt record [I]) gives about 2.89 NEAR for a Guardian that is registered and can run its whole history. A Guardian holding only that cannot also absorb a later policy change that grows state much, so P2.8 sets the factory's `min_funding` and `max_funding` from this figure (a reasonable choice is a minimum of 2.9 NEAR and a maximum near 3.5 NEAR [I]); they are init parameters, not code.
 
+### Testnet factory deployment [V, testnet, 2026-11-13, owner authorized in chat]
+
+The factory was deployed to a new faucet-created account `f2-mrf-b1ce96af6a.testnet` (the earlier `f-mrf-b1ce96af6a.testnet` was left unused; its key was not imported). The build is **non-reproducible** (`cargo near build non-reproducible-wasm`, host environment), not the reproducible build the plan prefers, so the hash cannot yet be reproduced by others. Factory wasm 470,389 B, SHA-256 `c7640774a399e551d869d0571aa5da86196d13f7614a533bab161a3472d110af` (bs58 `ERLbh55fMnhfXqYoNuaxKECJXsv7YYC5hnRfQXNK1yen`), equal to the on-chain code at block 277536234; the embedded Guardian is 274,565 B (`get_code_len`).
+
+`new` succeeded with the D24 REF template: watcher `w-mrf-b1ce96af6a.testnet`, lending `contract.1689937928.burrow.testnet` (`0.11.0`), oracle `pyth-oracle.testnet`, debt `ref.fakes.testnet`, collateral `wrap.testnet`, fee recipient `fee-mrf-b1ce96af6a.testnet`, activation fee 0.4 REF, `max_price_age_sec` 60, funding bounds 2.9 to 3.5 NEAR (read back with `get_template` and `get_limits`). The two price ids are the placeholders Rhea reports for wNEAR (`…b37928`) and REF (all zeros); both tokens use Rhea `default_price`, which `protocol-trigger` honours before the oracle, so the on-chain trigger uses the fixed price and health does not follow a market. No Guardian has been created yet; `get_guardian` for `my-dev.testnet` returns `null`.
+
+[U]: the deploy transaction hash was not captured in the repository, and the 2.9 to 3.5 NEAR funding bounds are a proposal derived from the measured 2.75325 NEAR floor, not a final value.
+
+### First Guardian on testnet: creation, activation, loan and one repay [V, testnet, 2026-11-13, owner signed in Meteor; chain re-read by the agent]
+
+Owner `my-dev.testnet` created Guardian `db96d75ceb76d9bc8693963a3a0a53d8.f2-mrf-b1ce96af6a.testnet` from the factory above through the web panel, registered it on Rhea, REF and wNEAR (one transaction each, in that order), and activated it with a 0.5 REF transfer (0.1 REF reserve plus the 0.4 REF activation fee). Policy read back with `get_policy`: max per action 0.05 REF, lifetime cap 0.1 REF, reserve floor 0.02 REF, act below 300% (`trigger_hf_bps` 30000), no target, cooldown 300 s, action fee 0.004 REF. The Guardian holds a Rhea loan of its own: 0.1 wNEAR collateral and 0.08 REF debt, health 216% from `/api/position`, both tokens on Rhea `0.11.0` at fixed `default_price`.
+
+One `request_repay(50000000000000000)` (0.05 REF) was then submitted with 300 Tgas and zero deposit, signed by the **owner** `my-dev.testnet`, transaction [`Hb5nC4Sb…`](https://testnet.nearblocks.io/txns/Hb5nC4SboDszVExBibSSJ24eFAazecrf9v8N6PqGmzA) (`repay_requested`, op id 7). The Guardian's own on-chain trigger check passed (health 216% below 30000 bps), and after the callbacks: Guardian debt 0.030000008 REF, health 57,600 bps, reserve 0.1 to 0.046 REF, `spent_total` 0.054 REF (0.05 repay plus 0.004 fee), no operation in flight, and the fee recipient's REF balance rose to 0.408 REF (0.004 earlier manual fee, 0.4 activation, 0.004 action fee).
+
+What this does **not** show:
+
+- It was not the watcher. `request_repay` accepts the owner or the configured watcher, and the repository's watcher process cannot submit (its public submission gate is hard-disabled; WATCHER section of INTEGRATIONS). This is an operator-submitted request that the contract verified and executed, not an autonomous watcher run.
+- Prices are Rhea's fixed `default_price` for wNEAR and REF; health did not fall because of a market move, the trigger was set above the loan's health. The protocol-trigger path took the fixed price, not a fresh oracle price.
+- Only the repay transaction hash is recorded here. The hashes of creation, the three registrations, activation, the collateral deposit and the borrow were signed in the wallet and were not captured, so none is claimed.
+- No cooldown or paused-state negative test was run on a public network, and the factory build is not reproducible. The non-owner and over-limit rejections are recorded in the next section.
+
+### Public negative tests on the first Guardian [V, testnet, 2026-11-13, run by the agent with the lead's accounts]
+
+Permission boundary: `request_repay` is callable by the owner or the configured watcher `w-mrf-b1ce96af6a.testnet` only; every other caller panics, and a watcher request above `max_per_action` is recorded as a rejected attempt that moves no funds. Invariants exercised: the caller check and the per-action limit (I1–I8 keep reserve and lifetime accounting).
+
+| Attempt | Caller | Transaction | Observed result |
+| --- | --- | --- | --- |
+| `request_repay(0.001 REF)` | non-owner probe account `p-mrf-b1ce96af6a.testnet`, full-access key | [`CSMiVJvH…`](https://testnet.nearblocks.io/txns/CSMiVJvHWi1QfdCuHTS26rtRdh2mFUfy4m65U5Dg9ifr) | FINAL failure `Smart contract panicked: Owner or watcher only`; reserve, spent total and in-flight state identical before and after |
+| `request_repay(0.050000000000000001 REF)` (`max_per_action` + 1 atomic unit) | watcher `w-mrf-b1ce96af6a.testnet`, function-call key limited to `request_repay` on this Guardian, 1 NEAR allowance, sent by `apps/watcher` `operator:over-limit --execute` | [`2m5cxjPh…`](https://testnet.nearblocks.io/txns/2m5cxjPh458pAgQ8pMAubnRisFC2fDJTLSy8oX525Mqr) | FINAL success value `{"outcome":"rejected","op_id":"8","reason":"above_max_per_action"}`; event `request_rejected` for op 8; `get_history` lists op 8 `rejected`, `used` 0, `fee` 0; reserve `0.046`, `spent_total` `0.054` and `lifetime_remaining` `0.046` REF unchanged; `in_flight` null |
+
+The operator's own restart lookup of the recorded hash reported `rejected`, `AboveMaxPerAction` with the event and history entry matching, so the operator's verification passed. Its first output was `ambiguous`: it looks the hash up right after a no-wait broadcast, before the transaction is final. By design it then refuses another send; the second run looked the same hash up and returned the result.
+
+What this does **not** show:
+
+- A first attempt with the same scoped key failed before inclusion: the key had a 0.25 NEAR allowance and a 300 Tgas request costs about 0.30 NEAR at the observed gas price, so the RPC accepted the broadcast and no node included it (`AccessKeyNotEnoughAllowanceActionError` on a waiting send; the operator hides the broadcast error by design). That key was deleted on chain (its unsent transaction `4TvdmYuk…` can never execute) and replaced by the 1 NEAR key above with a fresh journal. The retired journal is kept next to the new one.
+- The watcher did not submit an accepted repay. This is one over-limit rejection submitted on request by an operator command, not an autonomous watcher run, and the scheduled watcher was still hard-disabled at that time (the next section records its first single-request run).
+- The Guardian history ABI has no operator-test label. The label `operator test request` exists only in the operator's output.
+- The custody attestations (exclusive key, no prior requests, persistent journal) are the agent's own: the key was created for this run and journaled on this machine's WSL disk, which does not prove persistence across host loss.
+- Prices are Rhea's fixed `default_price` values; cooldown and paused-state rejections were not run publicly.
+
+### First repay sent by the watcher process, on a second Guardian [V, testnet, 2026-11-14, local run, operator-started]
+
+Permission boundary: the watcher account `w-mrf-b1ce96af6a.testnet` signed with a function-call key limited to `request_repay` on this one Guardian (1 NEAR allowance); the contract re-checked the trigger, the limits and the cooldown. Invariants exercised: the same caller, trigger and per-action checks as above, plus the single-use journal (`apps/watcher` `--submit-testnet`): the submit gate closes before the journal write, so there is no second send.
+
+Guardian `32a8f0b796d281ff12044eb67d6e22bc.f2-mrf-b1ce96af6a.testnet`, owner `d-mrf-b1ce96af6a.testnet`. The owner created and activated it in the web panel and, in the Loan section, deposited 0.1 wNEAR and borrowed 0.1 REF. The panel's default trigger of 120% was raised to 200% with an owner-signed `set_policy` sent by the agent from a script with the owner's testnet key (its hash was not captured, so none is claimed); `get_policy` then showed `trigger_hf_bps` 20000. The watcher ran in WSL on the lead's laptop, started by hand with the four explicit flags.
+
+| Step | Transaction | Observed result |
+| --- | --- | --- |
+| `request_repay(0.013599890788191379 REF)` sent by the watcher process | [`8YXX7F6B…`](https://testnet.nearblocks.io/txns/8YXX7F6BTAKenTLXM3Wtdi4xVYGCopyW27LycTuZ2TPt) | FINAL success value `{"outcome":"executed","op_id":"6",…}`, 32 receipts, none failed; events `repay_requested`, `repay_started` (fee reserved 0.004 REF), Rhea `repay` of 0.013599890788191378 and `repay_settled` (used 0.013599890788191379, refunded 0, fee 0.004) |
+| second `request_repay(0.049989278280302608 REF)` sent by a fresh watcher process on a new, empty journal, about 11 minutes after it started (2026-11-14 12:46 UTC) | [`D9BprUfo…`](https://testnet.nearblocks.io/txns/D9BprUfogm64pFQNZy6ffEHhUyDeHPC4wBJLJngdZZ9A) | FINAL, signer `w-mrf-b1ce96af6a.testnet`, deposit 0, success value `{"outcome":"executed","op_id":"8","used":"49989278280302608","fee":"4000000000000000"}`, 32 receipts, none failed; events `repay_requested`, `repay_started`, `deposit`, `repay`, `repay_settled`; `get_history` lists op 6 and op 8 as `settled` |
+
+Chain reads after the first request: reserve 0.1 → 0.082400109211808621 REF, `spent_total` 0.017599890788191379 REF (the repay plus the 0.004 fee), nothing in flight, Guardian debt 0.086400131968897357 REF and health 200.00% as the web position read reports it. The amount is what the engine computed to bring health back to the trigger. The 0.1 REF debt before the request is the owner's borrow amount [I]; the repay events and the reserve change match it. No before/after reads were taken for the second request, so only its transaction outcome and history entry are claimed.
+
+The first watcher's log shows `submit_mode` `single_request_available`, `requests_enabled`, `request_sent`, `request_pending` and `request_outcome` `executed` for the first hash, and three self-healing `read_failed` `rpc_unavailable` ticks over about 12 minutes of polling. The second process's early log lines were not captured before the service buffer rolled over, so its hash is established from the chain (signer `w-mrf-…`), not from its log.
+
+What this does **not** show:
+
+- It is **not** autonomous or hosted: a person started each process on a laptop, and one request is allowed per journal. The second repay above came from a new process on a new journal that the operator created after the first was spent, not from the first process repeating. Hosting (D29/B8) is still undecided.
+- Prices are Rhea's fixed testnet `default_price` values, so the first trigger was reached by the owner's borrow and the policy, not by a market move; no market move was involved in the second either.
+- The owner's collateral, borrow and `set_policy` hashes are not recorded here.
+
 ### Final ABI for the client (task 4.3)
 
 All amounts are decimal-string `U128`; account ids are strings. The client builds unsigned payloads only; nothing here is signed by the agent.

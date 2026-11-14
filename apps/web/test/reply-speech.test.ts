@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { StrictMode } from "react";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  spokenSummary,
   stripReplyMarkup,
   useLiveReplySpeech,
   useReplySpeech,
+  useStopSpeechOnUserAction,
 } from "../src/play/speech/replySpeech";
 
 class Utterance {
@@ -105,4 +107,92 @@ it("retains live playback after strict-mode effect replay", () => {
   const { result } = renderHook(() => useLiveReplySpeech(reply, true), { wrapper: StrictMode });
   expect(result.current.speaking).toBe(true);
   expect(spoken.at(-1)?.text).toBe("Debt: 12\nfirst\nsecond");
+});
+
+describe("spokenSummary", () => {
+  it("keeps the first two sentences and leaves the rest to the screen", () => {
+    expect(spokenSummary("First one. Second one! Third one. Fourth one.")).toBe(
+      "First one. Second one!",
+    );
+  });
+  it("does not split inside numbers, percents or token amounts", () => {
+    expect(
+      spokenSummary("Health would be 691.24% after borrowing 0.5 REF. Nothing is signed."),
+    ).toBe("Health would be 691.24% after borrowing 0.5 REF. Nothing is signed.");
+  });
+  it("speaks a short reply whole, including line breaks and unpunctuated lines", () => {
+    expect(spokenSummary("Debt: 12\nfirst\nsecond")).toBe("Debt: 12\nfirst\nsecond");
+  });
+  it("caps a very long sentence at a word boundary", () => {
+    const long = `${"word ".repeat(80)}end.`;
+    const out = spokenSummary(long);
+    expect(out.length).toBeLessThanOrEqual(260);
+    expect(out.endsWith("word")).toBe(true);
+  });
+  it("is empty for blank text", () => {
+    expect(spokenSummary("  \n ")).toBe("");
+  });
+});
+
+it("speaks and lip-syncs only the spoken summary of a long reply", () => {
+  setup();
+  const { result } = renderHook(() => useReplySpeech(true));
+  act(() =>
+    result.current.play(7, "Alpha is first. Beta is second. Gamma is third.", "en-US", true, false),
+  );
+  expect(spoken.at(-1)?.text).toBe("Alpha is first. Beta is second.");
+  expect(result.current.cue.current.text).toBe("Alpha is first. Beta is second.");
+});
+
+describe("stopping a spoken reply", () => {
+  const speak = () => {
+    setup();
+    return renderHook(
+      ({ draft, busy }) => {
+        const speech = useReplySpeech(true);
+        useStopSpeechOnUserAction(speech.speaking, speech.cancel, draft, busy);
+        return speech;
+      },
+      { initialProps: { draft: "", busy: false } },
+    );
+  };
+
+  it("stops when the user starts typing, and not for an empty draft", () => {
+    const { result, rerender } = speak();
+    act(() => result.current.play(1, "Hello there.", "en-US", true, false));
+    expect(result.current.speaking).toBe(true);
+    rerender({ draft: "", busy: false });
+    expect(result.current.speaking).toBe(true);
+    rerender({ draft: "w", busy: false });
+    expect(result.current.speaking).toBe(false);
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("stops when a message is sent (busy), and when Escape is pressed while speaking", () => {
+    const { result, rerender } = speak();
+    act(() => result.current.play(1, "Hello there.", "en-US", true, false));
+    rerender({ draft: "", busy: true });
+    expect(result.current.speaking).toBe(false);
+    act(() => result.current.play(2, "Hello again.", "en-US", true, false));
+    expect(result.current.speaking).toBe(true);
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(result.current.speaking).toBe(false);
+  });
+
+  it("ignores other keys, and Escape while nothing is speaking", () => {
+    const { result } = speak();
+    act(() => result.current.play(1, "Hello there.", "en-US", true, false));
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    });
+    expect(result.current.speaking).toBe(true);
+    act(() => result.current.cancel());
+    cancel.mockClear();
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+    expect(cancel).not.toHaveBeenCalled();
+  });
 });

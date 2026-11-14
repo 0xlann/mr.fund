@@ -82,4 +82,8 @@ Permission boundary: a finite-allowance watcher function-call key may call only
 I1–I8 remain the contract boundary. Negative tests cover broad keys, stale or
 paused state, in-flight/cooldown, journal reuse and ambiguous sends. This does
 not guarantee transaction finalization, repayment, uptime, or protection from
-liquidation. The always-on public watcher remains hard-disabled.
+liquidation. The scheduled public watcher is read-only unless started with the single-request flags (INTEGRATIONS "Watcher local runtime").
+
+Allowance: the scoped key's allowance must exceed the prepaid gas cost. A 0.25 NEAR key failed to carry a 300 Tgas request on testnet (cost about 0.30 NEAR, LESSONS 2026-11-13); the evidence run used 1 NEAR. The operator reports `ambiguous` when it looks the hash up before finality; run the same command again and, with a recorded hash, it only looks that hash up.
+
+[V, testnet, 2026-11-13] The operator was exercised once publicly: a rejected over-limit request (op 8) on Guardian `db96d75c…f2-mrf-b1ce96af6a.testnet`. Evidence and limits: SMART-CONTRACT "Public negative tests on the first Guardian".

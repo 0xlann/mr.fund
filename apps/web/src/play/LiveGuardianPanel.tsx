@@ -17,7 +17,12 @@ import {
   historyNotice,
   inFlightNotice,
 } from "../guardian/controls";
-import { activationProgress, buildActivationStep, buildControl } from "../guardian/flow";
+import {
+  activationProgress,
+  buildActivationStep,
+  buildControl,
+  buildPolicyEdit,
+} from "../guardian/flow";
 import {
   buildLoanStep,
   type GuardianHoldings,
@@ -28,6 +33,8 @@ import {
   sweepableDebt,
 } from "../guardian/loan";
 import { useLiveGuardian } from "../guardian/useLiveGuardian";
+import { button, primary } from "./guardianStyles";
+import { PolicyEditor } from "./PolicyEditor";
 import type { LiveAccountView } from "./source/liveSession";
 
 const NEAR_DECIMALS = 24;
@@ -60,9 +67,6 @@ const CONTROL_LABEL: Record<ControlKind, string> = {
   deactivate: "Deactivate",
   withdraw: "Withdraw reserve",
 };
-const button =
-  "rounded-full border border-white/10 px-4 py-2 text-xs font-semibold disabled:opacity-45";
-const primary = `${button} border-0 bg-[#bad7c3] text-[#203327]`;
 
 /** Real Guardian setup, activation and controls for a live wallet session (tasks 4.1, 4.2). */
 export function LiveGuardianPanel({
@@ -340,6 +344,18 @@ export function LiveGuardianPanel({
           buildControl(guardian, kind, { ownerId: account.accountId, nowMs: Date.now() }),
         )
       }
+      limits={
+        <PolicyEditor
+          g={guardian}
+          token={token}
+          canSign={canSign}
+          onSave={(next) =>
+            store.run(
+              buildPolicyEdit(guardian, next, { ownerId: account.accountId, nowMs: Date.now() }),
+            )
+          }
+        />
+      }
       loan={
         <LoanSection
           g={guardian}
@@ -369,6 +385,7 @@ function GuardianStatus({
   t,
   canSign,
   onControl,
+  limits,
   loan,
   footer,
 }: {
@@ -377,6 +394,7 @@ function GuardianStatus({
   t: (v: bigint) => string;
   canSign: boolean;
   onControl: (kind: ControlKind) => void;
+  limits: ReactNode;
   loan: ReactNode;
   footer: ReactNode;
 }) {
@@ -429,6 +447,7 @@ function GuardianStatus({
       {controls.withdraw.reason && (
         <p className="text-xs text-[#a2a4a5]">Withdraw: {controls.withdraw.reason}</p>
       )}
+      {limits}
       {loan}
       <h3 className="text-xs uppercase text-[#898b8c]">History</h3>
       <p className="text-xs text-[#a2a4a5]">{historyNotice(g)}</p>

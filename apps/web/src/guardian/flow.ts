@@ -165,3 +165,15 @@ export function buildControl(
     ? { ok: true, intent: { kind: control }, payload: r.value }
     : { ok: false, reason: reasonOf(r.error) };
 }
+
+/** Unsigned `set_policy` for limits the owner reviewed; availability is checked by the panel. */
+export function buildPolicyEdit(
+  guardian: GuardianSnapshot,
+  policy: GuardianPolicy,
+  input: { ownerId: string; nowMs: number },
+): Built {
+  const r = guardianOwnerPayload(guardian, { kind: "set_policy", policy }, input);
+  return r.ok
+    ? { ok: true, intent: { kind: "policy", policy }, payload: r.value }
+    : { ok: false, reason: reasonOf(r.error) };
+}

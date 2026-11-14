@@ -1,10 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
-import {
-  CHAT_GENERATION_SETTINGS,
-  createNearAIProvider,
-} from "../../../apps/web/src/server/chat/provider";
+import { CHAT_GENERATION_SETTINGS, createNearAIProvider } from "../../server/src/chat/provider";
 import { type ManualReview, runEvaluation } from "../eval/run";
 
 // Parent hydrates env without printing secrets. Ordinary suites never call a provider.

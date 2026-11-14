@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createReplyController } from "./replyController";
 
-export { stripReplyMarkup } from "./replyController";
+export { spokenSummary, stripReplyMarkup } from "./replyController";
 
 export function useReplySpeech(sound: boolean) {
   const [speaking, setSpeaking] = useState(false);
@@ -41,5 +41,31 @@ export function useLiveReplySpeech(
     if (!sound) return;
     play(id, text, lang, true, false);
   }, [id, text, lang, sound, play, cancel]);
-  return { speaking: speech.speaking, cue: speech.cue };
+  return { speaking: speech.speaking, cue: speech.cue, stop: cancel };
+}
+
+/**
+ * A spoken reply stops as soon as the user starts typing, sends a message or presses Escape.
+ * `busy` is true while the user's own message is being answered, not while a reply is spoken.
+ */
+export function useStopSpeechOnUserAction(
+  speaking: boolean,
+  stop: () => void,
+  draft: string,
+  busy: boolean,
+) {
+  useEffect(() => {
+    if (draft.length > 0) stop();
+  }, [draft, stop]);
+  useEffect(() => {
+    if (busy) stop();
+  }, [busy, stop]);
+  useEffect(() => {
+    if (!speaking) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") stop();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [speaking, stop]);
 }

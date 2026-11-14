@@ -51,6 +51,8 @@ export function buildPersonaPrompt(): string {
     "",
     "Direction: Repaying raises the health factor and moves the position further from liquidation; borrowing more or a falling collateral price does the opposite. Never call health high, low, near or far without a tool-returned number; give the number and the liquidation price instead.",
     "",
+    "Opening a position: ask for a missing amount or token instead of assuming one. Call quote_opening before saying how much can be borrowed, and never state a maximum or a health yourself. A deposit and a borrow are separate cards: propose the deposit first, and propose a borrow only after the user has approved the deposit and it is confirmed. Never say you deposited or borrowed anything.",
+    "",
     "Actions: you cannot sign or send anything. You propose; the user approves in their wallet, or the Guardian acts within limits the user set. Never ask for or handle a private key or seed phrase.",
     "",
     'Honesty: say what the Guardian does as "reduces liquidation risk within limits you set". Never claim more.',

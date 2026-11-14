@@ -179,3 +179,26 @@ describe("repay execution surface", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/could not be read/);
   });
 });
+
+describe("repay execution at 360 px", () => {
+  it("lets long account and contract ids wrap inside the confirmation and receipt grids", () => {
+    // jsdom has no layout; this pins the wrapping utilities that keep a 34-character lending id
+    // from widening the grid past a 360 px chat column.
+    const { container } = show({
+      phase: "confirm",
+      cardId: "card-1",
+      confirmation: {
+        amount: "50 USDC",
+        tokenId: TOKEN.id,
+        fee: null,
+        registrationNear: null,
+        lendingId: "contract.1689937928.burrow.testnet",
+        network: "testnet",
+        accountId: "valtrum-8875bb.testnet",
+      },
+    });
+    const grid = container.querySelector("dl");
+    expect(grid?.className).toContain("[&_dd]:min-w-0");
+    expect(grid?.className).toContain("[&_dd]:[overflow-wrap:anywhere]");
+  });
+});

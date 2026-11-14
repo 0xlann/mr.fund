@@ -1,4 +1,4 @@
-import type { PositionView } from "../../server/position/presenter";
+import type { PositionView } from "@mrfund/server/position";
 import { percent } from "../display";
 import { formatAtomic } from "../source/formatAtomic";
 import type { LivePositionState } from "../source/livePosition";

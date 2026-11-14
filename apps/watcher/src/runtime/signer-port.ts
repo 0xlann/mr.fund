@@ -12,17 +12,19 @@ interface SignedRequest<T> {
   hash: string;
   signed: T;
 }
+/** Single-use write-ahead record: the intent is durable before signing, the hash before broadcast. */
+export interface SignerJournal {
+  begin(call: RepayCall): Promise<void>;
+  recordHash(hash: string): Promise<void>;
+  close(): Promise<void>;
+}
 interface SignerDependencies<T> {
   /** Must check network, Guardian and current access-key permission immediately before signing. */
   verify(): Promise<boolean>;
   /** Remains false until the external public submission gates have been met. */
   submissionAllowed(): boolean;
   /** Optional single-use durable barrier; no broadcast may precede its hash sync. */
-  journal?: {
-    begin(call: RepayCall): Promise<void>;
-    recordHash(hash: string): Promise<void>;
-    close(): Promise<void>;
-  };
+  journal?: SignerJournal;
   sign(call: RepayCall): Promise<SignedRequest<T>>;
   broadcast(signed: T): Promise<void>;
   lookup(hash: string): Promise<TxLookup>;

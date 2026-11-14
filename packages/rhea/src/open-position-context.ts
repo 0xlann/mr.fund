@@ -55,6 +55,8 @@ export interface OpenPositionContext {
   oracleValidityMs: number;
   /** Collateral tokens in the wallet, token atomic units. */
   walletCollateralBalance: bigint;
+  /** Debt tokens in the wallet, token atomic units; corroboration only, never proof of delivery. */
+  walletDebtBalance: bigint;
   registrations: {
     lending: Registration;
     collateralToken: Registration;
@@ -160,6 +162,9 @@ export async function readOpenPositionContext(
     const walletCollateralBalance = atomic(
       await c.view(req.collateralTokenId, "ft_balance_of", { account_id: accountId }),
     );
+    const walletDebtBalance = atomic(
+      await c.view(req.debtTokenId, "ft_balance_of", { account_id: accountId }),
+    );
     const snapshot: PositionSnapshot = {
       ...c.base,
       accountId,
@@ -177,6 +182,7 @@ export async function readOpenPositionContext(
       availableInternal: debtPools.availableInternal,
       oracleValidityMs: c.oracleValidityMs,
       walletCollateralBalance,
+      walletDebtBalance,
       registrations: {
         lending: await storage(cfg.lendingId),
         collateralToken: await storage(req.collateralTokenId),

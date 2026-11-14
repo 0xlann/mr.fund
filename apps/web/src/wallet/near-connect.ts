@@ -31,6 +31,45 @@ export function connectSigningWallet(network: NearNetwork): (() => Promise<Signi
   return signingWallets.get(network) ?? null;
 }
 
+/**
+ * The SDK appends its wallet chooser to `document.body`. While the app's modal `<dialog>` is open,
+ * the browser paints the dialog above any z-index and makes everything outside it inert, so the
+ * chooser is both hidden and unclickable. Move each SDK popup into the open modal dialog (the SDK
+ * removes it with `root.remove()`, which still works). Returns a stop function.
+ */
+export function liftPopupsToTopLayer(): () => void {
+  if (typeof document === "undefined" || typeof MutationObserver === "undefined") return () => {};
+  const lift = (node: Node) => {
+    if (!(node instanceof HTMLElement) || !node.classList.contains("hot-connector-popup")) return;
+    const dialog = [...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].find((d) =>
+      d.matches(":modal"),
+    );
+    if (dialog && !dialog.contains(node)) dialog.append(node);
+  };
+  const observer = new MutationObserver((records) => {
+    for (const record of records) for (const node of record.addedNodes) lift(node);
+  });
+  observer.observe(document.body, { childList: true });
+  return () => observer.disconnect();
+}
+
+/**
+ * Meteor returns the same account once per access key (observed 2026-11-13: six copies of one
+ * testnet account). Collapse repeats by account id so the strict validator still rejects
+ * malformed entries and duplicates it cannot explain. Non-arrays pass through to be rejected.
+ */
+export function uniqueAccounts(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  const seen = new Set<unknown>();
+  return value.filter((entry) => {
+    const id = (entry as { accountId?: unknown } | null)?.accountId;
+    if (typeof id !== "string") return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
 export function createNearConnectAdapter(
   config: WalletConfig,
   connector?: NearConnectSDK,
@@ -99,13 +138,23 @@ function buildAdapter(config: WalletConfig, connector?: NearConnectSDK): NearCon
       const wallet = await current(sdk);
       if (!wallet) return [];
       // getConnectedWallet's internal read omits network; never trust its accounts.
-      return validateAccounts(await wallet.getAccounts({ network: config.network }));
+      return validateAccounts(
+        uniqueAccounts(await wallet.getAccounts({ network: config.network })),
+      );
     },
     async login() {
-      const wallet = await (await getConnector()).connect();
-      const accounts = validateAccounts(await wallet.getAccounts({ network: config.network }));
-      if (accounts.length === 0) throw new Error("The wallet returned no connected accounts.");
-      return accounts;
+      const sdk = await getConnector();
+      const stopLifting = liftPopupsToTopLayer();
+      try {
+        const wallet = await sdk.connect();
+        const accounts = validateAccounts(
+          uniqueAccounts(await wallet.getAccounts({ network: config.network })),
+        );
+        if (accounts.length === 0) throw new Error("The wallet returned no connected accounts.");
+        return accounts;
+      } finally {
+        stopLifting();
+      }
     },
     async logout() {
       const sdk = await getConnector();

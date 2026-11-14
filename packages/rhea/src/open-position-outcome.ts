@@ -495,3 +495,36 @@ export function parseOpeningOutcome(
         : "failed";
   return ok({ execution, transactions });
 }
+
+/**
+ * A status lookup needs only the hash and who signed it. `createOutcomeReader` satisfies this
+ * (it reads nothing else), so the repay `OutcomeReader` type stays untouched.
+ */
+export interface OpeningOutcomeReader {
+  read(
+    lookup: { hash: string; signerId: string },
+    signal: AbortSignal,
+  ): Promise<Result<OutcomeEvidence | null, OutcomeError>>;
+}
+
+/**
+ * Read every planned transaction's FINAL evidence and parse it. An unavailable RPC leaves that
+ * transaction pending (never failed or succeeded); mismatched or malformed evidence is an error.
+ * Read-only: nothing here signs, sends or retries.
+ */
+export async function readOpeningOutcome(
+  plan: OpeningPlan,
+  reader: OpeningOutcomeReader,
+  signal: AbortSignal,
+): Promise<Result<OpeningOutcome, OutcomeError>> {
+  const valid = validateOpeningPlan(plan);
+  if (!valid.ok) return valid;
+  const inputs: unknown[] = [];
+  for (const t of plan.transactions) {
+    const r = await reader.read({ hash: t.hash, signerId: t.signerId }, signal);
+    if (r.ok) inputs.push(r.value);
+    else if (r.error.kind === "rpc_unavailable") inputs.push(null);
+    else return r;
+  }
+  return parseOpeningOutcome(inputs, plan);
+}

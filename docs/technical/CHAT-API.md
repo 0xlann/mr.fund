@@ -6,7 +6,7 @@
 
 The model has no signing or sending tool. Existing deterministic builders create supported draft payloads; the provider sees facts and card ids, never those payloads. Guardian automatic execution remains a separate watcher/contract flow. Fees must be configured explicitly; missing pricing does not mean zero pricing.
 
-Implementation: `packages/agent/src/chat*.ts`, `apps/web/src/server/chat/`, and `apps/web/src/app/api/chat/route.ts`. Evaluation: `packages/agent/eval/`.
+Implementation: `packages/agent/src/chat*.ts`, `packages/server/src/chat/` (handlers moved out of `apps/web`), `apps/web/src/app/api/chat/route.ts` (same-origin Next route) and `apps/api/` (standalone server). Evaluation: `packages/agent/eval/`.
 
 ## Request
 
@@ -45,6 +45,10 @@ Successful admission returns `text/event-stream`. Each SSE record is `data: <JSO
 After HTTP 200, consumers must inspect `error`/`done`, not assume inference succeeded. A template answer is visibly distinguishable through `summary.via`. Cancellation may close the stream without terminal events. A client must never execute a draft automatically because it arrived over chat; preserve review and wallet approval, validate account/network and refresh stale inputs.
 
 `summary.elapsedMs` measures the agent loop after context reads; measure full HTTP latency separately to include RPC preparation and framework overhead. Cached input and reasoning token counts are subsets of input/output, not extra tokens to add again. Usage is provider-reported, observed-only: absent metadata is represented as zero and interrupted/failed calls may consume unreported tokens. It is not a billing statement.
+
+## Opening-position tools (2026-11-13, `add-chat-open-position` 5.1)
+
+Status [V, local only]: the agent has two more tools, both closed to anything but the values below. `quote_opening({target_health_percent?})` is read-only and returns the engine's maximum additional borrow, target, collateral, wallet balance, APR, health and data age. `propose_opening({stage, amount, token?, target_health_percent?})` builds one draft card for a `deposit` or, as a separate later card, a `borrow`. Every other value (lending contract, version, account, pools, liquidity, registrations, fee, receivers, gas, messages) comes from a server-supplied `OpeningToolContext`; no argument can name one, and the payload never appears in the model's tool message. The tools answer `not_available` until the server supplies that context, and `fee_policy_missing` until an approved opening fee (or an approved none) is configured; neither is wired yet. A reply that quotes a maximum, health or threshold no tool returned fails the number guard, and claims of having deposited or borrowed are refused as execution claims. The persona was extended for this; the live model evaluation has not been rerun with it.
 
 ## Runtime limits and failure behavior
 
@@ -395,3 +399,17 @@ Cost per 36-case run: about 220k input and 38k output tokens, roughly USD 0.04 a
 | 08:35:37 | 36/36 | 7019 | pass | 36/36 | 33/36 (correct "batas bawah cadangan 20 USDC", "belum bisa memberi" and "no hay precio disponible" missed) |
 
 The glossary answers now quote the line as "1 (100%)" with a source, and `comparison.es` states the direction correctly. Each run surfaces one to three new correct phrasings that the regex rubric misses, so widening was stopped. Requiring the automated association rubric to pass 36/36 makes acceptance depend on wording luck rather than correctness. [I] Recommendation for the lead: keep the rubric as a screen, and let a recorded independent review be authoritative for semantic correctness when the rubric misses an answer the review approves. Numbers, forbidden claims, cards and the language minimum stay hard gates. No model is accepted until that decision is made and a run passes review.
+
+
+## Standalone API server (2026-11-14)
+
+Status [V, local tests only; not deployed anywhere]: the chat and position handlers live in `packages/server` as plain `Request` to `Response` functions, and `apps/api` serves them with Node's `http` module (`pnpm --filter @mrfund/api start`) so the API can run on a VPS while the web app is hosted elsewhere (for example Vercel). The Next route handlers remain as a same-origin fallback for local development; both use the same `createChatRoute` and `createPositionRoute`, so configuration cannot drift. The browser picks the target with `NEXT_PUBLIC_API_URL` (an https origin only, or http for localhost; an invalid value falls back to the same origin).
+
+| Variable | Where | Meaning |
+| --- | --- | --- |
+| `NEXT_PUBLIC_API_URL` | web build | Origin of the API server. Public by design. |
+| `API_PORT`, `API_HOST` | API server | Listen port (default 8787) and host (default `0.0.0.0`). |
+| `API_CORS_ORIGIN` | API server | Value of `Access-Control-Allow-Origin`; default `*`. |
+| all existing chat and position variables | API server | `NEAR_*`, `RHEA_LENDING_ID`, `NEARAI_*`, `FEE_*`, `OPENING_*` and so on, unchanged. |
+
+Permission boundary: the endpoints are public. A browser calls them cross-origin, so there is no shared secret to hold, and CORS is not access control (any non-browser client can call them). The per-IP and per-account rate limits are the only admission control, and without a trusted proxy IP header (`CHAT_PROXY_IP_HEADER` with `CHAT_PROXY_SECRET`) every caller shares one IP bucket. Anyone who can reach the API can spend the model credential's quota. The API signs and sends nothing. Not decided or measured: TLS and the domain (put a reverse proxy such as Caddy in front), a spend cap at the model provider, and the process manager. A closed client connection cancels the turn, as it does on the Next route.

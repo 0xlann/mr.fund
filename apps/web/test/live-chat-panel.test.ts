@@ -33,6 +33,7 @@ function panel(live: ReturnType<typeof fakeLive>) {
     createElement(LiveChatPanel, {
       live: live as never,
       repay: { store: null, view: { phase: "idle" } } as never,
+      opening: { store: null, view: { phase: "idle" } } as never,
       phone: false,
       setComposerFocused: () => {},
       setKeyboardHeight: () => {},

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createElement } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ConsultationHeader } from "../src/play/ConsultationHeader";
 import { liveHeaderStats } from "../src/play/live/headerStats";
 import { createDemoSource } from "../src/play/source/demoSource";
@@ -114,5 +114,43 @@ describe("ConsultationHeader", () => {
       ),
     );
     expect(stats()).toBe("Health —Debt —");
+  });
+});
+
+describe("the Stop speaking button", () => {
+  const props = (over: object) => ({
+    stage: "consult" as const,
+    chatRevealed: true,
+    phone: false,
+    keyboardHeight: null,
+    shortMobile: false,
+    healthText: "—",
+    dataState: "fresh" as const,
+    debt: 0n,
+    port: createDemoSource().position,
+    sound: true,
+    setSound: () => {},
+    setNotice: () => {},
+    connected: true,
+    setModal: () => {},
+    liveAccount: "alice.testnet",
+    liveStats: { health: "—", debt: "—" },
+    ...over,
+  });
+
+  it("appears only while Mr.Fund is speaking, in live and demo, and stops the voice", () => {
+    const stop = vi.fn();
+    const { rerender } = render(createElement(ConsultationHeader, props({ speaking: false })));
+    expect(screen.queryByRole("button", { name: "Stop speaking" })).toBeNull();
+    rerender(createElement(ConsultationHeader, props({ speaking: true, onStopSpeaking: stop })));
+    fireEvent.click(screen.getByRole("button", { name: "Stop speaking" }));
+    expect(stop).toHaveBeenCalledTimes(1);
+    rerender(
+      createElement(
+        ConsultationHeader,
+        props({ speaking: true, onStopSpeaking: stop, liveAccount: undefined }),
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Stop speaking" })).toBeTruthy();
   });
 });

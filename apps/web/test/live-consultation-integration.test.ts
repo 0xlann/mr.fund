@@ -39,6 +39,7 @@ function Harness({ id = "alice.testnet" }: { id?: string }) {
     createElement(LiveChatPanel, {
       live,
       repay: { store: null, view: { phase: "idle" } },
+      opening: { store: null, view: { phase: "idle" } },
       phone: false,
       setComposerFocused: () => {},
       setKeyboardHeight: () => {},

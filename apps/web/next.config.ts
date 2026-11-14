@@ -7,6 +7,7 @@ const config: NextConfig = {
     "@mrfund/engine",
     "@mrfund/guardian-client",
     "@mrfund/rhea",
+    "@mrfund/server",
     "@mrfund/shared",
   ],
 };

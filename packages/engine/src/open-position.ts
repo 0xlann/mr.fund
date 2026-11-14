@@ -505,6 +505,44 @@ function fixedPriceRisks(input: OpenPositionInput): string[] {
     : [];
 }
 
+/** Optional card inputs on top of the health options. */
+export interface OpeningDraftOptions extends HealthOptions {
+  /** Registrations still missing for this stage, shown as storage deposits (never as fees). */
+  storage?: { label: string; depositYocto: bigint }[];
+}
+
+const NEAR_DECIMALS = 24;
+
+function storageLines(
+  options: OpeningDraftOptions,
+): Result<{ numbers: CardNumber[]; assumptions: string[] }, EngineError> {
+  const lines = options.storage ?? [];
+  for (const l of lines)
+    if (
+      typeof l.label !== "string" ||
+      l.label.trim() === "" ||
+      typeof l.depositYocto !== "bigint" ||
+      l.depositYocto <= 0n
+    )
+      return invalid("a storage deposit needs a label and a positive amount");
+  return ok({
+    numbers: lines.map((l) => ({
+      label: `${l.label} deposit`,
+      after: decimalString(l.depositYocto, NEAR_DECIMALS),
+      unit: "NEAR",
+    })),
+    assumptions:
+      lines.length > 0
+        ? [
+            "Storage deposits are paid once to register your account with a contract. They are not service fees.",
+          ]
+        : [],
+  });
+}
+
+const sourceNote = (input: OpenPositionInput): string =>
+  `Source: Rhea ${input.lendingVersion} on ${input.snapshot.network} at block ${input.snapshot.blockHeight}.`;
+
 /** Engine-owned draft for the collateral deposit stage. */
 export function depositCardDraft(
   input: OpenPositionInput,
@@ -512,10 +550,12 @@ export function depositCardDraft(
   walletBalance: Atomic,
   fee: OpeningFee,
   nowMs: number,
-  options: HealthOptions = {},
+  options: OpeningDraftOptions = {},
 ): Result<CardDraft, EngineError> {
   const f = openingFees(fee);
   if (!f.ok) return f;
+  const st = storageLines(options);
+  if (!st.ok) return st;
   const q = quoteCollateralDeposit(input, amountAtomic, walletBalance, nowMs, options);
   if (!q.ok) return q;
   const collateral = input.snapshot.assets[input.collateralTokenId];
@@ -543,12 +583,13 @@ export function depositCardDraft(
       unit: debt.token.symbol,
     },
     { label: "Target health", after: pct(input.targetBps), unit: "%" },
+    ...st.value.numbers,
   ];
   return ok({
     action: "wallet_collateral_deposit",
     headline: `Deposit ${decimalString(amountAtomic, cd.decimals)} ${cd.symbol} as collateral`,
     numbers,
-    assumptions: [...q.value.assumptions, f.value.note],
+    assumptions: [...q.value.assumptions, sourceNote(input), ...st.value.assumptions, f.value.note],
     fees: f.value.lines,
     risks: [
       "Depositing does not borrow anything; borrowing is a separate step you approve afterwards.",
@@ -570,10 +611,12 @@ export function borrowCardDraft(
   amountAtomic: Atomic,
   fee: OpeningFee,
   nowMs: number,
-  options: HealthOptions = {},
+  options: OpeningDraftOptions = {},
 ): Result<CardDraft, EngineError> {
   const f = openingFees(fee);
   if (!f.ok) return f;
+  const st = storageLines(options);
+  if (!st.ok) return st;
   const q = quoteBorrow(input, amountAtomic, nowMs, options);
   if (!q.ok) return q;
   const numbers = borrowCardNumbers(input, q.value.value);
@@ -599,9 +642,13 @@ export function borrowCardDraft(
         after: decimalString(ceilBps(atomicOf(q.value.value.debtAfterInternal), apr), decimals),
         unit: symbol,
       },
+      { label: "Borrow APR", after: pct(apr), unit: "%" },
+      ...st.value.numbers,
     ],
     assumptions: [
       ...q.value.assumptions,
+      sourceNote(input),
+      ...st.value.assumptions,
       `Annual interest cost uses the current ${symbol} protocol-reported borrow APR of ${pct(apr)}% for one year, without compounding.`,
       f.value.note,
     ],
