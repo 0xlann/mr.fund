@@ -1,6 +1,6 @@
 import type { ChatProvider, ToolContext } from "@mrfund/agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createChatHandler } from "../src/server/chat/handler";
+import { createChatHandler } from "../src/chat/handler";
 
 const usage = { inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, reasoningTokens: 0 };
 const context = (): ToolContext => ({

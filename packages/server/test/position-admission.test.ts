@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPositionHandler } from "../src/server/position/handler";
+import { createPositionHandler } from "../src/position/handler";
 import { config } from "./position-rpc";
 
 const request = (id = "alice.testnet", ip = "1.2.3.4", authenticated = false) =>

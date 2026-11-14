@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { createPositionLoader } from "../src/server/position/loader";
+import { createPositionLoader } from "../src/position/loader";
 import { accountId, config, recording, rpc } from "./position-rpc";
 
 const signal = () => new AbortController().signal;

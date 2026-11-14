@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import { createContextLoader, readChatConfig } from "../src/server/chat/context";
+import { createContextLoader, readChatConfig } from "../src/chat/context";
 
 // Historical recorded RPC data, Simulated transport; never live product facts.
 const recording = JSON.parse(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePositionSelectors } from "../src/server/position/selectors";
+import { parsePositionSelectors } from "../src/position/selectors";
 
 describe("strict public position selectors", () => {
   it("accepts exactly two public selectors", () => {
